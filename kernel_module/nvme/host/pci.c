@@ -2260,6 +2260,7 @@ static int nvme_setup_io_queues(struct nvme_dev *dev)
 
 	nr_io_queues = dev->nr_allocated_queues - 1;
 	result = nvme_set_queue_count(&dev->ctrl, &nr_io_queues);
+	// printk("nvme_setup_io_queues nr is %d\n",nr_io_queues);
 	if (result < 0)
 		return result;
 

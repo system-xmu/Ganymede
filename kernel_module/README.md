@@ -1,20 +1,26 @@
-# GeminiFS
+# SNVMe
+Share the NVMe device between the CPU and GPU.
 
-## libmldk
-CPU lib for parsing the MLDK format
-GPU lib for parsing the MLDK format in GPU
-## src
-bam src to construct the GPU-NVMe path
-## kernel_module
-Modifield NVMe Module for CPU/GPU Share
-MLDK.ko used for metedata acquire and allocation
+To realize it, we modified the process of nvme_reset_work to allocated Pages on GPU, and reture its address address to create IO queue;
 
-## Comparision
-GPUfs
-GPUfs + GDS
-## benchmarks
-Fio
-GPU Fio
-Bam benchs
-Dataset Load
-CheckPoints load/restore
+## the funcs provided by Nvidia Driver
+
+nvUvmInterfaceGetP2PCaps
+
+nvUvmInterfaceMemoryFree
+nvUvmInterfaceAddressSpaceCreate
+nvUvmInterfaceP2pObjectCreate
+nvUvmInterfaceP2pObjectDestroy
+nvUvmInterfacePmaAllocPages
+nvUvmInterfacePmaFreePages
+nvUvmInterfacePmaPinPages
+nvUvmInterfaceMemoryAllocSys
+nvUvmInterfaceMemoryFree
+nvUvmInterfaceMemoryCpuMap
+nvUvmInterfaceMemoryCpuUnMap
+nvUvmInterfaceDupMemory
+nvUvmInterfacePagingChannelAllocate
+
+nvUvmInterfacePagingChannelsMap
+
+nvUvmInterfaceBindChannelResources

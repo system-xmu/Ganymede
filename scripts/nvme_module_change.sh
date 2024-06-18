@@ -2,7 +2,7 @@
   
 # 检查参数个数  
 if [ "$#" -ne 1 ]; then  
-    echo "Usage: $0 <origin|share>"  
+    echo "Usage: $0 <origin|share|reload>"  
     exit 1  
 fi  
 path="../kernel_module/nvme/host"
@@ -40,7 +40,11 @@ case "$1" in
         unload_modified_modules  
         # 注意：这里假设了内核版本为5.15，根据实际情况可能需要调整  
         load_custom_modules $KDIR  
-        ;;  
+        ;;
+    "reload")
+        unload_modified_modules
+        load_modified_modules $path
+    ;;  
     *)  
         echo "Invalid parameter. Usage: $0 <origin|share>"  
         exit 1  
