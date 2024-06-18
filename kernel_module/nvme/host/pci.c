@@ -29,12 +29,21 @@
 
 #include "trace.h"
 #include "nvme.h"
+#include "nvfs-pci.h"
 
 #define SQ_SIZE(q)	((q)->q_depth << (q)->sqes)
 #define CQ_SIZE(q)	((q)->q_depth * sizeof(struct nvme_completion))
 
 #define SGES_PER_PAGE	(PAGE_SIZE / sizeof(struct nvme_sgl_desc))
+static uint64_t gpu_bdf_map[64][16];
+static uint64_t nvme_bdf_map[64][16];
+// index tables
+static uint64_t gpu_info_table[64];
+static uint64_t nvme_info_table[64];
 
+struct nvme_gpu_map **snvme;
+int nvme_num;
+int gpu_num;
 /*
  * These can be higher, but we need to ensure that any command doesn't
  * require an sg allocation that needs more than a page of data.
@@ -3399,7 +3408,10 @@ static int __init nvme_init(void)
 	BUILD_BUG_ON(sizeof(struct nvme_create_sq) != 64);
 	BUILD_BUG_ON(sizeof(struct nvme_delete_queue) != 64);
 	BUILD_BUG_ON(IRQ_AFFINITY_MAX_SETS < 2);
-
+	nvme_num = 0;
+	gpu_num = 0;
+	nvfs_fill_gpu2peer_distance_table_once();
+	
 	return pci_register_driver(&nvme_driver);
 }
 
