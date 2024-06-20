@@ -1,4 +1,4 @@
-# GeminiFS
+# Ganymede
 
 ## libmldk
 CPU lib for parsing the MLDK format
