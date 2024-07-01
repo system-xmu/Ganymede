@@ -58,6 +58,9 @@ host_xfer_geminifs_file(host_fd_t fd_1,
                         int is_read);
 
 extern void
+host_refine_nvmeofst(host_fd_t fd);
+
+extern void
 host_close_geminifs_file(host_fd_t fd);
 
 #define GEMINIFS_H

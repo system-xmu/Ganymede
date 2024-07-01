@@ -303,15 +303,6 @@ host_close_geminifs_file(host_fd_t fd) {
   free(fd);
 }
 
-struct context1 {
-  int i;
-};
-void p1(struct geminiFS_table_entry *e, struct context1 *context) {
-  e->nvme_ofst = context->i;
-  context->i++;
-  //printf("%ld, %ld\n", e->raw_file_ofst, e->nvme_ofst);
-}
-
 struct refine_nvmeofst_context {
     int fd_file;
     int snvme_helper_fd;
@@ -351,8 +342,8 @@ host_refine_nvmeofst(host_fd_t fd) {
 
 int
 main() {
-  size_t size = (uint64_t)1 * (1 << 30)/*GB*/;
-  //size_t size = 4096;
+  //size_t size = (uint64_t)1 * (1 << 30)/*GB*/;
+  size_t size = 4096;
   host_fd_t fd = host_create_geminifs_file("checkpoint.geminifs", 4096, size);
 
   size_t * buf1 = malloc(size);
@@ -372,9 +363,6 @@ main() {
   for (size_t i = 0; i < 512; i++) {
   printf("%ld\n", buf2[i]);
   }
-  struct context1 c1;
-  c1.i = 0;
-  //host_for_each_table_entry(fd, p1, &c1);
   host_close_geminifs_file(fd);
 
   fd = host_open_geminifs_file("checkpoint.geminifs");
