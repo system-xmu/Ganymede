@@ -23,10 +23,16 @@
 
 #include "nvme.h"
 #include "fabrics.h"
+#include "snvme_help.h"
+
+#define SNVME_HELPERS_MINORS	16
 
 
-
-
+static dev_t snvme_helpers;
+static struct class *snvme_helpers_class;
+static struct device snvme_helpers_dev; //snvme device
+struct cdev snvme_helpers_cdev; //snvme cdev
+dev_t  devno;
 #define NVME_MINORS		(1U << MINORBITS)
 
 unsigned int admin_timeout = 60;
@@ -4620,7 +4626,92 @@ static inline void _nvme_check_size(void)
 	BUILD_BUG_ON(sizeof(struct nvme_directive_cmd) != 64);
 }
 
+static long snvme_helper_ioctl(struct file *file, unsigned int cmd,
+			      unsigned long arg)
+{
+	int ret;
+	void __user *argp = (void __user *)arg;
+	printk("snvme_helper_ioctl 1\n");
+	switch (cmd)
+	{
+		case SNVME_HELP_GET_NVME_OFFSET:
+		{
+			printk("SNVME_HELP_GET_NVME_OFFSET\n");
+			struct nds_mapping mapping;
+			if (copy_from_user(&mapping, argp, sizeof(struct nds_mapping)))
+				return -EFAULT;
 
+			ret = nds_retrieve_mapping(&mapping);
+
+			copy_to_user(argp,&mapping,sizeof(struct nds_mapping));
+			break;
+		}
+
+		default:
+			return -ENOTTY;
+	}
+	return 0;
+}
+static const struct file_operations snvme_helper_fops = {
+	.owner	 = THIS_MODULE,
+	.unlocked_ioctl	= snvme_helper_ioctl,
+};
+
+static int snvme_helpers_cdev_init(void)
+{
+	int ret;
+	struct device *device;
+
+	snvme_helpers_class = class_create(THIS_MODULE, "snvme-helpers");
+	if (IS_ERR(snvme_helpers_class)) {
+		ret = PTR_ERR(snvme_helpers_class);
+		pr_err("failed to create class: %d\n", ret);
+		return ret;;
+	}
+
+	ret = alloc_chrdev_region(&snvme_helpers, 0, SNVME_HELPERS_MINORS, "snvme-helpers");
+	if (ret < 0) {
+		pr_err("failed to allocate device numbers: %d\n", ret);
+		goto destroy_subsys_class;
+	}
+
+	devno =  MKDEV(MAJOR(snvme_helpers), 0); 
+	cdev_init(&snvme_helpers_cdev, &snvme_helper_fops);
+	snvme_helpers_cdev.owner = THIS_MODULE;
+    ret = cdev_add(&snvme_helpers_cdev, devno, 1);  
+    if (ret < 0) {  
+        pr_err("failed to add cdev : %d\n", ret);
+    	goto err_unregister_chrdev;  
+    }  
+
+
+	// 创建设备文件 
+	device = device_create(snvme_helpers_class, NULL, devno, NULL, "snvme_helper"); 
+	if (IS_ERR(device)) {	
+		ret = PTR_ERR(device);
+		pr_err("failed to create device_create: %d\n", ret);
+		goto destroy_cdev;
+	}
+	return 0;
+
+destroy_cdev:
+	cdev_del(&snvme_helpers_cdev);
+
+err_unregister_chrdev:
+	unregister_chrdev_region(snvme_helpers, SNVME_HELPERS_MINORS);
+destroy_subsys_class:
+	class_destroy(snvme_helpers_class);
+out:
+	return ret;
+}
+static void snvme_helpers_cdev_release(void)
+{
+	device_destroy(snvme_helpers_class,devno);
+	cdev_del(&snvme_helpers_cdev);
+	unregister_chrdev_region(snvme_helpers, SNVME_HELPERS_MINORS);
+	class_destroy(snvme_helpers_class);
+	printk("snvme_helpers_cdev_release success!\n");
+}
 static int __init nvme_core_init(void)
 {
 	int result = -ENOMEM;
@@ -4671,6 +4762,11 @@ static int __init nvme_core_init(void)
 		goto unregister_generic_ns;
 	}
 
+
+	result = snvme_helpers_cdev_init();
+	if (result < 0)
+		goto unregister_generic_ns;
+
 	return 0;
 
 unregister_generic_ns:
@@ -4693,6 +4789,9 @@ out:
 
 static void __exit nvme_core_exit(void)
 {
+
+	snvme_helpers_cdev_release();
+
 	class_destroy(nvme_ns_chr_class);
 	class_destroy(nvme_subsys_class);
 	class_destroy(nvme_class);

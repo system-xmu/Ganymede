@@ -5,7 +5,7 @@ obj-m += snvme.o
 # nvme.objs := pci.o
 
 
-snvme-core-y				:= core.o ioctl.o
+snvme-core-y				:= core.o ioctl.o snvme_help.o
 snvme-core-$(CONFIG_NVME_MULTIPATH)	+= multipath.o
 snvme-core-$(CONFIG_BLK_DEV_ZONED)	+= zns.o
 snvme-core-$(CONFIG_FAULT_INJECTION_DEBUG_FS)	+= fault_inject.o

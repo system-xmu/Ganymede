@@ -3410,7 +3410,7 @@ static int __init nvme_init(void)
 	BUILD_BUG_ON(IRQ_AFFINITY_MAX_SETS < 2);
 	nvme_num = 0;
 	gpu_num = 0;
-	nvfs_fill_gpu2peer_distance_table_once();
+	// nvfs_fill_gpu2peer_distance_table_once();
 	
 	return pci_register_driver(&nvme_driver);
 }
