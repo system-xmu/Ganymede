@@ -8,6 +8,7 @@
 #include <sys/mman.h>
 
 #include "geminifs.h"
+#include "../get-offset/get-offset.h"
 
 union geminiFS_magic
 the_geminiFS_magic = {
@@ -162,16 +163,14 @@ host__for_each_table_entry_1(host_fd_t fd,
   assert((void *) -1 != table);
   for (size_t i = 0; i < nr_table_entry; i++) {
     //printf("%d, ", cur_tb_lv);
-    fun(&(table[i]), context);
     rawfile_ofst_t table_base = table[i].raw_file_ofst;
-    if (table_base != 0)
+    if (table_base != 0) {
+      fun(&(table[i]), context);
       host__for_each_table_entry_1(fd, cur_tb_lv + 1, table_base, fun, context);
+    }
   }
 
   munmap(table, block_size);
-
-
-
 }
 
 void
@@ -313,13 +312,46 @@ void p1(struct geminiFS_table_entry *e, struct context1 *context) {
   //printf("%ld, %ld\n", e->raw_file_ofst, e->nvme_ofst);
 }
 
-void p(struct geminiFS_table_entry *e, void *context) {
-  //printf("%ld, %ld\n", e->raw_file_ofst, e->nvme_ofst);
+struct refine_nvmeofst_context {
+    int fd_file;
+    int snvme_helper_fd;
+    int block_size;
+};
+static void
+host_refine_nvmeofst_1(struct geminiFS_table_entry *e,
+                       void *context_1) {
+  struct refine_nvmeofst_context *context = context_1;
+  struct nds_mapping mapping;
+  mapping.file_fd = context->fd_file;
+  mapping.offset = e->raw_file_ofst;
+  mapping.len = context->block_size;
+  if (ioctl(context->snvme_helper_fd, SNVME_HELP_GET_NVME_OFFSET, &mapping) < 0) {
+      perror("ioctl failed");
+      assert(0);
+  } 
+  e->nvme_ofst = mapping.address;
+  printf("%lx, %lx\n", e->raw_file_ofst, e->nvme_ofst);
+}
+
+#define snvme_helper_path "/dev/snvme_helper"
+void
+host_refine_nvmeofst(host_fd_t fd) {
+  int fd_dev;
+  fd_dev = open(snvme_helper_path, O_RDWR);
+  if (fd_dev < 0) {
+      perror("Failed to open fd_dev");
+      assert(0);
+  }
+  struct refine_nvmeofst_context c;
+  c.fd_file = fd->fd;
+  c.snvme_helper_fd = fd_dev;
+  c.block_size = 1 << fd->block_bit;
+  host_for_each_table_entry(fd, host_refine_nvmeofst_1, &c);
 }
 
 int
 main() {
-  size_t size = (uint64_t)2 * (1 << 30)/*GB*/;
+  size_t size = (uint64_t)1 * (1 << 30)/*GB*/;
   //size_t size = 4096;
   host_fd_t fd = host_create_geminifs_file("checkpoint.geminifs", 4096, size);
 
@@ -342,8 +374,7 @@ main() {
   }
   struct context1 c1;
   c1.i = 0;
-  host_for_each_table_entry(fd, p1, &c1);
-  host_for_each_table_entry(fd, p, NULL);
+  //host_for_each_table_entry(fd, p1, &c1);
   host_close_geminifs_file(fd);
 
   fd = host_open_geminifs_file("checkpoint.geminifs");
@@ -352,8 +383,8 @@ main() {
   for (size_t i = 0; i < size/sizeof(size_t); i++) {
     assert(buf1[i] == buf2[i]);
   }
+  host_refine_nvmeofst(fd);
 
-  host_for_each_table_entry(fd, p, NULL);
   host_close_geminifs_file(fd);
   return 0;
 }
