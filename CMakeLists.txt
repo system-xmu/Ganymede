@@ -6,14 +6,14 @@ set (CMAKE_CXX_STANDARD 11)
 
 set (THREADS_PREFER_PTHREAD_FLAG ON)
 find_package (Threads REQUIRED)
-find_package (CUDA 8.0)
+find_package (CUDA 12.3)
 
 
 
 set (DIS "/opt/DIS" CACHE PATH "SISCI install location")
 set (NVIDIA "" CACHE PATH "Path to Nvidia driver source")
 set (KERNEL "/lib/modules/${CMAKE_SYSTEM_VERSION}/build" CACHE PATH "Path to kernel source, or module directory")
-set (FIO "" CACHE PATH "Path to FIO installation")
+
 
 set (nvidia_archs "70;80;90" CACHE STRING "NVIDIA compute architectures")
 set (no_smartio_samples true CACHE BOOL "Do not use SISCI for examples")
@@ -83,12 +83,7 @@ if (CUDA_FOUND AND NOT no_cuda)
 endif ()
 
 
-if (no_fio OR "${FIO}" STREQUAL "" OR NOT EXISTS "${FIO}/fio.h")
-    message(STATUS "Not building FIO")
-    set (no_fio true)
-else ()
-    message(STATUS "Using FIO found in ${FIO}")
-endif ()
+
 
 # Library source files
 set (libnvm_root "${PROJECT_SOURCE_DIR}/src")
@@ -108,7 +103,7 @@ file (GLOB libnvm_include "${PROJECT_BINARY_DIR}/include/*.h" "${PROJECT_SOURCE_
 # set (benchmarks_root "${PROJECT_SOURCE_DIR}/benchmarks")
 
 # # Samples shared files
-# set (samples_root "${CMAKE_SOURCE_DIR}/examples")
+set (samples_root "${CMAKE_SOURCE_DIR}/tools/")
 
 
 
@@ -121,7 +116,7 @@ set (CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 
 
 # Set include directories
-include_directories ("${PROJECT_BINARY_DIR}/include" "${PROJECT_SOURCE_DIR}/src/include")
+include_directories ("${PROJECT_BINARY_DIR}/include" "${PROJECT_SOURCE_DIR}/src/include" "${PROJECT_SOURCE_DIR}/src/freestanding/include")
 
 
 
@@ -158,21 +153,21 @@ install (TARGETS libnvm DESTINATION "lib")
 
 
 
-# Create kernel module makefile
-if (NOT no_module)
-    if (CUDA_FOUND AND NOT no_cuda AND EXISTS "${driver_dir}/Module.symvers")
-        set (module_ccflags "-D_CUDA -I${driver_include} -I${libnvm_root} -I${libnvm_root}/linux")
-        set (module_symbols "${driver_dir}/Module.symvers")
-        message(STATUS "Configuring kernel module with CUDA")
-    else ()
-        set (module_ccflags "-I${libnvm_root} -I${libnvm_root}/linux")
-        message(STATUS "Configuring kernel module without CUDA")
-    endif ()
+# # Create kernel module makefile
+# if (NOT no_module)
+#     if (CUDA_FOUND AND NOT no_cuda AND EXISTS "${driver_dir}/Module.symvers")
+#         set (module_ccflags "-D_CUDA -I${driver_include} -I${libnvm_root} -I${libnvm_root}/linux")
+#         set (module_symbols "${driver_dir}/Module.symvers")
+#         message(STATUS "Configuring kernel module with CUDA")
+#     else ()
+#         set (module_ccflags "-I${libnvm_root} -I${libnvm_root}/linux")
+#         message(STATUS "Configuring kernel module without CUDA")
+#     endif ()
 
-    configure_file ("${module_root}/Makefile.in" "${module_output}/Makefile" @ONLY)
+#     configure_file ("${module_root}/Makefile.in" "${module_output}/Makefile" @ONLY)
 
-    add_custom_target (kernel_module "${CMAKE_MAKE_PROGRAM}" WORKING_DIRECTORY "${module_output}")
-endif ()
+#     add_custom_target (kernel_module "${CMAKE_MAKE_PROGRAM}" WORKING_DIRECTORY "${module_output}")
+# endif ()
 
 
 # Create FIO plugin makefile
@@ -184,22 +179,22 @@ endif ()
 
 
 
-# # Macro for creating sample target
-# macro (make_sample target binary_name files)
-#     add_executable (${target} EXCLUDE_FROM_ALL ${files})
+# Macro for creating sample target
+macro (make_sample target binary_name files)
+    add_executable (${target} EXCLUDE_FROM_ALL ${files})
 
-#     add_dependencies (${target} libnvm)
-#     target_link_libraries (${target} libnvm)
+    add_dependencies (${target} libnvm)
+    target_link_libraries (${target} libnvm)
 
-#     # TODO: Do we want to install samples or not?
-#     #set_target_properties (${target} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/samples")
-#     set_target_properties (${target} PROPERTIES OUTPUT_NAME "nvm-${binary_name}")
+    # TODO: Do we want to install samples or not?
+    #set_target_properties (${target} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/samples")
+    set_target_properties (${target} PROPERTIES OUTPUT_NAME "nvm-${binary_name}")
 
-#     list (APPEND sample_targets "${target}")
-#     set (sample_targets "${sample_targets}" PARENT_SCOPE)
+    list (APPEND sample_targets "${target}")
+    set (sample_targets "${sample_targets}" PARENT_SCOPE)
 
-#     #install (TARGETS ${target} DESTINATION "bin")
-# endmacro ()
+    #install (TARGETS ${target} DESTINATION "bin")
+endmacro ()
 
 
 
@@ -293,10 +288,10 @@ endmacro ()
 
 
 # Add individual samples
-#add_subdirectory ("${samples_root}/rpc")
-#add_subdirectory ("${samples_root}/read-blocks")
-#add_subdirectory ("${samples_root}/identify")
-#add_subdirectory ("${samples_root}/integrity")
+# add_subdirectory ("${samples_root}/rpc")
+# add_subdirectory ("${samples_root}/read-blocks")
+add_subdirectory ("${samples_root}/identify")
+add_subdirectory ("${samples_root}/integrity")
 
 # Build all samples
 add_custom_target (samples DEPENDS ${sample_targets})

@@ -4,12 +4,12 @@ project (libnvm-samples)
 set (THREADS_PREFER_PTHREAD_FLAG ON)
 find_package (Threads REQUIRED)
 
-make_sample (integrity-smartio integrity-util "integrity.c;transfer.c;util.c")
+make_sample (integrity-smartio integrity-util "integrity.cpp;transfer.cpp;util.cpp")
 set_multithread (integrity-smartio)
-set_sisci (integrity-smartio)
+# set_sisci (integrity-smartio)
 
 
-make_sample (integrity-module integrity-util "integrity.c;transfer.c;util.c")
+make_sample (integrity-module integrity-util "integrity.cpp;transfer.cpp;util.cpp")
 set_multithread (integrity-module)
 
 
