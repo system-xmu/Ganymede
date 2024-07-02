@@ -141,7 +141,7 @@ int nvm_ctrl_init(nvm_ctrl_t** ctrl, int filedes)
         dprintf("Failed to set file descriptor control: %s\n", strerror(errno));
         return errno;
     }
-
+    // 取消mmap
     const size_t mm_size = NVM_CTRL_MEM_MINSIZE;
     void* mm_ptr = mmap(NULL, mm_size, PROT_READ|PROT_WRITE, MAP_SHARED|MAP_FILE|MAP_LOCKED, dev->fd, 0);
     if (mm_ptr == NULL)
@@ -151,7 +151,7 @@ int nvm_ctrl_init(nvm_ctrl_t** ctrl, int filedes)
         dprintf("Failed to map device memory: %s\n", strerror(errno));
         return errno;
     }
-
+    
     err = _nvm_ctrl_init(ctrl, dev, &ops, DEVICE_TYPE_IOCTL, mm_ptr, mm_size);
     if (err != 0)
     {

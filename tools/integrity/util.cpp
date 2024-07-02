@@ -17,10 +17,7 @@ int create_buffer(struct buffer* b, nvm_aq_ref ref, size_t size)
 
     const nvm_ctrl_t* ctrl = nvm_ctrl_from_aq_ref(ref);
 
-#ifdef __DIS_CLUSTER__
-    b->buffer = NULL;
-    status = nvm_dis_dma_create(&b->dma, ctrl, size, 0);
-#else
+
     status = posix_memalign(&b->buffer, ctrl->page_size, size);
     if (status != 0)
     {
@@ -29,7 +26,7 @@ int create_buffer(struct buffer* b, nvm_aq_ref ref, size_t size)
     }
 
     status = nvm_dma_map_host(&b->dma, ctrl, b->buffer, size);
-#endif
+
     if (!nvm_ok(status))
     {
         free(b->buffer);

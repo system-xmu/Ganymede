@@ -349,9 +349,7 @@ static int request_queues(nvm_aq_ref ref, struct arguments* args, struct queue**
 
 int main(int argc, char** argv)
 {
-#ifdef __DIS_CLUSTER__
-    sci_error_t err;
-#endif
+
     struct arguments args;
     nvm_ctrl_t* ctrl;
     int status;
@@ -397,21 +395,10 @@ int main(int argc, char** argv)
     }
 
 
-#ifdef __DIS_CLUSTER__
-    // Start SISCI API
-    SCIInitialize(0, &err);
-#endif
+
 
     // Get controller reference
-#ifdef __DIS_CLUSTER__
-    status = nvm_dis_ctrl_init(&ctrl, args.device_id);
-    if (status != 0)
-    {
-        fclose(fp);
-        fprintf(stderr, "Failed to get controller reference: %s\n", strerror(status));
-        exit(1);
-    }
-#else
+
     int fd = open(args.device_path, O_RDWR | O_NONBLOCK);
     if (fd < 0)
     {
@@ -430,14 +417,8 @@ int main(int argc, char** argv)
 
     close(fd);
 
-#endif
-
-    // Create admin queues
-#ifdef __DIS_CLUSTER__
-    status = nvm_dis_dma_create(&aq_dma, ctrl, ctrl->page_size * 2, 0);
-#else
     status = nvm_dma_create(&aq_dma, ctrl, ctrl->page_size * 2);
-#endif
+
     if (status != 0)
     {
         nvm_ctrl_free(ctrl);
