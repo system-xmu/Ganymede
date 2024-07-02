@@ -30,7 +30,7 @@
 
 static dev_t snvme_helpers;
 static struct class *snvme_helpers_class;
-static struct device snvme_helpers_dev; //snvme device
+
 struct cdev snvme_helpers_cdev; //snvme cdev
 dev_t  devno;
 #define NVME_MINORS		(1U << MINORBITS)
@@ -4631,12 +4631,12 @@ static long snvme_helper_ioctl(struct file *file, unsigned int cmd,
 {
 	int ret;
 	void __user *argp = (void __user *)arg;
-	printk("snvme_helper_ioctl 1\n");
+	// printk("snvme_helper_ioctl 1\n");
 	switch (cmd)
 	{
 		case SNVME_HELP_GET_NVME_OFFSET:
 		{
-			printk("SNVME_HELP_GET_NVME_OFFSET\n");
+			// printk("SNVME_HELP_GET_NVME_OFFSET\n");
 			struct nds_mapping mapping;
 			if (copy_from_user(&mapping, argp, sizeof(struct nds_mapping)))
 				return -EFAULT;

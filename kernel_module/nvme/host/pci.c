@@ -30,6 +30,38 @@
 #include "trace.h"
 #include "nvme.h"
 #include "nvfs-pci.h"
+#include "list.h"`
+#include "snvme_help.h"
+#define DRIVER_NAME         "libsnvm helper"
+
+static dev_t dev_first;
+dev_t  snvm_devno;
+static struct device snvm_dev; //snvme device
+struct cdev snvm_cdev; //snvme cdev
+
+static struct mutex snvm_control_lock;
+static unsigned int snvm_registered;
+/* Device class */
+static struct class* dev_class;
+
+
+/* List of controller devices */
+static struct list ctrl_list;
+
+
+/* List of mapped host memory */
+static struct list host_list;
+
+
+/* List of mapped device memory */
+static struct list device_list;
+
+/* Number of devices */
+static int max_num_ctrls = 64;
+module_param(max_num_ctrls, int, 0);
+MODULE_PARM_DESC(max_num_ctrls, "Number of controller devices");
+
+static int curr_ctrls = 0;
 
 #define SQ_SIZE(q)	((q)->q_depth << (q)->sqes)
 #define CQ_SIZE(q)	((q)->q_depth * sizeof(struct nvme_completion))
@@ -2971,7 +3003,8 @@ static int nvme_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	struct nvme_dev *dev;
 	unsigned long quirks = id->driver_data;
 	size_t alloc_size;
-
+    if(pdev->vendor == 0x8086 && pdev->device==0x4140)
+        printk("this device is p5800x!\n");
 	node = dev_to_node(&pdev->dev);
 	if (node == NUMA_NO_NODE)
 		set_dev_node(&pdev->dev, first_memory_node);
@@ -3402,7 +3435,7 @@ static struct pci_driver nvme_driver = {
 	.err_handler	= &nvme_err_handler,
 };
 
-static int __init nvme_init(void)
+static int snvm_register_driver(void)
 {
 	BUILD_BUG_ON(sizeof(struct nvme_create_cq) != 64);
 	BUILD_BUG_ON(sizeof(struct nvme_create_sq) != 64);
@@ -3414,14 +3447,162 @@ static int __init nvme_init(void)
 	
 	return pci_register_driver(&nvme_driver);
 }
-
-static void __exit nvme_exit(void)
+static void snvm_unregister_driver(void)
 {
 	pci_unregister_driver(&nvme_driver);
 	flush_workqueue(nvme_wq);
 }
 
-MODULE_AUTHOR("Matthew Wilcox <willy@linux.intel.com>");
+static long snvm_ioctl(struct file *file, unsigned int cmd,
+			      unsigned long arg)
+{
+	int ret;
+	void __user *argp = (void __user *)arg;
+	printk("snvme_helper_ioctl 1\n");
+	switch (cmd)
+	{
+        case SNVM_REGISTER_DRIVER:
+        {
+            mutex_lock(&snvm_control_lock);
+            if(snvm_registered)
+            {
+                printk("error, snvme has registered!\n");
+                ret = -1;
+            }
+            else
+            {
+                ret = 0;
+                snvm_registered = 1;
+            }
+            mutex_unlock(&snvm_control_lock);
+            if(ret < 0)
+                return ret;
+            ret = snvm_register_driver();
+            return ret;
+        }
+        case SNVM_UNREGISTER_DRIVER:
+        {
+            mutex_lock(&snvm_control_lock);
+            if(!snvm_registered)
+            {
+                ret = -1;
+                printk("error, snvme did not registered now!\n");
+            }
+            else
+            {
+                ret = 0;
+                snvm_registered = 0;
+            }
+            mutex_unlock(&snvm_control_lock);
+            if(ret < 0)
+                return ret;
+            snvm_unregister_driver();
+            return ret;
+        }
+		default:
+			return -ENOTTY;
+	}
+	return 0;
+}
+
+static const struct file_operations snvm_fops = {
+	.owner	 = THIS_MODULE,
+	.unlocked_ioctl	= snvm_ioctl,
+};
+
+static int snvm_cdev_init(void)
+{
+	int ret;
+	struct device *device;
+
+    mutex_init(&snvm_control_lock);
+
+	dev_class = class_create(THIS_MODULE, DRIVER_NAME);
+	if (IS_ERR(dev_class)) {
+		ret = PTR_ERR(dev_class);
+		pr_err("failed to create class: %d\n", ret);
+		return ret;;
+	}
+
+	ret = alloc_chrdev_region(&dev_first, 0, max_num_ctrls, DRIVER_NAME);
+	if (ret < 0) {
+		pr_err("failed to allocate device numbers: %d\n", ret);
+		goto destroy_subsys_class;
+	}
+
+	snvm_devno =  MKDEV(MAJOR(dev_first), 0); 
+	cdev_init(&snvm_cdev, &snvm_fops);
+	snvm_cdev.owner = THIS_MODULE;
+    ret = cdev_add(&snvm_cdev, snvm_devno, 1);  
+    if (ret < 0) {  
+        pr_err("failed to add cdev : %d\n", ret);
+    	goto err_unregister_chrdev;  
+    }  
+
+
+	// 创建设备文件 
+	device = device_create(dev_class, NULL, snvm_devno, NULL, "snvm_control"); 
+	if (IS_ERR(device)) {	
+		ret = PTR_ERR(device);
+		pr_err("failed to create device_create: %d\n", ret);
+		goto destroy_cdev;
+	}
+	return 0;
+
+destroy_cdev:
+	cdev_del(&snvm_cdev);
+err_unregister_chrdev:
+	unregister_chrdev_region(dev_first, max_num_ctrls);
+destroy_subsys_class:
+	class_destroy(dev_class);
+out:
+	return ret;
+}
+
+static void snvm_cdev_release(void)
+{
+	device_destroy(dev_class,snvm_devno);
+	cdev_del(&snvm_cdev);
+	unregister_chrdev_region(dev_first, max_num_ctrls);
+	class_destroy(dev_class);
+    mutex_destroy(&snvm_control_lock);
+	printk("snvme_helpers_cdev_release success!\n");
+}
+
+
+static int __init nvme_init(void)
+{
+    int ret;
+    snvm_registered = 0;
+    list_init(&ctrl_list);
+    list_init(&host_list);
+    list_init(&device_list);
+    // Set up character device creation
+    ret = snvm_cdev_init();
+    return ret;
+}
+
+
+static void __exit nvme_exit(void)
+{
+    // unsigned long remaining = 0;
+
+    // remaining = clear_map_list(&device_list);
+    // if (remaining != 0)
+    // {
+    //     printk(KERN_NOTICE "%lu GPU memory mappings were still in use on unload\n", remaining);
+    // }
+
+    // remaining = clear_map_list(&host_list);
+    // if (remaining != 0)
+    // {
+    //     printk(KERN_NOTICE "%lu host memory mappings were still in use on unload\n", remaining);
+    // }
+    snvm_cdev_release();
+
+}
+
+MODULE_AUTHOR("Shi Qiu <qiushijsxs@stu.xmu.edu.cn>");
 MODULE_LICENSE("GPL");
 MODULE_VERSION("1.0");
 module_init(nvme_init);
