@@ -32,6 +32,7 @@
 #include "nvfs-pci.h"
 #include "list.h"`
 #include "snvme_help.h"
+#include "ctrl.h"
 #define DRIVER_NAME         "libsnvm helper"
 
 static dev_t dev_first;
@@ -3420,6 +3421,86 @@ static const struct pci_device_id nvme_id_table[] = {
 };
 MODULE_DEVICE_TABLE(pci, nvme_id_table);
 
+static long snvm_dev_map_ioctl(struct file* file, unsigned int cmd, unsigned long arg)
+{
+	return 0;
+}
+static int svm_mmap_registers(struct file* file, struct vm_area_struct* vma)
+{
+	return 0;
+}
+/* Define file operations for device file */
+static const struct file_operations snvm_dev_fops = 
+{
+    .owner = THIS_MODULE,
+    .unlocked_ioctl = snvm_dev_map_ioctl,
+    .mmap = svm_mmap_registers,
+};
+
+static int snvm_find_all_device(int max_devices, unsigned int class) {
+	unsigned int count = 0, bw = 0;
+	unsigned short depth;
+	struct pci_dev *pdev = NULL, *ppdev = NULL;
+	struct ctrl* ctrl = NULL;
+	int err;
+	while ((pdev = pci_get_class(class, pdev)) != NULL) {
+		uint64_t pdevinfo;
+		unsigned int idx = UINT_MAX;
+
+		// devices of our interest should be associated with bus
+		if (!pdev->bus)
+			continue;
+
+		if (pdev->class != class) {
+			printk("unexpected pci class mismatch, abort path find!\n");
+			return -1;
+		}
+		count++;
+
+		ctrl = ctrl_get(&ctrl_list, dev_class, pdev, curr_ctrls+1);
+		if (IS_ERR(ctrl))
+		{
+			return PTR_ERR(ctrl);
+		}
+		printk("ctrl_get success!\n");
+		err = ctrl_chrdev_create(ctrl, dev_first, &snvm_dev_fops);
+		if (err != 0)
+		{
+			ctrl_put(ctrl);
+			return err;
+		}
+		printk("ctrl_chrdev_create success!\n");
+		++curr_ctrls;
+
+		if (count >= max_devices) {
+			// we are exiting, drop the last ref
+			pci_dev_put(pdev); // pci_get_class
+			printk("devices from class type :0x%x exceeds device table limits!\n",
+				class);
+			break;
+		}
+	}
+	return 0;
+}
+static unsigned long clear_ctrl_list(struct list* list)
+{
+    unsigned long i = 0;
+    struct list_node* ptr = list_next(&list->head);
+    struct ctrl* ctrl;
+
+    while (ptr != NULL)
+    {
+        ctrl = container_of(ptr, struct ctrl, list);
+        printk("clear_ctrl_list 1\n");
+		ctrl_put(ctrl);
+        ++i;
+
+        ptr = list_next(&list->head);
+    }
+
+    return i;
+}
+
 static struct pci_driver nvme_driver = {
 	.name		= "nvme",
 	.id_table	= nvme_id_table,
@@ -3578,13 +3659,21 @@ static int __init nvme_init(void)
     list_init(&host_list);
     list_init(&device_list);
     // Set up character device creation
+
+
     ret = snvm_cdev_init();
-    return ret;
+	if(ret)
+		return ret;
+	ret = snvm_find_all_device(max_num_ctrls,PCI_CLASS_STORAGE_EXPRESS);
+	if(ret)
+		return ret;
+    return 0;
 }
 
 
 static void __exit nvme_exit(void)
 {
+	int ret;
     // unsigned long remaining = 0;
 
     // remaining = clear_map_list(&device_list);
@@ -3598,6 +3687,9 @@ static void __exit nvme_exit(void)
     // {
     //     printk(KERN_NOTICE "%lu host memory mappings were still in use on unload\n", remaining);
     // }
+	ret = clear_ctrl_list(&ctrl_list);
+	if(ret!=curr_ctrls)
+		printk("release ctrl error!, cur is %d, release %d",curr_ctrls,ret);
     snvm_cdev_release();
 
 }

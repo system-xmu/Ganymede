@@ -11,7 +11,7 @@ snvme-core-$(CONFIG_BLK_DEV_ZONED)	+= zns.o
 snvme-core-$(CONFIG_FAULT_INJECTION_DEBUG_FS)	+= fault_inject.o
 snvme-core-$(CONFIG_NVME_HWMON)		+= hwmon.o
 
-snvme-objs := nvfs-pci.o list.o pci.o
+snvme-objs := nvfs-pci.o list.o ctrl.o pci.o 
 
 
 KERNEL_SRC := /home/qs/linux

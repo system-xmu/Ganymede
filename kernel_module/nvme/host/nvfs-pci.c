@@ -648,9 +648,9 @@ void nvfs_fill_gpu2peer_distance_table_once(void) {
 	__nvfs_find_all_device_paths(gpu_bdf_map, MAX_GPU_DEVS, PCI_CLASS_DISPLAY_3D << 8);
 	__nvfs_find_all_device_paths(gpu_bdf_map, MAX_GPU_DEVS, PCI_CLASS_DISPLAY_VGA << 8);
 
-	nvfs_dbg("nvfs listing IB paths:\n");
-	__nvfs_find_all_device_paths(peer_bdf_map, MAX_PEER_DEVS, PCI_CLASS_NETWORK_INFINIBAND << 8);
-	__nvfs_find_all_device_paths(peer_bdf_map, MAX_PEER_DEVS, PCI_CLASS_NETWORK_ETHERNET << 8);
+	// nvfs_dbg("nvfs listing IB paths:\n");
+	// __nvfs_find_all_device_paths(peer_bdf_map, MAX_PEER_DEVS, PCI_CLASS_NETWORK_INFINIBAND << 8);
+	// __nvfs_find_all_device_paths(peer_bdf_map, MAX_PEER_DEVS, PCI_CLASS_NETWORK_ETHERNET << 8);
 
 	nvfs_dbg("nvfs listing NVME paths:\n");
 	__nvfs_find_all_device_paths(peer_bdf_map, MAX_PEER_DEVS, PCI_CLASS_STORAGE_EXPRESS);
