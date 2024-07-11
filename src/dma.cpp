@@ -31,7 +31,8 @@ struct map
     uint32_t            count;  // Reference count
     struct controller*  ctrl;   // Device reference
     struct va_range*    va;     // Virtual address range
-
+    int                 is_cq;  // cq = 1, sq = 0, uninitialized < 0
+    int                 ioq_idx;
     va_range_free_t     release;// Callback for releasing address range
     va_unmap_t          unmap;// Callback for unmapping address range
 };
@@ -100,7 +101,8 @@ static int create_map(struct map** md, const nvm_ctrl_t* ctrl, struct va_range* 
     m->va = va;
     m->release = release;
     m->unmap = NULL;
-
+    m->is_cq = -1;
+    m->ioq_idx = -1;
     *md = m;
     return 0;
 }

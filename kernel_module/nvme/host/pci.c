@@ -30,9 +30,11 @@
 #include "trace.h"
 #include "nvme.h"
 #include "nvfs-pci.h"
-#include "list.h"`
+#include "list.h"
 #include "snvme_help.h"
 #include "ctrl.h"
+#include "map.h"
+#include "../../../src/linux/ioctl.h"
 #define DRIVER_NAME         "libsnvm helper"
 
 static dev_t dev_first;
@@ -3423,7 +3425,154 @@ MODULE_DEVICE_TABLE(pci, nvme_id_table);
 
 static long snvm_dev_map_ioctl(struct file* file, unsigned int cmd, unsigned long arg)
 {
-	return 0;
+	int ret;
+    struct ctrl* ctrl = NULL;
+    struct nvm_ioctl_map request;
+    struct map* map = NULL;
+	
+	u64 addr;
+    ctrl = ctrl_find_by_inode(&ctrl_list, file->f_inode);
+    if (ctrl == NULL)
+    {
+        printk(KERN_CRIT "Unknown controller reference\n");
+        return -EBADF;
+    }
+    switch (cmd)
+    {
+        case NVM_MAP_HOST_MEMORY: // 将用户态地址pin住并得到dma地址返回用户态
+		{
+            if (copy_from_user(&request, (void __user*) arg, sizeof(request)))
+            {
+                return -EFAULT;
+            }
+
+            map = map_userspace(&host_list, ctrl, request.vaddr_start, request.n_pages);
+
+			if(request.ioq_idx>=0)
+			{
+				ctrl->map_num +=1;
+				if(ctrl->map_num > ctrl->ioq_num)
+				{
+					printk("NVM_MAP_HOST_MEMORY ctrl->map_num is %d,ctrl->ioq_num is %d\n",ctrl->map_num, ctrl->ioq_num);
+					unmap_and_release(map);
+					return -EFAULT;
+				}
+				map->ioq_idx = request.ioq_idx;
+				map->is_cq = request.is_cq;
+				printk("map_userspace map map->ioq_idx is %d, map->is_cq is %d",map->ioq_idx,map->is_cq);
+			}
+            if (!IS_ERR_OR_NULL(map))
+            {
+                if (copy_to_user((void __user*) request.ioaddrs, map->addrs, map->n_addrs * sizeof(uint64_t)))
+                {
+                    return -EFAULT;
+                }
+                ret = 0;
+            }
+            else 
+            {
+                ret = PTR_ERR(map);
+            }
+			
+            break;
+		} 
+
+
+#ifdef _CUDA
+        case NVM_MAP_DEVICE_MEMORY: // 将用户态cuda malloc 分配的地址pin住并得到dma地址返回用户态
+            if (copy_from_user(&request, (void __user*) arg, sizeof(request)))
+            {
+                return -EFAULT;
+            }
+
+            map = map_device_memory(&device_list, ctrl, request.vaddr_start, request.n_pages, &ctrl_list);
+
+            if (!IS_ERR_OR_NULL(map))
+            {
+                if (copy_to_user((void __user*) request.ioaddrs, map->addrs, map->n_addrs * sizeof(uint64_t)))
+                {
+                    return -EFAULT;
+                }
+                ret = 0;
+            }
+            else 
+            {
+                retval = PTR_ERR(map);
+            }
+            break;
+#endif
+
+        case NVM_UNMAP_MEMORY:
+            if (copy_from_user(&addr, (void __user*) arg, sizeof(u64)))
+            {
+                return -EFAULT;
+            }
+
+            map = map_find(&host_list, addr);
+            if (map != NULL)
+            {
+				if(map->ioq_idx>0)
+				{
+					ctrl->map_num--;
+				}
+                unmap_and_release(map);
+                break;
+            }
+
+#ifdef _CUDA
+            map = map_find(&device_list, addr);
+            if (map != NULL)
+            {
+                unmap_and_release(map);
+                break;
+            }
+#endif
+            ret = -EINVAL;
+            printk(KERN_WARNING "Mapping for address %llx not found\n", addr);
+            break;
+		case NVM_SET_IOQ_NUM:
+		{
+            if (copy_from_user(&request, (void __user*) arg, sizeof(request)))
+            {
+                return -EFAULT;
+            }
+			if(request.ioq_idx<=0)
+			{
+				printk("NVM_SET_IOQ_NUM Error 1, has reg %d, reg is %d",ctrl->ioq_num,request.ioq_idx);
+				return -EFAULT;
+			}
+			if(ctrl->ioq_num)
+			{
+				if(request.ioq_idx > ctrl->ioq_num)
+				{
+					printk("NVM_SET_IOQ_NUM Error 2, has reg %d, reg is %d",ctrl->ioq_num,request.ioq_idx);
+					return -EFAULT;
+				}
+			}
+
+
+			ctrl->ioq_num = request.ioq_idx;
+			ret = 0;
+			break;
+		}
+		case NVM_SET_SHARE_REG:
+		{
+            if (copy_from_user(&request, (void __user*) arg, sizeof(request)))
+            {
+                return -EFAULT;
+            }
+			ctrl->use_sreg = request.ioq_idx;
+			printk("NVM_SET_SHARE_REG ctrl->use_sreg %d",ctrl->use_sreg);
+			break;
+		}
+        default:
+            printk(KERN_NOTICE "Unknown ioctl command from process %d: %u\n",
+                    current->pid, cmd);
+            ret = -EINVAL;
+            break;
+    }
+
+    return ret;
 }
 static int svm_mmap_registers(struct file* file, struct vm_area_struct* vma)
 {
@@ -3437,6 +3586,7 @@ static const struct file_operations snvm_dev_fops =
     .mmap = svm_mmap_registers,
 };
 
+/* Find all nvme devices on the pci bus, and create an char dev for each*/
 static int snvm_find_all_device(int max_devices, unsigned int class) {
 	unsigned int count = 0, bw = 0;
 	unsigned short depth;
@@ -3491,8 +3641,25 @@ static unsigned long clear_ctrl_list(struct list* list)
     while (ptr != NULL)
     {
         ctrl = container_of(ptr, struct ctrl, list);
-        printk("clear_ctrl_list 1\n");
 		ctrl_put(ctrl);
+        ++i;
+
+        ptr = list_next(&list->head);
+    }
+
+    return i;
+}
+
+static unsigned long clear_map_list(struct list* list)
+{
+    unsigned long i = 0;
+    struct list_node* ptr = list_next(&list->head);
+    struct map* map;
+
+    while (ptr != NULL)
+    {
+        map = container_of(ptr, struct map, list);
+        unmap_and_release(map);
         ++i;
 
         ptr = list_next(&list->head);
@@ -3674,7 +3841,7 @@ static int __init nvme_init(void)
 static void __exit nvme_exit(void)
 {
 	int ret;
-    // unsigned long remaining = 0;
+    unsigned long remaining = 0;
 
     // remaining = clear_map_list(&device_list);
     // if (remaining != 0)
@@ -3682,11 +3849,11 @@ static void __exit nvme_exit(void)
     //     printk(KERN_NOTICE "%lu GPU memory mappings were still in use on unload\n", remaining);
     // }
 
-    // remaining = clear_map_list(&host_list);
-    // if (remaining != 0)
-    // {
-    //     printk(KERN_NOTICE "%lu host memory mappings were still in use on unload\n", remaining);
-    // }
+    remaining = clear_map_list(&host_list);
+    if (remaining != 0)
+    {
+        printk(KERN_NOTICE "%lu host memory mappings were still in use on unload\n", remaining);
+    }
 	ret = clear_ctrl_list(&ctrl_list);
 	if(ret!=curr_ctrls)
 		printk("release ctrl error!, cur is %d, release %d",curr_ctrls,ret);

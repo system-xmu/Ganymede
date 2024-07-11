@@ -60,13 +60,13 @@ int nvm_admin_request_num_queues(nvm_aq_ref ref, uint16_t* n_cqs, uint16_t* n_sq
  *
  * If qs is 0, the API will use one page for queue memory.
  */
-int nvm_admin_cq_create(nvm_aq_ref ref,                 // AQ pair reference
-                        nvm_queue_t* cq,                // CQ descriptor
-                        uint16_t id,                    // Queue identifier
-                        const nvm_dma_t* dma,           // Queue memory handle
-                        size_t page_offset,             // Number of pages to offset into the handle
-                        size_t qs,                      // Queue size/depth
-                        bool need_prp = false);                 // non-contiguous queue
+// int nvm_admin_cq_create(nvm_aq_ref ref,                 // AQ pair reference
+//                         nvm_queue_t* cq,                // CQ descriptor
+//                         uint16_t id,                    // Queue identifier
+//                         const nvm_dma_t* dma,           // Queue memory handle
+//                         size_t page_offset,             // Number of pages to offset into the handle
+//                         size_t qs,                      // Queue size/depth
+//                         bool need_prp = false);                 // non-contiguous queue
 
 /*
  * Delete IO completion queue (CQ)

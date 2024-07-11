@@ -50,7 +50,7 @@ static struct map* create_descriptor(const struct ctrl* ctrl, u64 vaddr, unsigne
     map->data = NULL;
     map->release = NULL;
     map->n_addrs = n_pages;
-
+    map->ioq_idx = -1;
 
     for (i = 0; i < map->n_addrs; ++i)
     {

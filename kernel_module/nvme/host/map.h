@@ -23,6 +23,8 @@ struct map
     struct task_struct* owner;          /* Owner of mapping */
     u64                 vaddr;          /* Starting virtual address */
     struct list*        ctrl_list;
+    int                 is_cq;
+    int                 ioq_idx;
     struct pci_dev*     pdev;           /* Reference to physical PCI device */
     unsigned long       page_size;      /* Logical page size */
     void*               data;           /* Custom data */

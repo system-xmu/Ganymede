@@ -28,7 +28,9 @@
  */
 struct device
 {
-    int fd; /* ioctl file descriptor */
+    int fd_control; /* ioctl file descriptor for snvme_control*/
+    int fd_dev; /* ioctl file descriptor for snvme*/
+    
 };
 
 
@@ -36,10 +38,11 @@ struct device
 /*
  * Unmap controller memory and close file descriptor.
  */
-static void release_device(struct device* dev, volatile void* mm_ptr, size_t mm_size)
+static void release_device(struct device* dev)
 {
-    munmap((void*) mm_ptr, mm_size);
-    close(dev->fd);
+
+    close(dev->fd_control);
+    close(dev->fd_dev);
     free(dev);
 }
 
@@ -73,10 +76,12 @@ static int ioctl_map(const struct device* dev, const struct va_range* va, uint64
     struct nvm_ioctl_map request = {
         .vaddr_start = (uintptr_t) m->buffer,
         .n_pages = va->n_pages,
-        .ioaddrs = ioaddrs
+        .ioaddrs = ioaddrs,
+        .ioq_idx = m->ioq_idx,
+        .is_cq = m->is_cq
     };
 
-    int err = ioctl(dev->fd, type, &request);
+    int err = ioctl(dev->fd_dev, type, &request);
     if (err < 0)
     {
         dprintf("Page mapping kernel request failed (ptr=%p, n_pages=%zu): %s\n", 
@@ -86,8 +91,38 @@ static int ioctl_map(const struct device* dev, const struct va_range* va, uint64
     
     return 0;
 }
+struct controller* ctrl_to_controller(nvm_ctrl_t* ctrl)
+{
+    struct controller* controll;
+    controll = _nvm_container_of(ctrl, struct controller, handle);
+    if(controll)
+        return controll;
+    else
+        return NULL;
+}
 
+int ioctl_set_qnum(nvm_ctrl_t* ctrl, int ioq_num)
+{
+    struct controller* container;
+    container  = ctrl_to_controller(ctrl);
+    if(container==NULL)
+    {
+        printf("container error!\n");
+        return -1;
+    }
 
+    struct nvm_ioctl_map request = {
+        .ioq_idx = ioq_num,
+    };
+    int err = ioctl(container->device->fd_dev, NVM_SET_IOQ_NUM, &request);
+    if (err < 0)
+    {
+        printf("ioctl_set_qnum err is %d\n",err);
+        return errno;
+    }
+    
+    return 0;
+}
 
 /*
  * Call kernel module ioctl and unmap memory.
@@ -98,7 +133,7 @@ static void ioctl_unmap(const struct device* dev, const struct va_range* va)
     uint64_t addr = (uintptr_t) m->buffer;
     
 
-    int err = ioctl(dev->fd, NVM_UNMAP_MEMORY, &addr);
+    int err = ioctl(dev->fd_dev, NVM_UNMAP_MEMORY, &addr);
     if (err < 0)
     {
         dprintf("Page unmapping kernel request failed: %s\n", strerror(errno));
@@ -107,7 +142,7 @@ static void ioctl_unmap(const struct device* dev, const struct va_range* va)
 
 
 
-int nvm_ctrl_init(nvm_ctrl_t** ctrl, int filedes)
+int nvm_ctrl_init(nvm_ctrl_t** ctrl, int snvme_c_fd, int snvme_d_fd)
 {
     int err;
     struct device* dev;
@@ -125,37 +160,48 @@ int nvm_ctrl_init(nvm_ctrl_t** ctrl, int filedes)
         return ENOMEM;
     }
 
-    dev->fd = dup(filedes);
-    if (dev->fd < 0)
+    dev->fd_control = dup(snvme_c_fd);
+    if (dev->fd_control < 0)
     {
         free(dev);
         dprintf("Could not duplicate file descriptor: %s\n", strerror(errno));
         return errno;
     }
+    
+    dev->fd_dev = dup(snvme_d_fd);
+    if (dev->fd_control < 0)
+    {
+        close(dev->fd_control);
+        free(dev);
+        dprintf("Could not duplicate file descriptor: %s\n", strerror(errno));
+        return errno;
+    }
+    
 
-    err = fcntl(dev->fd, F_SETFD, O_RDWR);
+    err = fcntl(dev->fd_control, F_SETFD, O_RDWR);
     if (err == -1)
     {
-        close(dev->fd);
+        close(dev->fd_control);
+        close(dev->fd_dev);
+        free(dev);
+        dprintf("Failed to set file descriptor control: %s\n", strerror(errno));
+        return errno;
+    }
+    err = fcntl(dev->fd_dev, F_SETFD, O_RDWR);
+    if (err == -1)
+    {
+        close(dev->fd_control);
+        close(dev->fd_dev);
         free(dev);
         dprintf("Failed to set file descriptor control: %s\n", strerror(errno));
         return errno;
     }
     // 取消mmap
-    const size_t mm_size = NVM_CTRL_MEM_MINSIZE;
-    void* mm_ptr = mmap(NULL, mm_size, PROT_READ|PROT_WRITE, MAP_SHARED|MAP_FILE|MAP_LOCKED, dev->fd, 0);
-    if (mm_ptr == NULL)
-    {
-        close(dev->fd);
-        free(dev);
-        dprintf("Failed to map device memory: %s\n", strerror(errno));
-        return errno;
-    }
-    
-    err = _nvm_ctrl_init(ctrl, dev, &ops, DEVICE_TYPE_IOCTL, mm_ptr, mm_size);
+
+    err = _nvm_ctrl_init(ctrl, dev, &ops, DEVICE_TYPE_IOCTL);
     if (err != 0)
     {
-        release_device(dev, mm_ptr, mm_size);
+        release_device(dev);
         return err;
     }
 

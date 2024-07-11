@@ -24,6 +24,8 @@
 
 #include "integrity.h"
 
+#define snvme_control_path "/dev/snvm_control"
+#define snvme_path "/dev/snvme1"
 
 
 struct arguments
@@ -34,6 +36,8 @@ struct arguments
     uint16_t        n_queues;
     uint64_t        read_bytes;
     const char*     filename;
+    const char*     device_control_path;
+    
 };
 
 
@@ -67,6 +71,8 @@ static void parse_arguments(int argc, char** argv, struct arguments* args)
         { "ctrl", required_argument, NULL, 'c' },
         { "namespace", required_argument, NULL, 'n' },
         { "queues", required_argument, NULL, 'q' },
+        { "device_control_path", required_argument, NULL, 'p' },
+        { "device_chr_path", required_argument, NULL, 'd' },
         { NULL, 0, NULL, 0 }
     };
 
@@ -80,8 +86,10 @@ static void parse_arguments(int argc, char** argv, struct arguments* args)
     args->n_queues = 1;
     args->read_bytes = 0;
     args->filename = NULL;
+    args->device_control_path = NULL;
+  
 
-    while ((opt = getopt_long(argc, argv, ":hr:c:n:q:", opts, &idx)) != -1)
+    while ((opt = getopt_long(argc, argv, ":hr:c:n:q:p:d", opts, &idx)) != -1)
     {
         switch (opt)
         {
@@ -107,17 +115,9 @@ static void parse_arguments(int argc, char** argv, struct arguments* args)
                 break;
 
             case 'c': // device identifier
-#ifdef __DIS_CLUSTER__
-                if (! parse_number(&args->device_id, optarg, 0, 0, 0) )
-                {
-                    fprintf(stderr, "Invalid controller identifier: `%s'\n", optarg);
-                    exit(1);
-                }
-#else
                 args->device_path = optarg;
-#endif
                 break;
-
+    
             case 'n': // specify namespace number
                 if (! parse_number(&num, optarg, 0, 0, 0) )
                 {
@@ -141,19 +141,13 @@ static void parse_arguments(int argc, char** argv, struct arguments* args)
     argc -= optind;
     argv += optind;
 
-#ifdef __DIS_CLUSTER__
-    if (args->device_id == 0)
-    {
-        fprintf(stderr, "No controller specified!\n");
-        exit(1);
-    }
-#else
+
     if (args->device_path == NULL)
     {
         fprintf(stderr, "No controller specified!\n");
         exit(1);
     }
-#endif
+
 
     if (argc < 1)
     {
@@ -204,74 +198,9 @@ static void print_ctrl_info(FILE* fp, const struct nvm_ctrl_info* info)
 }
 
 
-static int identify_controller(nvm_aq_ref ref, struct disk* disk)
-{
-    int status;
-    nvm_dma_t* window;
-    struct nvm_ctrl_info info;
-
-    const nvm_ctrl_t* ctrl = nvm_ctrl_from_aq_ref(ref);
-
-#ifdef __DIS_CLUSTER__
-    status = nvm_dis_dma_create(&window, ctrl, ctrl->page_size,
-            SCI_MEMACCESS_HOST_READ | SCI_MEMACCESS_DEVICE_WRITE);
-#else
-    status = nvm_dma_create(&window, ctrl, ctrl->page_size);
-#endif
-    if (!nvm_ok(status))
-    {
-        fprintf(stderr, "Failed to create buffer: %s\n", nvm_strerror(status));
-        return status;
-    }
-
-    status = nvm_admin_ctrl_info(ref, &info, window->vaddr, window->ioaddrs[0]);
-    if (!nvm_ok(status))
-    {
-        fprintf(stderr, "Failed to identify controller: %s\n", nvm_strerror(status));
-    }
-    nvm_dma_unmap(window);
-
-    disk->page_size = info.page_size;
-    disk->max_data_size = info.max_data_size;
-
-    print_ctrl_info(stderr, &info);
-
-    return status;
-}
 
 
-static int identify_namespace(nvm_aq_ref ref, struct disk* disk, uint32_t ns_id)
-{
-    int status;
-    nvm_dma_t* window;
-    struct nvm_ns_info info;
 
-    const nvm_ctrl_t* ctrl = nvm_ctrl_from_aq_ref(ref);
-
-#ifdef __DIS_CLUSTER__
-    status = nvm_dis_dma_create(&window, ctrl, ctrl->page_size,
-            SCI_MEMACCESS_HOST_READ | SCI_MEMACCESS_DEVICE_WRITE);
-#else
-    status = nvm_dma_create(&window, ctrl, ctrl->page_size);
-#endif
-    if (!nvm_ok(status))
-    {
-        fprintf(stderr, "Failed to create buffer: %s\n", nvm_strerror(status));
-        return status;
-    }
-
-    status = nvm_admin_ns_info(ref, &info, ns_id, window->vaddr, window->ioaddrs[0]);
-    if (!nvm_ok(status))
-    {
-        fprintf(stderr, "Failed to identify namespace: %s\n", nvm_strerror(status));
-    }
-
-    disk->ns_id = info.ns_id;
-    disk->block_size = info.lba_data_size;
-
-    nvm_dma_unmap(window);
-    return status;
-}
 
 
 static void remove_queues(struct queue* queues, uint16_t n_queues)
@@ -280,7 +209,8 @@ static void remove_queues(struct queue* queues, uint16_t n_queues)
 
     if (queues != NULL)
     {
-        for (i = 0; i < n_queues + 1; ++i)
+
+        for (i = 0; i < n_queues; ++i)
         {
             remove_queue(&queues[i]);
         }
@@ -291,31 +221,21 @@ static void remove_queues(struct queue* queues, uint16_t n_queues)
 
 
 
-static int request_queues(nvm_aq_ref ref, struct arguments* args, struct queue** queues)
+static int request_queues(nvm_ctrl_t* ctrl, struct queue** queues)
 {
     struct queue* q;
     *queues = NULL;
     uint16_t i;
+    int status;
 
-    uint16_t n_cqs = 1;
-    uint16_t n_sqs = args->n_queues;
-
-    int status = nvm_admin_request_num_queues(ref, &n_cqs, &n_sqs);
-
-    if (!nvm_ok(status))
+    status = ioctl_set_qnum(ctrl, ctrl->cq_num+ctrl->sq_num);
+    if (status != 0)
     {
-        fprintf(stderr, "Failed to request queues: %s\n", nvm_strerror(status));
+    
         return status;
     }
-
-    if (n_sqs < args->n_queues)
-    {
-        fprintf(stderr, "Requested too many queues, controller only supports %u queues\n", n_sqs);
-        return ENOMEM;
-    }
-
     // Allocate queue descriptors
-    q = (queue *)calloc(args->n_queues + 1, sizeof(struct queue));
+    q = (queue *)calloc(ctrl->cq_num+ctrl->sq_num, sizeof(struct queue));
     if (q == NULL)
     {
         fprintf(stderr, "Failed to allocate queues: %s\n", strerror(errno));
@@ -323,17 +243,21 @@ static int request_queues(nvm_aq_ref ref, struct arguments* args, struct queue**
     }
 
     // Create completion queue
-    status = create_queue(&q[0], ref, NULL, 1);
-    if (status != 0)
+    for (i = 0; i < ctrl->cq_num; ++i)
     {
-        free(q);
-        return status;
+        status = create_queue(&q[i], ctrl, NULL, i);
+        if (status != 0)
+        {
+            free(q);
+            return status;
+        }
     }
 
+
     // Create submission queues
-    for (i = 0; i < args->n_queues; ++i)
+    for (i = 0; i < ctrl->sq_num; ++i)
     {
-        status = create_queue(&q[i + 1], ref, &q[0], i+1);
+        status = create_queue(&q[i + ctrl->cq_num], ctrl, &q[0], i+ctrl->cq_num);
         if (status != 0)
         {
             remove_queues(q, i);
@@ -350,151 +274,73 @@ static int request_queues(nvm_aq_ref ref, struct arguments* args, struct queue**
 int main(int argc, char** argv)
 {
 
-    struct arguments args;
+    
     nvm_ctrl_t* ctrl;
     int status;
     nvm_dma_t* aq_dma;
-    nvm_aq_ref aq_ref;
     struct disk disk;
     struct queue* queues = NULL;
     struct buffer buffer;
-    
+    int snvme_c_fd,snvme_d_fd;
     // Parse command line arguments
-    parse_arguments(argc, argv, &args);
-
-    // Open file descriptor and find file size
-    FILE* fp = fopen(args.filename, args.read_bytes ? "w" : "r");
-    if (fp == NULL)
+     
+    int ioq_num;
+    int read_bytes;
+    ioq_num = 1;
+    read_bytes = 1024*1024*1;
+    snvme_c_fd = open(snvme_control_path, O_RDWR | O_NONBLOCK);
+    if (snvme_c_fd < 0)
     {
-        fprintf(stderr, "Failed to open file `%s': %s\n", 
-                args.filename, strerror(errno));
-        exit(2);
-    }
 
-    // Calculate bytes
-    off_t file_size = 0;
-    if (args.read_bytes > 0)
-    {
-        file_size = args.read_bytes;
-        fprintf(stderr, "Reading from disk and dumping to file `%s' (%lu bytes)\n", args.filename, (unsigned long)file_size);
-    }
-    else
-    {
-        fseek(fp, 0, SEEK_END);
-        file_size = ftell(fp);
-        rewind(fp);
-
-        if (file_size == 0)
-        {
-            fprintf(stderr, "File `%s' is empty!\n", args.filename);
-            fclose(fp);
-            exit(2);
-        }
-
-        fprintf(stderr, "Reading from file `%s' and writing to disk (%lu bytes)\n", args.filename, (unsigned long)file_size);
-    }
-
-
-
-
-    // Get controller reference
-
-    int fd = open(args.device_path, O_RDWR | O_NONBLOCK);
-    if (fd < 0)
-    {
-        fclose(fp);
         fprintf(stderr, "Failed to open device file: %s\n", strerror(errno));
         exit(1);
     }
 
-    status = nvm_ctrl_init(&ctrl, fd);
+    // Get controller reference
+
+    snvme_d_fd = open(snvme_path, O_RDWR | O_NONBLOCK);
+    if (snvme_d_fd < 0)
+    {
+        fprintf(stderr, "Failed to open device file: %s\n", strerror(errno));
+        exit(1);
+    }
+
+    status = nvm_ctrl_init(&ctrl, snvme_c_fd, snvme_d_fd);
     if (status != 0)
     {
-        close(fd);
-        fclose(fp);
+        close(snvme_c_fd);
+        close(snvme_d_fd);
+        
         fprintf(stderr, "Failed to get controller reference: %s\n", strerror(status));
     }
+    
+    close(snvme_c_fd);
+    close(snvme_d_fd);
 
-    close(fd);
-
-    status = nvm_dma_create(&aq_dma, ctrl, ctrl->page_size * 2);
-
-    if (status != 0)
-    {
-        nvm_ctrl_free(ctrl);
-        fclose(fp);
-        fprintf(stderr, "Failed to create admin queue pair: %s\n", strerror(status));
-        exit(1);
-    }
-
-    fprintf(stderr, "Resetting controller and configuring admin queue pair...\n");
-    status = nvm_aq_create(&aq_ref, ctrl, aq_dma);
-    if (status != 0)
-    {
-        nvm_dma_unmap(aq_dma);
-        nvm_ctrl_free(ctrl);
-        fclose(fp);
-        fprintf(stderr, "Failed to create admin queue pair: %s\n", strerror(status));
-        exit(1);
-    }
-
-    // Allocate buffer
-    status = create_buffer(&buffer, aq_ref, NVM_CTRL_ALIGN(ctrl, file_size));
-    if (status != 0)
-    {
-        nvm_aq_destroy(aq_ref);
-        nvm_dma_unmap(aq_dma);
-        nvm_ctrl_free(ctrl);
-        fclose(fp);
-        exit(1);
-    }
-
-
-    // Extract controller and namespace information
-    status = identify_controller(aq_ref, &disk);
-    if (status != 0)
-    {
-        goto out;
-    }
-
-    status = identify_namespace(aq_ref, &disk, args.ns_id);
-    if (status != 0)
-    {
-        goto out;
-    }
-
-    if (args.n_queues > NVM_PAGE_ALIGN(file_size, disk.block_size) / disk.block_size)
-    {
-        args.n_queues = NVM_PAGE_ALIGN(file_size, disk.block_size) / disk.block_size;
-    }
-
+    ctrl->cq_num = 1;
+    ctrl->sq_num = 4;
+    
     // Create queues
-    status = request_queues(aq_ref, &args, &queues);
+    status = request_queues(ctrl, &ctrl->queues);
     if (status != 0)
     {
         goto out;
     }
 
-    fprintf(stderr, "Using %u submission queues:\n", args.n_queues);
+    fprintf(stderr, "Using %u submission queues:\n", ioq_num);
 
-    if (args.read_bytes > 0)
-    {
-        status = disk_read(&disk, &buffer, queues, args.n_queues, fp, file_size);
-    }
-    else
-    {
-        status = disk_write(&disk, &buffer, queues, args.n_queues, fp, file_size);
-    }
+    // if (read_bytes > 0)
+    // {
+    //     status = disk_read(&disk, &buffer, queues, ioq_num, fp, file_size);
+    // }
+    // else
+    // {
+    //     status = disk_write(&disk, &buffer, queues, ioq_num, fp, file_size);
+    // }
 
 out:
-    remove_queues(queues, args.n_queues);
-    nvm_aq_destroy(aq_ref);
-    nvm_dma_unmap(aq_dma);
-    remove_buffer(&buffer);
+    remove_queues(ctrl->queues, ctrl->cq_num+ctrl->sq_num);
+    //remove_buffer(&buffer);
     nvm_ctrl_free(ctrl);
-    fclose(fp);
-#ifdef __DIS_CLUSTER__
-    SCITerminate();
-#endif
     exit(status);
 }

@@ -33,7 +33,7 @@
  *
  * Note: fd must be opened with O_RDWR and O_NONBLOCK
  */
-int nvm_ctrl_init(nvm_ctrl_t** ctrl, int fd);
+int nvm_ctrl_init(nvm_ctrl_t** ctrl, int snvme_c_fd, int snvme_d_fd);
 #endif
 
 
@@ -50,9 +50,9 @@ int nvm_ctrl_init(nvm_ctrl_t** ctrl, int fd);
  * Note: ctrl_mem must be at least NVM_CTRL_MEM_MINSIZE large and mapped
  *       as IO memory. See arguments for mmap() for more info.
  */
-int nvm_raw_ctrl_init(nvm_ctrl_t** ctrl, volatile void* mm_ptr, size_t mm_size);
+int nvm_raw_ctrl_init(nvm_ctrl_t** ctrl);
 
-
+int ioctl_set_qnum(nvm_ctrl_t* ctrl, int ioq_num);
 
 /*
  * Release controller handle.
@@ -60,32 +60,10 @@ int nvm_raw_ctrl_init(nvm_ctrl_t** ctrl, volatile void* mm_ptr, size_t mm_size);
 void nvm_ctrl_free(nvm_ctrl_t* ctrl);
 
 
-
-/* 
- * Reset NVM controller.
- *
- * The queue memory must be memset to zero and be exactly one page size large.
- * IO addresses must align to the controller page size. 
- *
- * Note: The controller must be unbound from any driver before attempting to
- *       reset the controller.
- *
- * Note: This function is implicitly called by the controller manager, so it
- *       should not be necessary to call it directly.
- */
-int nvm_raw_ctrl_reset(const nvm_ctrl_t* ctrl, uint64_t acq_ioaddr, uint64_t asq_ioaddr);
+struct controller* ctrl_to_controller(nvm_ctrl_t* ctrl);
 
 
 
-#ifdef __DIS_CLUSTER__
-/* 
- * Initialize NVM controller handle.
- *
- * Read from device registers and initialize controller handle. 
- * This function should be used when SmartIO is being used.
- */
-int nvm_dis_ctrl_init(nvm_ctrl_t** ctrl, uint32_t smartio_fdid);
-#endif
 
 
 

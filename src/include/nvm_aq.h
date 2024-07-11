@@ -12,17 +12,7 @@
 
 
 
-/*
- * Create admin queue pair
- *
- * Take exclusive ownership of an NVM controller. This function resets the 
- * controller and configures NVM admin queues. 
- *
- * Returns a reference handle that can be used for admin RPC calls.
- */
-int nvm_aq_create(nvm_aq_ref* ref, 
-                  const nvm_ctrl_t* ctrl, 
-                  const nvm_dma_t* dma_window);
+
 
 
 /*

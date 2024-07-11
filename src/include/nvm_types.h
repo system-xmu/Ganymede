@@ -15,21 +15,8 @@
 
 
 
-/* 
- * NVM controller handle.
- *
- * Note: This structure will be allocated by the API and needs to be
- *       released by the API.
- */
-typedef struct
-{
-    size_t                  page_size;      // Memory page size used by the controller (MPS)
-    uint8_t                 dstrd;          // Doorbell stride (in encoded form)
-    uint64_t                timeout;        // Controller timeout in milliseconds (TO)
-    uint32_t                max_qs;         // Maximum queue entries supported (MQES)
-    size_t                  mm_size;        // Size of memory-mapped region
-    volatile void*          mm_ptr;         // Memory-mapped pointer to BAR0 of the physical device
-} nvm_ctrl_t;
+
+
 
 
 
@@ -242,7 +229,38 @@ struct nvm_ns_info
     size_t                  metadata_size;  // Metadata size (MS)
 };
 
+// /* Memory descriptor */
+// struct buffer
+// {
+//     void*                   buffer;
+//     nvm_dma_t*              dma;
+// };
 
+
+// /* Queue descriptor */
+// struct queue
+// {
+//     struct buffer           qmem;
+//     nvm_queue_t             queue;
+//     size_t                  counter;
+// };
+
+/* 
+ * NVM controller handle.
+ *
+ * Note: This structure will be allocated by the API and needs to be
+ *       released by the API.
+ */
+typedef struct
+{
+    size_t                  page_size;      // Memory page size used by the controller (MPS)
+    uint8_t                 dstrd;          // Doorbell stride (in encoded form)
+    uint64_t                timeout;        // Controller timeout in milliseconds (TO)
+    uint32_t                max_qs;         // Maximum queue entries supported (MQES)
+    uint32_t                cq_num;         // Num of cq queues
+    uint32_t                sq_num;         // Num of sq queues, the cq_idx is  sq_num/cq_num
+    struct queue*           queues;         
+} nvm_ctrl_t;
 
 //#ifndef __CUDACC__
 //#undef __align__

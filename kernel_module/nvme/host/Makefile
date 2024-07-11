@@ -3,7 +3,7 @@ obj-m += snvme-core.o
 obj-m += snvme.o
 # nvme-core.objs := ioctl.o multipath.o core.o
 # nvme.objs := pci.o
-
+ccflags-y += -I../../../src/linux
 
 snvme-core-y				:= core.o ioctl.o snvme_help.o
 snvme-core-$(CONFIG_NVME_MULTIPATH)	+= multipath.o
@@ -11,7 +11,7 @@ snvme-core-$(CONFIG_BLK_DEV_ZONED)	+= zns.o
 snvme-core-$(CONFIG_FAULT_INJECTION_DEBUG_FS)	+= fault_inject.o
 snvme-core-$(CONFIG_NVME_HWMON)		+= hwmon.o
 
-snvme-objs := nvfs-pci.o list.o ctrl.o pci.o 
+snvme-objs := nvfs-pci.o list.o ctrl.o map.o pci.o 
 
 
 KERNEL_SRC := /home/qs/linux

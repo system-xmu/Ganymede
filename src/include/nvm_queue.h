@@ -27,14 +27,14 @@
  */
 
 __host__
-int nvm_queue_clear(nvm_queue_t* q,            // NVM queue descriptor
-                    const nvm_ctrl_t* ctrl,    // NVM controller handle
-                    bool cq,                   // Is this a completion queue or submission queue?
-                    uint16_t no,               // Queue number
-                    uint32_t qs,               // Queue size (number of entries)
-                    bool local,                // Is this local or remote memory
-                    volatile void* vaddr,      // Virtual address to queue memory
-                    uint64_t ioaddr);          // Bus address to queue memory (as seen from the controller)
+// int nvm_queue_clear(nvm_queue_t* q,            // NVM queue descriptor
+//                     const nvm_ctrl_t* ctrl,    // NVM controller handle
+//                     bool cq,                   // Is this a completion queue or submission queue?
+//                     uint16_t no,               // Queue number
+//                     uint32_t qs,               // Queue size (number of entries)
+//                     bool local,                // Is this local or remote memory
+//                     volatile void* vaddr,      // Virtual address to queue memory
+//                     uint64_t ioaddr);          // Bus address to queue memory (as seen from the controller)
 
 
 

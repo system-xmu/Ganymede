@@ -11,12 +11,9 @@
 #include "integrity.h"
 
 
-int create_buffer(struct buffer* b, nvm_aq_ref ref, size_t size)
+int create_buffer(struct buffer* b, nvm_ctrl_t* ctrl, size_t size,int is_cq, int ioq_idx)
 {
     int status;
-
-    const nvm_ctrl_t* ctrl = nvm_ctrl_from_aq_ref(ref);
-
 
     status = posix_memalign(&b->buffer, ctrl->page_size, size);
     if (status != 0)
@@ -25,7 +22,7 @@ int create_buffer(struct buffer* b, nvm_aq_ref ref, size_t size)
         return status;
     }
 
-    status = nvm_dma_map_host(&b->dma, ctrl, b->buffer, size);
+    status = nvm_dma_map_host(&b->dma, ctrl, b->buffer, size,is_cq,ioq_idx);
 
     if (!nvm_ok(status))
     {
@@ -47,33 +44,36 @@ void remove_buffer(struct buffer* b)
 }
 
 
-int create_queue(struct queue* q, nvm_aq_ref ref, const struct queue* cq, uint16_t qno)
+int create_queue(struct queue* q, nvm_ctrl_t* ctrl, const struct queue* cq, uint16_t qno)
 {
     int status;
 
-    const nvm_ctrl_t* ctrl = nvm_ctrl_from_aq_ref(ref);
+    int is_cq;
+    int ioq_idx;
 
     size_t prp_lists = 0;
+    is_cq = 1;
     if (cq != NULL)
     {
+        is_cq = 0;
         size_t n_entries = ctrl->page_size / sizeof(nvm_cmd_t);
         prp_lists = n_entries <= ctrl->max_qs ? n_entries : ctrl->max_qs;
     }
 
-    status = create_buffer(&q->qmem, ref, prp_lists * ctrl->page_size + ctrl->page_size);
+    status = create_buffer(&q->qmem, ctrl, prp_lists * ctrl->page_size + ctrl->page_size,is_cq,qno);
     if (!nvm_ok(status))
     {
         return status;
     }
 
-    if (cq == NULL)
-    {
-        status = nvm_admin_cq_create(ref, &q->queue, qno, q->qmem.dma, 0, NVM_CQ_SIZE(ctrl, 1));
-    }
-    else
-    {
-        status = nvm_admin_sq_create(ref, &q->queue, &cq->queue, qno, q->qmem.dma, 0, NVM_SQ_SIZE(ctrl, 1));
-    }
+    // if (cq == NULL)
+    // {
+    //     status = nvm_admin_cq_create(ref, &q->queue, qno, q->qmem.dma, 0, NVM_CQ_SIZE(ctrl, 1));
+    // }
+    // else
+    // {
+    //     status = nvm_admin_sq_create(ref, &q->queue, &cq->queue, qno, q->qmem.dma, 0, NVM_SQ_SIZE(ctrl, 1));
+    // }
 
     if (!nvm_ok(status))
     {

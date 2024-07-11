@@ -27,7 +27,9 @@ struct ctrl* ctrl_get(struct list* list, struct class* cls, struct pci_dev* pdev
     ctrl->rdev = 0;
     ctrl->cls = cls;
     ctrl->chrdev = NULL;
-
+    ctrl->use_sreg = 0;
+    ctrl->ioq_num = 0;
+    ctrl->map_num = 0;
     snprintf(ctrl->name, sizeof(ctrl->name), "%s%d", KBUILD_MODNAME, ctrl->number);
     ctrl->name[sizeof(ctrl->name) - 1] = '\0';
 
@@ -43,10 +45,8 @@ void ctrl_put(struct ctrl* ctrl)
     if (ctrl != NULL)
     {
         list_remove(&ctrl->list);
-        printk("clear_ctrl_list 2\n");
         ctrl_chrdev_remove(ctrl);
         kfree(ctrl);
-        printk("clear_ctrl_list 3\n");
     }
 }
 EXPORT_SYMBOL_GPL(ctrl_put);
@@ -116,7 +116,7 @@ int ctrl_chrdev_create(struct ctrl* ctrl, dev_t first, const struct file_operati
         printk(KERN_ERR "Failed to add cdev\n");
         return err;
     }
-    printk("ctrl_chrdev_create 1 is ok\n");
+ 
     chrdev = device_create(ctrl->cls, NULL, ctrl->rdev, NULL, ctrl->name);
     if (IS_ERR(chrdev))
     {
@@ -124,7 +124,7 @@ int ctrl_chrdev_create(struct ctrl* ctrl, dev_t first, const struct file_operati
         printk(KERN_ERR "Failed to create character device\n");
         return PTR_ERR(chrdev);
     }
-    printk("ctrl_chrdev_create 2 is ok\n");
+
     ctrl->chrdev = chrdev;
 
     printk(KERN_INFO "Character device /dev/%s created (%d.%d)\n",
@@ -143,7 +143,7 @@ void ctrl_chrdev_remove(struct ctrl* ctrl)
         device_destroy(ctrl->cls, ctrl->rdev);
         cdev_del(&ctrl->cdev);
         ctrl->chrdev = NULL;
-        printk("clear_ctrl_list 3\n");
+        
         printk(KERN_DEBUG "Character device /dev/%s removed (%d.%d)\n",
                 ctrl->name, MAJOR(ctrl->rdev), MINOR(ctrl->rdev));
     }

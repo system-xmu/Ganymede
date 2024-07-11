@@ -21,6 +21,11 @@ struct ctrl
     struct class*       cls;        /* Character device class */
     struct cdev         cdev;       /* Character device */
     struct device*      chrdev;     /* Character device handle */
+
+    /*****info about user defined nvme io qp **** */
+    unsigned int        ioq_num;    /*number of user defined nvme io queues*/
+    unsigned int        map_num;    /*number of user registered dma register*/
+    unsigned int        use_sreg;   /*flag to indicated the map num has statifed nvme regiester requirements, when map_num==ioq_num, this flag is 1.need set by user*/
 };
 
 

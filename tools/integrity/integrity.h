@@ -33,14 +33,14 @@ struct disk
 };
 
 
-int create_buffer(struct buffer* b, nvm_aq_ref, size_t size);
+int create_buffer(struct buffer* b, nvm_ctrl_t* ctrl, size_t size,int is_cq, int ioq_idx);
 
 
 void remove_buffer(struct buffer* b);
 
 
 
-int create_queue(struct queue* q, nvm_aq_ref ref, const struct queue* cq, uint16_t qno);
+int create_queue(struct queue* q, nvm_ctrl_t* ctrl, const struct queue* cq, uint16_t qno);
 
 
 void remove_queue(struct queue* q);

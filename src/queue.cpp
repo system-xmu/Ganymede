@@ -9,35 +9,35 @@
 #include <simt/atomic>
 
 
-int nvm_queue_clear(nvm_queue_t* queue, const nvm_ctrl_t* ctrl, bool cq, uint16_t no, uint32_t qs, 
-        bool local, volatile void* vaddr, uint64_t ioaddr)
-{
-    if (qs < 2 || qs > 0x10000 || qs > ctrl->max_qs)
-    {
-        return EINVAL;
-    }
+// int nvm_queue_clear(nvm_queue_t* queue, const nvm_ctrl_t* ctrl, bool cq, uint16_t no, uint32_t qs, 
+//         bool local, volatile void* vaddr, uint64_t ioaddr)
+// {
+//     if (qs < 2 || qs > 0x10000 || qs > ctrl->max_qs)
+//     {
+//         return EINVAL;
+//     }
 
-    queue->no = no;
-    queue->qs = qs;
-    queue->es = cq ? sizeof(nvm_cpl_t) : sizeof(nvm_cmd_t);
-    queue->head = 0;
-    queue->tail = 0;
-    queue->last = 0;
-    queue->phase = 1;
-    queue->local = !!local;
-    queue->head_lock = 0;
-    queue->tail_lock = 0;
-    // queue->head_copy = 0;
-    // queue->tail_copy = 0;
-    queue->in_ticket = 0;
-    queue->cid_ticket = 0;
+//     queue->no = no;
+//     queue->qs = qs;
+//     queue->es = cq ? sizeof(nvm_cpl_t) : sizeof(nvm_cmd_t);
+//     queue->head = 0;
+//     queue->tail = 0;
+//     queue->last = 0;
+//     queue->phase = 1;
+//     queue->local = !!local;
+//     queue->head_lock = 0;
+//     queue->tail_lock = 0;
+//     // queue->head_copy = 0;
+//     // queue->tail_copy = 0;
+//     queue->in_ticket = 0;
+//     queue->cid_ticket = 0;
 
-    queue->db = (cq ? CQ_DBL(ctrl->mm_ptr, queue->no, ctrl->dstrd) : SQ_DBL(ctrl->mm_ptr, queue->no, ctrl->dstrd));
-    queue->vaddr = vaddr;
-    queue->ioaddr = ioaddr;
+//     queue->db = (cq ? CQ_DBL(ctrl->mm_ptr, queue->no, ctrl->dstrd) : SQ_DBL(ctrl->mm_ptr, queue->no, ctrl->dstrd));
+//     queue->vaddr = vaddr;
+//     queue->ioaddr = ioaddr;
     
-    return 0;
-}
+//     return 0;
+// }
 
 
 

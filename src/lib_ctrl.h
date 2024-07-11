@@ -29,7 +29,7 @@ struct device_ops
      * Release device reference (called when refcount is 0)
      * This should also unmap MLBAR/BAR0 of the device.
      */
-    void (*release_device)(struct device* dev, volatile void* mm_ptr, size_t mm_size);
+    void (*release_device)(struct device* dev);
 
 
     /*
@@ -82,9 +82,8 @@ struct controller
 int _nvm_ctrl_init(nvm_ctrl_t** handle,             /* User's handle */
                    struct device* dev,              /* Device handle */
                    const struct device_ops* ops,    /* Device handle operations */
-                   enum device_type type,           /* Device type */
-                   volatile void* mm_ptr,           /* Memory-mapped pointer */
-                   size_t mm_size);                 /* Size of memory-map */
+                   enum device_type type);           /* Device type */
+                                   
 
 
 

@@ -26,6 +26,8 @@ struct ioctl_mapping
     enum mapping_type   type;   // What kind of memory
     void*               buffer;
     struct va_range     range;  // Memory range descriptor
+    int is_cq;
+    int ioq_idx;
 };
 
 

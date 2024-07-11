@@ -367,11 +367,11 @@ static int create_admin(struct local_admin** handle, const struct controller* ct
     admin->qmem = copy;
     memset((void*) admin->qmem->vaddr, 0, 2 * admin->qmem->page_size);
 
-    nvm_queue_clear(&admin->acq, &ctrl->handle, true, 0, ctrl->handle.page_size / sizeof(nvm_cpl_t), 
-            admin->qmem->local, admin->qmem->vaddr, admin->qmem->ioaddrs[0]);
+    // nvm_queue_clear(&admin->acq, &ctrl->handle, true, 0, ctrl->handle.page_size / sizeof(nvm_cpl_t), 
+    //         admin->qmem->local, admin->qmem->vaddr, admin->qmem->ioaddrs[0]);
 
-    nvm_queue_clear(&admin->asq, &ctrl->handle, false, 0, ctrl->handle.page_size / sizeof(nvm_cmd_t), 
-            admin->qmem->local,  NVM_DMA_OFFSET(admin->qmem, 1), admin->qmem->ioaddrs[1]);
+    // nvm_queue_clear(&admin->asq, &ctrl->handle, false, 0, ctrl->handle.page_size / sizeof(nvm_cmd_t), 
+    //         admin->qmem->local,  NVM_DMA_OFFSET(admin->qmem, 1), admin->qmem->ioaddrs[1]);
 
     admin->timeout = ctrl->handle.timeout;
 
@@ -455,43 +455,6 @@ int _nvm_rpc_bind(nvm_aq_ref ref, void* data, rpc_free_binding_t release, rpc_st
 
 
 
-/*
- * Create admin queues locally.
- */
-int nvm_aq_create(nvm_aq_ref* handle, const nvm_ctrl_t* ctrl, const nvm_dma_t* window)
-{
-    int err;
-    nvm_aq_ref ref;
-
-    *handle = NULL;
-
-    // Allocate reference
-    err = _nvm_ref_get(&ref, ctrl);
-    if (err != 0)
-    {
-        return err;
-    }
-
-    // Allocate admin descriptor
-    err = create_admin((struct local_admin**) &ref->data, ref->ctrl, window);
-    if (err != 0)
-    {
-        _nvm_ref_put(ref);
-        return err;
-    }
-
-    ref->stub = (rpc_stub_t) execute_command;
-    ref->release = (rpc_free_binding_t) &remove_admin;
-
-    // Reset controller
-    const struct local_admin* admin = (const struct local_admin*) ref->data;
-    nvm_raw_ctrl_reset(ctrl, admin->qmem->ioaddrs[0], admin->qmem->ioaddrs[1]);
-    //printf("admin sq vaddr: %p\tsq ioaddr: %lx\n", admin->qmem->vaddr, admin->qmem->ioaddrs[0]);
-    //printf("admin cq vaddr: %p\tcq ioaddr: %lx\n", admin->qmem->vaddr+4096, admin->qmem->ioaddrs[1]);
-    
-    *handle = ref;
-    return 0;
-}
 
 
 
