@@ -6,7 +6,6 @@ typedef uint64_t vaddr_t;
 typedef uint64_t rawfile_ofst_t;
 typedef uint64_t nvme_ofst_t;
 
-
 struct geminiFS_table_entry {
   rawfile_ofst_t raw_file_ofst;
   nvme_ofst_t nvme_ofst;
@@ -28,14 +27,10 @@ extern union geminiFS_magic {
 } the_geminiFS_magic;
 
 typedef int fd_t;
-typedef nvme_ofst_t device_fd_t;
+typedef struct {void *rawfile_base__dev;rawfile_ofst_t l1_table_base;} device_fd_t;
 typedef struct geminiFS_hdr *host_fd_t;
 
-
-
-
-
-
+//-----------------host only------------------
 extern host_fd_t
 host_create_geminifs_file(const char *filename,
                           uint64_t block_size,
@@ -43,12 +38,6 @@ host_create_geminifs_file(const char *filename,
 
 extern host_fd_t
 host_open_geminifs_file(const char *filename);
-
-extern void
-host_for_each_table_entry(host_fd_t fd,
-                           void fun(struct geminiFS_table_entry *entry,
-                                    void *context),
-                           void *context);
 
 extern size_t
 host_xfer_geminifs_file(host_fd_t fd_1,
@@ -62,6 +51,10 @@ host_refine_nvmeofst(host_fd_t fd);
 
 extern void
 host_close_geminifs_file(host_fd_t fd);
+
+//-----------------host for device------------------
+extern device_fd_t
+host_open_geminifs_file_for_device(host_fd_t);
 
 #define GEMINIFS_H
 #endif

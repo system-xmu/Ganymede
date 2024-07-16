@@ -7,6 +7,8 @@
 #include <stdlib.h>
 #include <sys/mman.h>
 
+#include <cuda_runtime.h>
+
 #include "geminifs.h"
 #include "../get-offset/get-offset.h"
 
@@ -146,6 +148,7 @@ host__for_each_table_entry_1(host_fd_t fd,
                              int cur_tb_lv,
                              rawfile_ofst_t raw_file_ofst,
                              void fun(struct geminiFS_table_entry *entry,
+                                      int cur_tb_lv,
                                       void *context),
                              void *context) {
   size_t nr_table_entry = 1 << fd->table_entry_bit;
@@ -165,7 +168,7 @@ host__for_each_table_entry_1(host_fd_t fd,
     //printf("%d, ", cur_tb_lv);
     rawfile_ofst_t table_base = table[i].raw_file_ofst;
     if (table_base != 0) {
-      fun(&(table[i]), context);
+      fun(&(table[i]), cur_tb_lv, context);
       host__for_each_table_entry_1(fd, cur_tb_lv + 1, table_base, fun, context);
     }
   }
@@ -173,12 +176,13 @@ host__for_each_table_entry_1(host_fd_t fd,
   munmap(table, block_size);
 }
 
-void
+static void
 host_for_each_table_entry(host_fd_t fd,
                            void fun(struct geminiFS_table_entry *entry,
+                                    int cur_tb_lv,
                                     void *context),
                            void *context) {
-  fun(&(fd->l1_table), context);
+  fun(&(fd->l1_table), 0, context);
 
   host__for_each_table_entry_1(fd, 1, fd->l1_table.raw_file_ofst, fun, context);
 
@@ -310,6 +314,7 @@ struct refine_nvmeofst_context {
 };
 static void
 host_refine_nvmeofst_1(struct geminiFS_table_entry *e,
+                       int cur_tb_lv,
                        void *context_1) {
   struct refine_nvmeofst_context *context = context_1;
   struct nds_mapping mapping;
@@ -338,6 +343,75 @@ host_refine_nvmeofst(host_fd_t fd) {
   c.snvme_helper_fd = fd_dev;
   c.block_size = 1 << fd->block_bit;
   host_for_each_table_entry(fd, host_refine_nvmeofst_1, &c);
+  close(fd_dev);
+}
+
+static size_t
+raw_file_size(int fd) {
+  return lseek(fd, 0, SEEK_END);
+}
+
+struct host_open_geminifs_file_for_device__context {
+  void *raw_file_base__on_device;
+  rawfile_ofst_t l1_table_base;
+  size_t block_size;
+  int table_lv_nr;
+  int fd;
+};
+
+static void
+host_open_geminifs_file_for_device_1(struct geminiFS_table_entry *entry,
+                                     int cur_tb_lv,
+                                     void *context_1) {
+  struct host_open_geminifs_file_for_device__context *c = context_1;
+  if (cur_tb_lv == c->table_lv_nr)
+    return;
+  if (entry->raw_file_ofst == 0)
+    return;
+
+  if (cur_tb_lv == 0)
+    c->l1_table_base = entry->raw_file_ofst;
+  
+  void *t_block = malloc(c->block_size);
+
+  assert((off_t)(-1) !=
+    lseek(c->fd, entry->raw_file_ofst, SEEK_SET)
+  );
+  assert(c->block_size ==
+    read(c->fd, t_block, c->block_size)
+  );
+  assert(cudaSuccess ==
+    cudaMemcpy(
+      (void *)((uint64_t)(c->raw_file_base__on_device) + entry->raw_file_ofst),
+      t_block,
+      c->block_size,
+      cudaMemcpyHostToDevice)
+  );
+
+  free(t_block);
+}
+
+device_fd_t
+host_open_geminifs_file_for_device(host_fd_t host_fd) {
+  device_fd_t ret;
+  struct geminiFS_hdr *hdr = host_fd;
+  void *raw_file_base__on_device;
+  assert(cudaSuccess ==
+    cudaMalloc(&raw_file_base__on_device, raw_file_size(hdr->fd)));
+
+  struct host_open_geminifs_file_for_device__context t_context =
+    {.raw_file_base__on_device = raw_file_base__on_device,
+     .block_size = 1 << hdr->block_bit,
+     .table_lv_nr = hdr->table_level_nr,
+     .fd = hdr->fd};
+  
+  host_for_each_table_entry(host_fd,
+          host_open_geminifs_file_for_device_1,
+          &t_context);
+
+  ret.rawfile_base__dev = raw_file_base__on_device;
+  ret.l1_table_base = t_context.l1_table_base;
+  return ret;
 }
 
 int
@@ -372,6 +446,8 @@ main() {
     assert(buf1[i] == buf2[i]);
   }
   host_refine_nvmeofst(fd);
+
+  host_open_geminifs_file_for_device(fd);
 
   host_close_geminifs_file(fd);
   return 0;
