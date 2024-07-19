@@ -27,8 +27,14 @@ extern union geminiFS_magic {
 } the_geminiFS_magic;
 
 typedef int fd_t;
-typedef struct {void *rawfile_base__dev;rawfile_ofst_t l1_table_base;} device_fd_t;
 typedef struct geminiFS_hdr *host_fd_t;
+typedef struct {
+  void *rawfile_base__dev;
+  rawfile_ofst_t l1_table_base;
+  int table_lv_nr;
+  int block_bit;
+  int table_entry_bit;
+} dev_fd_t;
 
 //-----------------host only------------------
 extern host_fd_t
@@ -53,8 +59,11 @@ extern void
 host_close_geminifs_file(host_fd_t fd);
 
 //-----------------host for device------------------
-extern device_fd_t
+extern dev_fd_t
 host_open_geminifs_file_for_device(host_fd_t);
+
+extern nvme_ofst_t
+host_convert_va__using_device(dev_fd_t, vaddr_t);
 
 #define GEMINIFS_H
 #endif

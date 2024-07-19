@@ -97,7 +97,7 @@ host__convert_va__to_1(int lv_nr,
 
   rawfile_ofst_t cur_block_base = l1_table_raw_file_ofst;
   while (cur_lv <= lv_nr) {
-    int in_table_idx = table_idxes >> 64 - table_entry_bit;
+    int in_table_idx = table_idxes >> (64 - table_entry_bit);
     struct geminiFS_table_entry the_entry;
     assert((off_t)(-1) !=
       lseek(fd, cur_block_base + in_table_idx * sizeof(the_entry), SEEK_SET)
@@ -126,13 +126,14 @@ host__convert_va__to_1(int lv_nr,
 }
 
 static rawfile_ofst_t
-host__convert_va__to(struct geminiFS_hdr *hdr,
-                     fd_t fd,
+host__convert_va__to(host_fd_t host_fd,
                      vaddr_t va,
                      int alloc) {
+  struct geminiFS_hdr *hdr = host_fd;
   int lv_nr = hdr->table_level_nr;
   int block_bit = hdr->block_bit;
   int table_entry_bit = hdr->table_entry_bit;
+  fd_t fd = hdr->fd;
   rawfile_ofst_t l1_table_raw_file_ofst = hdr->l1_table.raw_file_ofst;
   return host__convert_va__to_1(lv_nr,
                                    block_bit,
@@ -208,12 +209,9 @@ host_create_geminifs_file(const char *filename,
   assert((off_t)(-1) != lseek(fd, hdr_ofst, SEEK_SET));
   assert(sizeof(*hdr) == write(fd, hdr, sizeof(*hdr)));
 
+  host_fd_t host_fd = hdr;
   for (vaddr_t va = 0; va < virtual_space_size; va += block_size)
-    host__convert_va__to(hdr, fd, va, 1);
-  //for (vaddr_t va = 0; va < virtual_space_size; va += block_size) {
-  //  rawfile_ofst_t raw_ofst = host__convert_va__to(&hdr, fd, va, 0);
-  //  printf("va = %lx, raw_ofst = %lx\n", va, raw_ofst);
-  //}
+    host__convert_va__to(host_fd, va, 1);
 
   return hdr;
 }
@@ -332,18 +330,17 @@ host_refine_nvmeofst_1(struct geminiFS_table_entry *e,
 #define snvme_helper_path "/dev/snvme_helper"
 void
 host_refine_nvmeofst(host_fd_t fd) {
-  int fd_dev;
-  fd_dev = open(snvme_helper_path, O_RDWR);
-  if (fd_dev < 0) {
-      perror("Failed to open fd_dev");
+  int snvme_helper_fd = open(snvme_helper_path, O_RDWR);
+  if (snvme_helper_fd < 0) {
+      perror("Failed to open snvme_helper_fd");
       assert(0);
   }
   struct refine_nvmeofst_context c;
   c.fd_file = fd->fd;
-  c.snvme_helper_fd = fd_dev;
+  c.snvme_helper_fd = snvme_helper_fd;
   c.block_size = 1 << fd->block_bit;
   host_for_each_table_entry(fd, host_refine_nvmeofst_1, &c);
-  close(fd_dev);
+  close(snvme_helper_fd);
 }
 
 static size_t
@@ -391,19 +388,20 @@ host_open_geminifs_file_for_device_1(struct geminiFS_table_entry *entry,
   free(t_block);
 }
 
-device_fd_t
+dev_fd_t
 host_open_geminifs_file_for_device(host_fd_t host_fd) {
-  device_fd_t ret;
+  dev_fd_t ret;
   struct geminiFS_hdr *hdr = host_fd;
   void *raw_file_base__on_device;
   assert(cudaSuccess ==
     cudaMalloc(&raw_file_base__on_device, raw_file_size(hdr->fd)));
 
-  struct host_open_geminifs_file_for_device__context t_context =
-    {.raw_file_base__on_device = raw_file_base__on_device,
-     .block_size = 1 << hdr->block_bit,
-     .table_lv_nr = hdr->table_level_nr,
-     .fd = hdr->fd};
+  struct host_open_geminifs_file_for_device__context t_context = {
+    .raw_file_base__on_device = raw_file_base__on_device,
+    .block_size = 1 << hdr->block_bit,
+    .table_lv_nr = hdr->table_level_nr,
+    .fd = hdr->fd
+  };
   
   host_for_each_table_entry(host_fd,
           host_open_geminifs_file_for_device_1,
@@ -411,15 +409,20 @@ host_open_geminifs_file_for_device(host_fd_t host_fd) {
 
   ret.rawfile_base__dev = raw_file_base__on_device;
   ret.l1_table_base = t_context.l1_table_base;
+  ret.table_lv_nr = hdr->table_level_nr;
+  ret.block_bit = hdr->block_bit;
+  ret.table_entry_bit = hdr->table_entry_bit;
   return ret;
 }
 
-int
-main() {
-  //size_t size = (uint64_t)1 * (1 << 30)/*GB*/;
-  size_t size = 4096;
-  host_fd_t fd = host_create_geminifs_file("checkpoint.geminifs", 4096, size);
+void
+host_close_geminifs_file_for_device(dev_fd_t dev_fd) {
+  assert(cudaSuccess == cudaFree(dev_fd.rawfile_base__dev));
+}
 
+static void
+test_host(host_fd_t host_fd) {
+  size_t size = host_fd->virtual_space_size;
   size_t * buf1 = malloc(size);
   size_t * buf2 = malloc(size);
 
@@ -427,28 +430,82 @@ main() {
     buf1[i] = i;
   }
 
-  host_xfer_geminifs_file(fd, 0, buf1, size, 0);
-  host_xfer_geminifs_file(fd, 0, buf2, size, 1);
+  host_xfer_geminifs_file(host_fd, 0, buf1, size, 0);
+  host_xfer_geminifs_file(host_fd, 0, buf2, size, 1);
 
   for (size_t i = 0; i < size/sizeof(size_t); i++) {
     assert(buf1[i] == buf2[i]);
   }
-  host_xfer_geminifs_file(fd, 8, buf2, 4088, 1);
-  for (size_t i = 0; i < 512; i++) {
-  printf("%ld\n", buf2[i]);
-  }
-  host_close_geminifs_file(fd);
+  host_xfer_geminifs_file(host_fd, 8, buf2, 4088, 1);
+  //for (size_t i = 0; i < 512; i++) {
+  //  printf("%ld\n", buf2[i]);
+  //}
 
-  fd = host_open_geminifs_file("checkpoint.geminifs");
-  host_xfer_geminifs_file(fd, 0, buf2, size, 1);
+  host_xfer_geminifs_file(host_fd, 0, buf2, size, 1);
 
   for (size_t i = 0; i < size/sizeof(size_t); i++) {
     assert(buf1[i] == buf2[i]);
   }
-  host_refine_nvmeofst(fd);
 
-  host_open_geminifs_file_for_device(fd);
+  free(buf1);
+  free(buf2);
+}
 
-  host_close_geminifs_file(fd);
+static void
+test_device_va_convert(host_fd_t host_fd,
+                       dev_fd_t dev_fd) {
+  struct geminiFS_hdr *hdr = host_fd;
+  int block_size = 1 << hdr->block_bit;
+
+  int snvme_helper_fd = open(snvme_helper_path, O_RDWR);
+  if (snvme_helper_fd < 0) {
+      perror("Failed to open snvme_helper_fd");
+      assert(0);
+  }
+
+  for (vaddr_t va = 0;
+       va < hdr->virtual_space_size;
+       va += block_size) {
+    nvme_ofst_t t1 = host_convert_va__using_device(dev_fd, va);
+
+    rawfile_ofst_t rawfile_ofst = host__convert_va__to(host_fd, va, 0);
+    struct nds_mapping mapping;
+    mapping.file_fd = hdr->fd;
+    mapping.offset = rawfile_ofst;
+    mapping.len = block_size;
+    if (ioctl(snvme_helper_fd, SNVME_HELP_GET_NVME_OFFSET, &mapping) < 0) {
+        perror("ioctl failed");
+        assert(0);
+    } 
+    nvme_ofst_t t2 = mapping.address;
+
+    assert(t1 == t2);
+  }
+
+  close(snvme_helper_fd);
+}
+
+
+
+int
+main() {
+  size_t virtual_space_size = (uint64_t)20 * (1 << 30)/*GB*/;
+  //size_t virtual_space_size = 4096;
+  host_fd_t host_fd = host_create_geminifs_file("checkpoint.geminifs", 4096, virtual_space_size);
+
+  test_host(host_fd);
+
+  host_close_geminifs_file(host_fd);
+
+  host_fd = host_open_geminifs_file("checkpoint.geminifs");
+  test_host(host_fd);
+
+  host_refine_nvmeofst(host_fd);
+
+  dev_fd_t dev_fd = host_open_geminifs_file_for_device(host_fd);
+  test_device_va_convert(host_fd, dev_fd);
+  host_close_geminifs_file_for_device(dev_fd);
+
+  host_close_geminifs_file(host_fd);
   return 0;
 }
