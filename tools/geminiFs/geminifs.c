@@ -7,6 +7,8 @@
 #include <stdlib.h>
 #include <sys/mman.h>
 
+#include <cuda_runtime.h>
+
 #include "geminifs.h"
 #include "../get-offset/get-offset.h"
 
@@ -26,190 +28,61 @@ one_nr__of__binary_int(unsigned long long i) {
   return count;
 }
 
-static void
-init_geminiFS_hdr(struct geminiFS_hdr *hdr,
-                  uint64_t block_size,
-                  uint64_t virtual_space_size) {
-  hdr->magic_num = the_geminiFS_magic.magic_num;
-  hdr->virtual_space_size = virtual_space_size;
-  hdr->block_bit = one_nr__of__binary_int(block_size - 1);
-
-  assert(virtual_space_size % block_size == 0);
-
-  int cur_table_level_nr = 0;
-  uint64_t total_table_entry_nr__of__cur_lv = 1;
-  int nr_table_entry__per_block = block_size / sizeof(struct geminiFS_table_entry);
-  uint64_t max_geminiFS_virtual_space_size = total_table_entry_nr__of__cur_lv * block_size;
-  while (max_geminiFS_virtual_space_size < virtual_space_size) {
-    cur_table_level_nr++;
-    total_table_entry_nr__of__cur_lv = total_table_entry_nr__of__cur_lv * nr_table_entry__per_block;
-    max_geminiFS_virtual_space_size = total_table_entry_nr__of__cur_lv * block_size;
-  }
-
-  hdr->table_entry_bit = one_nr__of__binary_int(nr_table_entry__per_block - 1);
-
-  if (cur_table_level_nr == 0)
-    cur_table_level_nr++;
-  hdr->table_level_nr = cur_table_level_nr;
-
-  hdr->l1_table.raw_file_ofst = 0;
-}
-
 static rawfile_ofst_t
-alloc_block(fd_t fd,
-            uint64_t block_size) {
-  off_t ret = lseek(fd, 0, SEEK_END);
-  assert((off_t)(-1) != ret);
-  assert(0 == ftruncate(fd, ret + block_size));
-
-  return ret;
-}
-
-static rawfile_ofst_t
-host__convert_va__to_1(int lv_nr,
-                       int block_bit,
-                       int table_entry_bit,
-                       rawfile_ofst_t l1_table_raw_file_ofst,
-                       fd_t fd,
-                       vaddr_t va,
-                       int alloc) {
-  uint64_t block_size = 1 << block_bit;
-
-  // view of va:
-  //       | entry_bit | entry_bit | ... | entry_bit |<- block_bit ->|
-  // +-----+-----------+-----------+-----+-----------+---------------+
-  // |     | idx in L1 | idx in L2 | ... | idx in Ln | in-block ofst |
-  // +-----+-----------+-----------+-----+-----------+---------------+
-  // |<----------------------------  64  --------------------------->|
-  vaddr_t in_block_ofst = va & ((1 << block_bit) - 1);
-
-  int cur_lv = 1;
-  vaddr_t table_idxes =
-    va << (64 - lv_nr * table_entry_bit - block_bit);
-  // view of table_idxes:
-  // |<-  entry_bit   ->|     |<-  entry_bit  ->|
-  // +------------------+-----+-----------------+---------------+
-  // | idx in L`cur_lv` | ... | idx in L`lv_nr` |               |
-  // +------------------+-----+-----------------+---------------+
-  // |<--------------------------  64  ------------------------>|
-
-  rawfile_ofst_t cur_block_base = l1_table_raw_file_ofst;
-  while (cur_lv <= lv_nr) {
-    int in_table_idx = table_idxes >> 64 - table_entry_bit;
-    struct geminiFS_table_entry the_entry;
-    assert((off_t)(-1) !=
-      lseek(fd, cur_block_base + in_table_idx * sizeof(the_entry), SEEK_SET)
-    );
-    assert(sizeof(the_entry) ==
-      read(fd, &the_entry, sizeof(the_entry))
-    );
-
-    if (the_entry.raw_file_ofst == 0) {
-      assert(alloc);
-      the_entry.raw_file_ofst = alloc_block(fd, block_size);
-      assert((off_t)(-1) !=
-        lseek(fd, cur_block_base + in_table_idx * sizeof(the_entry), SEEK_SET)
-      );
-      assert(sizeof(the_entry) ==
-        write(fd, &the_entry, sizeof(the_entry))
-      );
-    }
-
-    cur_block_base = the_entry.raw_file_ofst;
-    cur_lv++;
-    table_idxes = table_idxes << table_entry_bit;
-  }
-
-  return cur_block_base + in_block_ofst;
-}
-
-static rawfile_ofst_t
-host__convert_va__to(struct geminiFS_hdr *hdr,
-                     fd_t fd,
-                     vaddr_t va,
-                     int alloc) {
-  int lv_nr = hdr->table_level_nr;
-  int block_bit = hdr->block_bit;
-  int table_entry_bit = hdr->table_entry_bit;
-  rawfile_ofst_t l1_table_raw_file_ofst = hdr->l1_table.raw_file_ofst;
-  return host__convert_va__to_1(lv_nr,
-                                   block_bit,
-                                   table_entry_bit,
-                                   l1_table_raw_file_ofst,
-                                   fd,
-                                   va,
-                                   alloc);
+host__convert_va__to(host_fd_t host_fd, vaddr_t va) {
+  struct geminiFS_hdr *hdr = host_fd;
+  return hdr->first_block_base + va;
 }
 
 static void
-host__for_each_table_entry_1(host_fd_t fd,
-                             int cur_tb_lv,
-                             rawfile_ofst_t raw_file_ofst,
-                             void fun(struct geminiFS_table_entry *entry,
-                                      void *context),
-                             void *context) {
-  size_t nr_table_entry = 1 << fd->table_entry_bit;
-  size_t block_size = 1 << fd->block_bit;
-  size_t table_level_nr = fd->table_level_nr;
-  if (table_level_nr < cur_tb_lv)
-    return;
-
-  struct geminiFS_table_entry *table = mmap(NULL,
-                  block_size,
+host_for_each_table_entry(host_fd_t fd,
+                          nvme_ofst_t fun(vaddr_t va,
+                                          nvme_ofst_t orig_nvmeofst,
+                                          void *context),
+                          void *context) {
+  struct geminiFS_hdr *hdr = fd;
+  struct geminiFS_hdr *file_mmap = mmap(NULL,
+                  hdr->first_block_base,
                   PROT_WRITE | PROT_READ,
                   MAP_SHARED,
                   fd->fd,
-                  raw_file_ofst);
-  assert((void *) -1 != table);
-  for (size_t i = 0; i < nr_table_entry; i++) {
-    //printf("%d, ", cur_tb_lv);
-    rawfile_ofst_t table_base = table[i].raw_file_ofst;
-    if (table_base != 0) {
-      fun(&(table[i]), context);
-      host__for_each_table_entry_1(fd, cur_tb_lv + 1, table_base, fun, context);
-    }
+                  0);
+  assert((void *) -1 != file_mmap);
+  for (size_t i = 0; i < hdr->nr_l1; i++) {
+    nvme_ofst_t new_nvmeofst = fun(i << hdr->block_bit, file_mmap->l1[i], context);
+    if (new_nvmeofst != 0xffffffff)
+      file_mmap->l1[i] = new_nvmeofst;
   }
-
-  munmap(table, block_size);
-}
-
-void
-host_for_each_table_entry(host_fd_t fd,
-                           void fun(struct geminiFS_table_entry *entry,
-                                    void *context),
-                           void *context) {
-  fun(&(fd->l1_table), context);
-
-  host__for_each_table_entry_1(fd, 1, fd->l1_table.raw_file_ofst, fun, context);
-
+  munmap(file_mmap, hdr->first_block_base);
 }
 
 host_fd_t
 host_create_geminifs_file(const char *filename,
                           uint64_t block_size,
                           uint64_t virtual_space_size) {
-  struct geminiFS_hdr *hdr = malloc(sizeof(struct geminiFS_hdr));
+  struct geminiFS_hdr *hdr;
   fd_t fd;
 
+  assert(virtual_space_size % block_size == 0);
+
+  hdr = malloc(sizeof(struct geminiFS_hdr));
+  hdr->magic_num = the_geminiFS_magic.magic_num;
+  hdr->virtual_space_size = virtual_space_size;
+  hdr->block_bit = one_nr__of__binary_int(block_size - 1);
+  hdr->nr_l1 = hdr->virtual_space_size >> hdr->block_bit;
+#define ROUND_UP(x, align)(((uint64_t) (x) + ((uint64_t)align - 1)) & ~((uint64_t)align - 1))
+  hdr->first_block_base = ROUND_UP(sizeof(struct geminiFS_hdr) + sizeof(nvme_ofst_t) * hdr->nr_l1, block_size);
+
   fd = open(filename, O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
-  hdr->fd = fd;
   assert(0 <= fd);
 
-  init_geminiFS_hdr(hdr, block_size, virtual_space_size);
+  assert(0 ==
+    ftruncate(fd, hdr->first_block_base + virtual_space_size));
 
-  assert(0 < hdr->table_level_nr);
-  rawfile_ofst_t hdr_ofst = alloc_block(fd, block_size);
-  rawfile_ofst_t l1_ofst = alloc_block(fd, block_size);
-  hdr->l1_table.raw_file_ofst = l1_ofst;
-  assert((off_t)(-1) != lseek(fd, hdr_ofst, SEEK_SET));
+  assert((off_t)(-1) != lseek(fd, 0, SEEK_SET));
   assert(sizeof(*hdr) == write(fd, hdr, sizeof(*hdr)));
 
-  for (vaddr_t va = 0; va < virtual_space_size; va += block_size)
-    host__convert_va__to(hdr, fd, va, 1);
-  //for (vaddr_t va = 0; va < virtual_space_size; va += block_size) {
-  //  rawfile_ofst_t raw_ofst = host__convert_va__to(&hdr, fd, va, 0);
-  //  printf("va = %lx, raw_ofst = %lx\n", va, raw_ofst);
-  //}
+  hdr->fd = fd;
 
   return hdr;
 }
@@ -217,9 +90,7 @@ host_create_geminifs_file(const char *filename,
 host_fd_t
 host_open_geminifs_file(const char *filename) {
   struct geminiFS_hdr *hdr = malloc(sizeof(struct geminiFS_hdr));
-  fd_t fd;
-
-  fd = open(filename, O_RDWR);
+  fd_t fd = open(filename, O_RDWR);
   assert(0 <= fd);
 
   assert((off_t)(-1) != lseek(fd, 0, SEEK_SET));
@@ -227,74 +98,36 @@ host_open_geminifs_file(const char *filename) {
 
   hdr->fd = fd;
 
-
   assert(hdr->magic_num == the_geminiFS_magic.magic_num);
 
   return hdr;
 }
 
-static size_t
-host_xfer_geminifs_file__in_one_page(int lv_nr,
-                int block_bit,
-                int table_entry_bit,
-                rawfile_ofst_t l1_table_raw_file_ofst,
-                fd_t fd, vaddr_t va, char *b, size_t nbyte, int block_size,
-                int is_read) {
-#define BLOCK_VA(va, block_size) (((size_t)(va) & (~((block_size) - 1))))
-  vaddr_t va_end1 = BLOCK_VA(va + block_size, block_size);
-  vaddr_t va_end2 = va + nbyte;
-  vaddr_t va_end;
-  if (va_end1 < va_end2)
-    va_end = va_end1;
-  else
-    va_end = va_end2;
-
-  nbyte = va_end - va;
-
-  rawfile_ofst_t a = host__convert_va__to_1(lv_nr,
-                                            block_bit,
-                                            table_entry_bit,
-                                            l1_table_raw_file_ofst,
-                                            fd, va, 0);
-  assert((off_t)(-1) != lseek(fd, a, SEEK_SET));
-  if (is_read)
-    assert(nbyte == read(fd, b, nbyte));
-  else
-    assert(nbyte == write(fd, b, nbyte));
-  return nbyte;
-}
-
 size_t
-host_xfer_geminifs_file(host_fd_t fd_1,
+host_xfer_geminifs_file(host_fd_t host_fd,
                         vaddr_t va,
                         void *buf_1,
                         size_t nbyte,
                         int is_read) {
-  struct geminiFS_hdr *hdr = fd_1;
-  assert(va + nbyte <= hdr->virtual_space_size);
-  int fd = hdr->fd;
-  int lv_nr = hdr->table_level_nr;
-  int block_bit = hdr->block_bit;
-  int table_entry_bit = hdr->table_entry_bit;
-  rawfile_ofst_t l1_table_raw_file_ofst = hdr->l1_table.raw_file_ofst;
+  struct geminiFS_hdr *hdr = host_fd;
+  fd_t fd = hdr->fd;
+  assert((off_t)(-1) != lseek(fd, host__convert_va__to(host_fd, va), SEEK_SET));
+
+  size_t nbyte_already = 0;
   char *buf = buf_1;
-
-  int block_size = 1 << block_bit;
-
-  size_t ret = 0;
   while (0 < nbyte) {
-          size_t read_n = host_xfer_geminifs_file__in_one_page(lv_nr,
-                          block_bit,
-                          table_entry_bit,
-                          l1_table_raw_file_ofst,
-                          fd, va, buf, nbyte, block_size, is_read);
-          ret += read_n;
-          buf += read_n;
-          va += read_n;
-          nbyte -= read_n;
-  }
+    size_t nbyte_this_time;
+    if (is_read)
+      nbyte_this_time = read(fd, buf, nbyte);
+    else
+      nbyte_this_time = write(fd, buf, nbyte);
+    assert(nbyte_this_time != -1);
 
-  return ret;
+    nbyte -= nbyte_this_time;
+    buf += nbyte_this_time;
+    nbyte_already += nbyte_this_time;
+  }
+  return nbyte_already;
 }
 
 void
@@ -304,48 +137,91 @@ host_close_geminifs_file(host_fd_t fd) {
 }
 
 struct refine_nvmeofst_context {
+    host_fd_t host_fd;
     int fd_file;
     int snvme_helper_fd;
     int block_size;
 };
-static void
-host_refine_nvmeofst_1(struct geminiFS_table_entry *e,
+static nvme_ofst_t
+host_refine_nvmeofst_1(vaddr_t va,
+                       nvme_ofst_t orig_nvmeofst,
                        void *context_1) {
   struct refine_nvmeofst_context *context = context_1;
   struct nds_mapping mapping;
   mapping.file_fd = context->fd_file;
-  mapping.offset = e->raw_file_ofst;
+  mapping.offset = host__convert_va__to(context->host_fd, va);
   mapping.len = context->block_size;
   if (ioctl(context->snvme_helper_fd, SNVME_HELP_GET_NVME_OFFSET, &mapping) < 0) {
       perror("ioctl failed");
       assert(0);
   } 
-  e->nvme_ofst = mapping.address;
-  printf("%lx, %lx\n", e->raw_file_ofst, e->nvme_ofst);
+  printf("%lx, %lx\n", va, mapping.address);
+  return mapping.address;
 }
 
 #define snvme_helper_path "/dev/snvme_helper"
 void
 host_refine_nvmeofst(host_fd_t fd) {
-  int fd_dev;
-  fd_dev = open(snvme_helper_path, O_RDWR);
-  if (fd_dev < 0) {
-      perror("Failed to open fd_dev");
+  int snvme_helper_fd = open(snvme_helper_path, O_RDWR);
+  if (snvme_helper_fd < 0) {
+      perror("Failed to open snvme_helper_fd");
       assert(0);
   }
   struct refine_nvmeofst_context c;
+  c.host_fd = fd;
   c.fd_file = fd->fd;
-  c.snvme_helper_fd = fd_dev;
+  c.snvme_helper_fd = snvme_helper_fd;
   c.block_size = 1 << fd->block_bit;
   host_for_each_table_entry(fd, host_refine_nvmeofst_1, &c);
+  close(snvme_helper_fd);
 }
 
-int
-main() {
-  //size_t size = (uint64_t)1 * (1 << 30)/*GB*/;
-  size_t size = 4096;
-  host_fd_t fd = host_create_geminifs_file("checkpoint.geminifs", 4096, size);
+static size_t
+raw_file_size(int fd) {
+  return lseek(fd, 0, SEEK_END);
+}
 
+dev_fd_t
+host_open_geminifs_file_for_device(host_fd_t host_fd) {
+  dev_fd_t ret;
+  struct geminiFS_hdr *hdr = host_fd;
+
+  nvme_ofst_t *l1__dev;
+  assert(cudaSuccess ==
+    cudaMalloc(&l1__dev, hdr->first_block_base));
+
+  struct geminiFS_hdr *hdr__file = malloc(hdr->first_block_base);
+
+  assert((off_t)(-1) !=
+    lseek(hdr->fd, 0, SEEK_SET)
+  );
+  assert(hdr->first_block_base ==
+    read(hdr->fd, hdr__file, hdr->first_block_base)
+  );
+  assert(cudaSuccess ==
+    cudaMemcpy(
+      l1__dev,
+      hdr__file->l1,
+      hdr__file->first_block_base - sizeof(*hdr),
+      cudaMemcpyHostToDevice)
+  );
+
+  free(hdr__file);
+
+  ret.l1__dev = l1__dev;
+  ret.block_bit = hdr->block_bit;
+  ret.nr_l1 = hdr->nr_l1;
+  return ret;
+}
+
+void
+host_close_geminifs_file_for_device(dev_fd_t dev_fd) {
+  assert(cudaSuccess == cudaFree(dev_fd.l1__dev));
+}
+
+static void
+test_host(host_fd_t host_fd) {
+  size_t size = host_fd->virtual_space_size;
   size_t * buf1 = malloc(size);
   size_t * buf2 = malloc(size);
 
@@ -353,26 +229,82 @@ main() {
     buf1[i] = i;
   }
 
-  host_xfer_geminifs_file(fd, 0, buf1, size, 0);
-  host_xfer_geminifs_file(fd, 0, buf2, size, 1);
+  host_xfer_geminifs_file(host_fd, 0, buf1, size, 0);
+  host_xfer_geminifs_file(host_fd, 0, buf2, size, 1);
 
   for (size_t i = 0; i < size/sizeof(size_t); i++) {
     assert(buf1[i] == buf2[i]);
   }
-  host_xfer_geminifs_file(fd, 8, buf2, 4088, 1);
-  for (size_t i = 0; i < 512; i++) {
-  printf("%ld\n", buf2[i]);
-  }
-  host_close_geminifs_file(fd);
+  host_xfer_geminifs_file(host_fd, 8, buf2, 4088, 1);
+  //for (size_t i = 0; i < 512; i++) {
+  //  printf("%ld\n", buf2[i]);
+  //}
 
-  fd = host_open_geminifs_file("checkpoint.geminifs");
-  host_xfer_geminifs_file(fd, 0, buf2, size, 1);
+  host_xfer_geminifs_file(host_fd, 0, buf2, size, 1);
 
   for (size_t i = 0; i < size/sizeof(size_t); i++) {
     assert(buf1[i] == buf2[i]);
   }
-  host_refine_nvmeofst(fd);
 
-  host_close_geminifs_file(fd);
+  free(buf1);
+  free(buf2);
+}
+
+static void
+test_device_va_convert(host_fd_t host_fd,
+                       dev_fd_t dev_fd) {
+  struct geminiFS_hdr *hdr = host_fd;
+  int block_size = 1 << hdr->block_bit;
+
+  int snvme_helper_fd = open(snvme_helper_path, O_RDWR);
+  if (snvme_helper_fd < 0) {
+      perror("Failed to open snvme_helper_fd");
+      assert(0);
+  }
+
+  for (vaddr_t va = 0;
+       va < hdr->virtual_space_size;
+       va += block_size) {
+    nvme_ofst_t t1 = host_convert_va__using_device(dev_fd, va);
+
+    rawfile_ofst_t rawfile_ofst = host__convert_va__to(host_fd, va);
+    struct nds_mapping mapping;
+    mapping.file_fd = hdr->fd;
+    mapping.offset = rawfile_ofst;
+    mapping.len = block_size;
+    if (ioctl(snvme_helper_fd, SNVME_HELP_GET_NVME_OFFSET, &mapping) < 0) {
+        perror("ioctl failed");
+        assert(0);
+    } 
+    nvme_ofst_t t2 = mapping.address;
+
+    assert(t1 == t2);
+  }
+
+  close(snvme_helper_fd);
+}
+
+
+
+int
+main() {
+  size_t virtual_space_size = (uint64_t)20 * (1 << 30)/*GB*/;
+  //size_t virtual_space_size = 4096;
+  host_fd_t host_fd = host_create_geminifs_file("checkpoint.geminifs", 4096, virtual_space_size);
+
+  test_host(host_fd);
+
+  host_close_geminifs_file(host_fd);
+
+  host_fd = host_open_geminifs_file("checkpoint.geminifs");
+  test_host(host_fd);
+
+  host_refine_nvmeofst(host_fd);
+
+  dev_fd_t dev_fd = host_open_geminifs_file_for_device(host_fd);
+  test_device_va_convert(host_fd, dev_fd);
+  host_close_geminifs_file_for_device(dev_fd);
+
+  host_close_geminifs_file(host_fd);
   return 0;
 }
