@@ -336,7 +336,20 @@ int main(int argc, char** argv)
     {
         goto out;
     }
-    sleep(10);
+    sleep(5);
+    status =  init_userioq(ctrl);
+    if (status != 0)
+    {
+        goto out;
+    }
+    // status = nvm_queue_clear(q, ctrl, is_cq, qno, qs,
+    //         q->qmem.dma->local, NVM_DMA_OFFSET(q->qmem.dma, 0), q->qmem.dma->ioaddrs[0]);
+    // if (err != 0)
+    // {
+    //     return status;
+    // }
+
+    sleep(5);
     status =  ioctl_reg_nvme(ctrl,0);
     if (status != 0)
     {

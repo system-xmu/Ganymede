@@ -147,6 +147,42 @@ int ioctl_use_userioq(nvm_ctrl_t* ctrl, int use)
     return 0;
 }
 
+int ioctl_get_dev_info(nvm_ctrl_t* ctrl)
+{
+    int err;
+    struct controller* container;
+    container  = ctrl_to_controller(ctrl);
+    if(container==NULL)
+    {
+        printf("container error!\n");
+        return -1;
+    }
+    struct nvm_ioctl_dev dev_info;
+    err = ioctl(container->device->fd_dev, NVM_GET_DEV_INFO, &dev_info);
+    if (err < 0)
+    {
+        printf("ioctl_get_dev_info err is %d\n",err);
+        return errno;
+    }
+    ctrl->start_cq_idx = dev_info.start_cq_idx;
+    ctrl->dstrd = dev_info.dstrd;
+    ctrl->nr_user_q = dev_info.nr_user_q;
+
+    return 0;
+}
+
+int init_userioq(nvm_ctrl_t* ctrl)
+{
+    int err;
+    err = ioctl_get_dev_info(ctrl);
+    if(err)
+    {
+        return -1;
+    }
+    printf("idx start is %u, dbstrd is %u, nr user q is %u\n",ctrl->start_cq_idx,ctrl->dstrd,ctrl->nr_user_q);
+    return 0;
+}
+
 int ioctl_reg_nvme(nvm_ctrl_t* ctrl, int reg)
 {
     int err;
@@ -244,9 +280,18 @@ int nvm_ctrl_init(nvm_ctrl_t** ctrl, int snvme_c_fd, int snvme_d_fd)
         dprintf("Failed to set file descriptor control: %s\n", strerror(errno));
         return errno;
     }
-    // 取消mmap
 
-    err = _nvm_ctrl_init(ctrl, dev, &ops, DEVICE_TYPE_IOCTL);
+    void* mm_ptr = mmap(NULL, NVM_CTRL_MEM_MINSIZE, PROT_READ|PROT_WRITE, MAP_SHARED|MAP_FILE|MAP_LOCKED, dev->fd_dev, 0);
+    if (mm_ptr == NULL)
+    {
+        close(dev->fd_control);
+        close(dev->fd_dev);
+        free(dev);
+        dprintf("Failed to map device memory: %s\n", strerror(errno));
+        return err;
+    }    
+    printf("mmap is %lx\n",mm_ptr);
+    err = _nvm_ctrl_init(ctrl, dev, &ops, DEVICE_TYPE_IOCTL,mm_ptr,NVM_CTRL_MEM_MINSIZE);
     if (err != 0)
     {
         release_device(dev);

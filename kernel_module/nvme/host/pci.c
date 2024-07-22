@@ -3201,6 +3201,7 @@ static int nvme_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 		return -ENOMEM;
 
 	/*if the map is equal to the pre-set queue num, and set use sreg, reg the user defined io queues*/
+
 	if(ctrl->ioq_num==ctrl->map_num && ctrl->use_sreg)
 	{
 		dev->nr_user_allocated_queues = ctrl->ioq_num;
@@ -3626,7 +3627,8 @@ static long snvm_dev_map_ioctl(struct file* file, unsigned int cmd, unsigned lon
     struct ctrl* ctrl = NULL;
     struct nvm_ioctl_map request;
     struct map* map = NULL;
-	
+	struct nvme_dev *ndev;
+	struct nvm_ioctl_dev drequest;
 	u64 addr;
     ctrl = ctrl_find_by_inode(&ctrl_list, file->f_inode);
     if (ctrl == NULL)
@@ -3770,6 +3772,25 @@ static long snvm_dev_map_ioctl(struct file* file, unsigned int cmd, unsigned lon
 			printk("NVM_SET_SHARE_REG ctrl->use_sreg %d",ctrl->use_sreg);
 			break;
 		}
+		case NVM_GET_DEV_INFO:
+		{
+			ndev = pci_get_drvdata(ctrl->pdev);
+			printk("NVM_GET_DEV_INFO 1\n");
+			if(ndev == NULL)
+			{
+				return -EFAULT;
+			}
+			drequest.start_cq_idx = ndev->user_start_qid;
+			drequest.dstrd        = ndev->db_stride;
+			drequest.nr_user_q    = ndev->nr_user_use_cq;
+			if (copy_to_user((void __user*) arg, &drequest, sizeof(struct nvm_ioctl_dev)))
+			{
+				return -EFAULT;
+			}
+			printk("NVM_GET_DEV_INFO 2\n");
+			ret = 0;
+			break;
+		}
         default:
             printk(KERN_NOTICE "Unknown ioctl command from process %d: %u\n",
                     current->pid, cmd);
@@ -3781,8 +3802,24 @@ static long snvm_dev_map_ioctl(struct file* file, unsigned int cmd, unsigned lon
 }
 static int svm_mmap_registers(struct file* file, struct vm_area_struct* vma)
 {
-	return 0;
+	struct ctrl* ctrl = NULL;
+    ctrl = ctrl_find_by_inode(&ctrl_list, file->f_inode);
+    if (ctrl == NULL && ctrl->pdev == NULL)
+    {
+        printk(KERN_CRIT "Unknown controller reference\n");
+        return -EBADF;
+    }
+
+    if (vma->vm_end - vma->vm_start > pci_resource_len(ctrl->pdev, 0))
+    {
+        printk(KERN_WARNING "Invalid range size\n");
+        return -EINVAL;
+    }
+	vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
+	return vm_iomap_memory(vma, pci_resource_start(ctrl->pdev, 0), vma->vm_end - vma->vm_start);
+
 }
+
 /* Define file operations for device file */
 static const struct file_operations snvm_dev_fops = 
 {

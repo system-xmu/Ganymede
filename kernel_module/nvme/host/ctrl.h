@@ -21,7 +21,7 @@ struct ctrl
     struct class*       cls;        /* Character device class */
     struct cdev         cdev;       /* Character device */
     struct device*      chrdev;     /* Character device handle */
-
+    struct nvme_dev *dev;
     /*****info about user defined nvme io qp **** */
     unsigned int        ioq_num;    /*number of user defined nvme io queues*/
     unsigned int        cq_num;    /*number of user defined nvme io queues*/

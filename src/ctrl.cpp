@@ -144,7 +144,7 @@ void _nvm_ctrl_put(struct controller* controller)
 
 
 
-int _nvm_ctrl_init(nvm_ctrl_t** handle, struct device* dev, const struct device_ops* ops, enum device_type type)
+int _nvm_ctrl_init(nvm_ctrl_t** handle, struct device* dev, const struct device_ops* ops, enum device_type type, volatile void* mm_ptr, size_t mm_size)
 {
     struct controller* container;
     nvm_ctrl_t* ctrl;
@@ -159,6 +159,8 @@ int _nvm_ctrl_init(nvm_ctrl_t** handle, struct device* dev, const struct device_
 
     ctrl = &container->handle;
 
+    ctrl->mm_ptr = mm_ptr;
+    ctrl->mm_size = mm_size;
     // Get the system page size
     size_t page_size = _nvm_host_page_size();
     if (page_size == 0)
@@ -199,6 +201,6 @@ void nvm_ctrl_free(nvm_ctrl_t* ctrl)
 
 int nvm_raw_ctrl_init(nvm_ctrl_t** ctrl)
 {
-    return _nvm_ctrl_init(ctrl, NULL, NULL, DEVICE_TYPE_UNKNOWN);
+    return _nvm_ctrl_init(ctrl, NULL, NULL, DEVICE_TYPE_UNKNOWN,NULL,NULL);
 }
 

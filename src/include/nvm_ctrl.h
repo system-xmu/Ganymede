@@ -55,6 +55,7 @@ int nvm_raw_ctrl_init(nvm_ctrl_t** ctrl);
 int ioctl_set_qnum(nvm_ctrl_t* ctrl, int ioq_num);
 int ioctl_use_userioq(nvm_ctrl_t* ctrl, int use);
 int ioctl_reg_nvme(nvm_ctrl_t* ctrl, int reg);
+int init_userioq(nvm_ctrl_t* ctrl);
 /*
  * Release controller handle.
  */

@@ -19,6 +19,13 @@ struct nvm_ioctl_map
     int is_cq; // cq = 1 sq = 0
 };
 
+struct nvm_ioctl_dev
+{
+    uint32_t    nr_user_q;
+    uint32_t*   start_cq_idx;
+    uint8_t     dstrd; 
+};
+
 
 
 /* Supported operations */
@@ -31,6 +38,7 @@ enum nvm_ioctl_type
     NVM_UNMAP_MEMORY            = _IOW(NVM_IOCTL_TYPE, 3, uint64_t),
     NVM_SET_IOQ_NUM            = _IOW(NVM_IOCTL_TYPE, 4, uint64_t),
     NVM_SET_SHARE_REG            = _IOW(NVM_IOCTL_TYPE, 5, uint64_t),
+    NVM_GET_DEV_INFO             = _IOR(NVM_IOCTL_TYPE, 6, struct nvm_ioctl_dev),   
 };
 
 // snvm_ctrl_ioctl_type

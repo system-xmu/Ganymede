@@ -257,9 +257,14 @@ typedef struct
     uint8_t                 dstrd;          // Doorbell stride (in encoded form)
     uint64_t                timeout;        // Controller timeout in milliseconds (TO)
     uint32_t                max_qs;         // Maximum queue entries supported (MQES)
+    size_t                  mm_size;        // Size of memory-mapped region
+    volatile void*          mm_ptr;         // Memory-mapped pointer to BAR0 of the physical device
     uint32_t                cq_num;         // Num of cq queues
     uint32_t                sq_num;         // Num of sq queues, the cq_idx is  sq_num/cq_num
-    struct queue*           queues;         
+    uint32_t    nr_user_q;
+    uint32_t*   start_cq_idx;    
+    struct queue*           queues;   
+  
 } nvm_ctrl_t;
 
 //#ifndef __CUDACC__

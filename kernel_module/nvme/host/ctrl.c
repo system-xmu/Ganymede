@@ -45,6 +45,7 @@ void ctrl_put(struct ctrl* ctrl)
 {
     if (ctrl != NULL)
     {
+        pci_dev_put(ctrl->pdev);
         list_remove(&ctrl->list);
         ctrl_chrdev_remove(ctrl);
         kfree(ctrl);
