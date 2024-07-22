@@ -15,8 +15,12 @@ To unreg the map on the snvme, the input para include the vaddr of the registere
 
 ## The Process of user defined IO queue 
 
-create io queue struct, create the map, identify the map attr(sq or cq, and its corresponding sq/cq )
-### create IO queue 
 
-### map the userspace 
+
+### create IO queue, map the userspace, reg the addr into kernel
+create io queue struct, create the map, identify the map attr(sq or cq, and its corresponding sq/cq )
+
+The idx of IO queues is is arrange follow this rule (assume 6 ioqs, 2 cq 4 sq)：
+[pci_dev1,cq,0] [pci_dev1,cq,1] [pci_dev1,sq,2] [pci_dev1,sq,3] [pci_dev1,sq,4] [pci_dev1,sq,5] 
+### using the NVM_SET_SHARE_REG, and using SNVM_REGISTER_DRIVER to initizalized the nvme module
 map_userspace

@@ -1526,7 +1526,7 @@ int nvme_set_queue_count(struct nvme_ctrl *ctrl, int *count)
 {
 	u32 q_count = (*count - 1) | ((*count - 1) << 16);
 	u32 result;
-	int status, nr_io_queues;
+	int status, nr_io_queues,nr_io_sq;
 	/*q_count: 31:16 cq num, 15:0 sq num, this we assume the cq:sq is 1:1 */
 	status = nvme_set_features(ctrl, NVME_FEAT_NUM_QUEUES, q_count, NULL, 0,
 			&result);
@@ -1543,7 +1543,10 @@ int nvme_set_queue_count(struct nvme_ctrl *ctrl, int *count)
 		*count = 0;
 	} else {
 		nr_io_queues = min(result & 0xffff, result >> 16) + 1;
+		nr_io_sq = result & 0x00ff;
+		printk(" nvme_set_queue_count result is %lx, nr_io_sq is %u\n",nr_io_queues,nr_io_sq);
 		*count = min(*count, nr_io_queues);
+		
 	}
 
 	return 0;
