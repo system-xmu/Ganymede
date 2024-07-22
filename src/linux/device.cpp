@@ -124,6 +124,54 @@ int ioctl_set_qnum(nvm_ctrl_t* ctrl, int ioq_num)
     return 0;
 }
 
+int ioctl_use_userioq(nvm_ctrl_t* ctrl, int use)
+{
+    int err;
+    struct controller* container;
+    container  = ctrl_to_controller(ctrl);
+    if(container==NULL)
+    {
+        printf("container error!\n");
+        return -1;
+    }
+    struct nvm_ioctl_map request = {
+        .ioq_idx = use,
+    };
+    err = ioctl(container->device->fd_dev, NVM_SET_SHARE_REG, &request);
+    if (err < 0)
+    {
+        printf("ioctl_set_qnum err is %d\n",err);
+        return errno;
+    }
+    
+    return 0;
+}
+
+int ioctl_reg_nvme(nvm_ctrl_t* ctrl, int reg)
+{
+    int err;
+    struct controller* container;
+    container  = ctrl_to_controller(ctrl);
+    if(container==NULL)
+    {
+        printf("container error!\n");
+        return -1;
+    }
+    
+    if(reg)
+        err = ioctl(container->device->fd_control, SNVM_REGISTER_DRIVER, NULL);
+    else
+        err = ioctl(container->device->fd_control, SNVM_UNREGISTER_DRIVER, NULL);
+    if (err < 0)
+    {
+        printf("ioctl_req_nvme err is %d\n",err);
+        return errno;
+    }
+    
+    return 0;
+}
+
+
 /*
  * Call kernel module ioctl and unmap memory.
  */

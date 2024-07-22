@@ -164,6 +164,8 @@ struct nvme_dev {
 	struct dma_pool *prp_page_pool;
 	struct dma_pool *prp_small_pool;
 	unsigned online_queues;
+	unsigned online_user_queues;
+	unsigned user_start_qid;
 	unsigned max_qid;
 	unsigned io_queues[HCTX_MAX_TYPES];
 	unsigned int num_vecs;
@@ -200,7 +202,12 @@ struct nvme_dev {
 	unsigned int nr_allocated_queues;
 	unsigned int nr_write_queues;
 	unsigned int nr_poll_queues;
-
+	unsigned int nr_user_allocated_queues;
+	unsigned int nr_user_allocated_cq;
+	unsigned int nr_user_use_cq;
+	unsigned int nr_user_allocated_sq;
+	unsigned int nr_user_use_sq;
+	unsigned int use_user_allocated;
 	bool attrs_added;
 };
 
@@ -1190,7 +1197,7 @@ static int adapter_alloc_cq(struct nvme_dev *dev, u16 qid,
 	c.create_cq.qsize = cpu_to_le16(nvmeq->q_depth - 1);
 	c.create_cq.cq_flags = cpu_to_le16(flags);
 	c.create_cq.irq_vector = cpu_to_le16(vector);
-
+	printk("adapter_alloc_cq q_depth is %u,qid is %u\n",nvmeq->q_depth,qid);
 	return nvme_submit_sync_cmd(dev->ctrl.admin_q, &c, NULL, 0);
 }
 
@@ -1217,6 +1224,51 @@ static int adapter_alloc_sq(struct nvme_dev *dev, u16 qid,
 	c.create_sq.prp1 = cpu_to_le64(nvmeq->sq_dma_addr);
 	c.create_sq.sqid = cpu_to_le16(qid);
 	c.create_sq.qsize = cpu_to_le16(nvmeq->q_depth - 1);
+	c.create_sq.sq_flags = cpu_to_le16(flags);
+	c.create_sq.cqid = cpu_to_le16(qid);
+	// printk("adapter_alloc_sq q_depth is %u\n",nvmeq->q_depth);
+	return nvme_submit_sync_cmd(dev->ctrl.admin_q, &c, NULL, 0);
+}
+
+static int adapter_alloc_cq_user(struct nvme_dev *dev, struct map* q_map,int qid)
+{
+	struct nvme_command c = { };
+	int flags = NVME_QUEUE_PHYS_CONTIG;
+
+	/*
+	 * Note: we (ab)use the fact that the prp fields survive if no data
+	 * is attached to the request.
+	 */
+	c.create_cq.opcode = nvme_admin_create_cq;
+	c.create_cq.prp1 = cpu_to_le64(q_map->addrs[0]);
+	c.create_cq.cqid = cpu_to_le16(qid);
+	c.create_cq.qsize = cpu_to_le16(dev->q_depth - 1);
+	c.create_cq.cq_flags = cpu_to_le16(flags);
+	c.create_cq.irq_vector = 0;
+	printk("adapter_alloc_cq_user qid is %u, addr is %lx\n",qid,q_map->addrs[0]);
+	return nvme_submit_sync_cmd(dev->ctrl.admin_q, &c, NULL, 0);
+}
+
+static int adapter_alloc_sq_user(struct nvme_dev *dev, struct map* q_map,int qid)
+{
+
+	struct nvme_command c = { };
+	int flags = NVME_QUEUE_PHYS_CONTIG;
+
+	/*
+	 * Some drives have a bug that auto-enables WRRU if MEDIUM isn't
+	 * set. Since URGENT priority is zeroes, it makes all queues
+	 * URGENT.
+	 */
+
+	/*
+	 * Note: we (ab)use the fact that the prp fields survive if no data
+	 * is attached to the request.
+	 */
+	c.create_sq.opcode = nvme_admin_create_sq;
+	c.create_sq.prp1 = cpu_to_le64(q_map->addrs[0]);
+	c.create_sq.sqid = cpu_to_le16(qid);
+	c.create_sq.qsize = cpu_to_le16(dev->q_depth - 1);
 	c.create_sq.sq_flags = cpu_to_le16(flags);
 	c.create_sq.cqid = cpu_to_le16(qid);
 
@@ -1399,7 +1451,8 @@ static enum blk_eh_timer_return nvme_timeout(struct request *req, bool reserved)
 	return BLK_EH_RESET_TIMER;
 }
 
-static void nvme_free_queue(struct nvme_queue *nvmeq)
+// pay attention on it
+static void nvme_free_queue(struct nvme_queue *nvmeq) 
 {
 	dma_free_coherent(nvmeq->dev->dev, CQ_SIZE(nvmeq),
 				(void *)nvmeq->cqes, nvmeq->cq_dma_addr);
@@ -1533,6 +1586,7 @@ static int nvme_alloc_sq_cmds(struct nvme_dev *dev, struct nvme_queue *nvmeq,
 	return 0;
 }
 
+/*allocate sqes and cqes, and retuen its dma addr, and allocate the qid*/
 static int nvme_alloc_queue(struct nvme_dev *dev, int qid, int depth)
 {
 	struct nvme_queue *nvmeq = &dev->queues[qid];
@@ -1544,6 +1598,7 @@ static int nvme_alloc_queue(struct nvme_dev *dev, int qid, int depth)
 	nvmeq->q_depth = depth;
 	nvmeq->cqes = dma_alloc_coherent(dev->dev, CQ_SIZE(nvmeq),
 					 &nvmeq->cq_dma_addr, GFP_KERNEL);
+
 	if (!nvmeq->cqes)
 		goto free_nvmeq;
 
@@ -1635,11 +1690,9 @@ static int nvme_create_queue(struct nvme_queue *nvmeq, int qid, bool polled)
 		vector = dev->num_vecs == 1 ? 0 : qid;
 	else
 		set_bit(NVMEQ_POLLED, &nvmeq->flags);
-
 	result = adapter_alloc_cq(dev, qid, nvmeq, vector);
 	if (result)
 		return result;
-
 	result = adapter_alloc_sq(dev, qid, nvmeq);
 	if (result < 0)
 		return result;
@@ -1664,6 +1717,63 @@ static int nvme_create_queue(struct nvme_queue *nvmeq, int qid, bool polled)
 
 release_sq:
 	dev->online_queues--;
+	mutex_unlock(&dev->shutdown_lock);
+	adapter_delete_sq(dev, qid);
+release_cq:
+	adapter_delete_cq(dev, qid);
+	return result;
+}
+
+static int nvme_create_user_queue(struct nvme_dev *dev , int uqid,int qid)
+{
+
+	int result;
+
+
+	struct pci_dev *pdev = to_pci_dev(dev->dev);
+	struct map* q_map; 
+	
+	
+	/*
+	 * A queue's vector matches the queue identifier unless the controller
+	 * has only one vector available.
+	 */
+	q_map = map_find_by_pci_dev_and_idx(&host_list,pdev,uqid,1);
+	if(q_map==NULL)
+	{
+		printk("map_find_by_pci_dev_and_idx cq error!\n");
+		return -1;
+	}
+	result = adapter_alloc_cq_user(dev, q_map,qid);
+	if (result)
+		return result;
+
+	q_map = map_find_by_pci_dev_and_idx(&host_list,pdev,uqid,0);
+	if(q_map==NULL)
+	{
+		printk("map_find_by_pci_dev_and_idx sq error!\n");
+		result = -1;
+		goto release_cq;
+	}
+	// printk("adapter_alloc_sq qid is %d\n",qid);
+	result = adapter_alloc_sq_user(dev, q_map,qid);
+	if (result < 0)
+		return result;
+	if (result)
+		goto release_cq;
+
+	result = nvme_setup_io_queues_trylock(dev);
+	if (result)
+		return result;
+	// nvme_init_queue(nvmeq, qid);
+	dev->online_user_queues++;
+	wmb(); /* ensure the first interrupt sees the initialization */
+	mutex_unlock(&dev->shutdown_lock);
+
+	return result;
+
+release_sq:
+	dev->online_user_queues--;
 	mutex_unlock(&dev->shutdown_lock);
 	adapter_delete_sq(dev, qid);
 release_cq:
@@ -1750,6 +1860,7 @@ static int nvme_remap_bar(struct nvme_dev *dev, unsigned long size)
 		return 0;
 	if (size > pci_resource_len(pdev, 0))
 		return -ENOMEM;
+	printk("nvme_remap_bar bar size is %lx\n",pci_resource_len(pdev, 0));
 	if (dev->bar)
 		iounmap(dev->bar);
 	dev->bar = ioremap(pci_resource_start(pdev, 0), size);
@@ -1814,6 +1925,37 @@ static int nvme_pci_configure_admin_queue(struct nvme_dev *dev)
 	return result;
 }
 
+static int nvme_create_io_queues_mix(struct nvme_dev *dev)
+{
+	unsigned i, max, rw_queues;
+	int ret = 0;
+	int k_q_max_id;
+
+	int count;
+	/*admin cq sq, rw q, polled queue  */
+
+	k_q_max_id = dev->max_qid + dev->nr_user_use_cq;
+
+	printk("nvme_create_io_queues_mix k_q_max_id is %d, online_queues is %d\n",k_q_max_id,dev->online_queues);
+
+
+	count = 0;
+	dev->user_start_qid = dev->online_queues;
+	for (i = dev->online_queues; i <= k_q_max_id; i++) {
+		ret = nvme_create_user_queue(dev,count,i);
+		if (ret)
+			break;
+		count++;
+	}
+	/*
+	 * Ignore failing Create SQ/CQ commands, we can continue with less
+	 * than the desired amount of queues, and even a controller without
+	 * I/O queues can still be used to issue admin commands.  This might
+	 * be useful to upgrade a buggy firmware for example.
+	 */
+	return ret >= 0 ? 0 : ret;
+}
+
 static int nvme_create_io_queues(struct nvme_dev *dev)
 {
 	unsigned i, max, rw_queues;
@@ -1850,7 +1992,6 @@ static int nvme_create_io_queues(struct nvme_dev *dev)
 	 */
 	return ret >= 0 ? 0 : ret;
 }
-
 static u64 nvme_cmb_size_unit(struct nvme_dev *dev)
 {
 	u8 szu = (dev->cmbsz >> NVME_CMBSZ_SZU_SHIFT) & NVME_CMBSZ_SZU_MASK;
@@ -2294,7 +2435,8 @@ static int nvme_setup_io_queues(struct nvme_dev *dev)
 	unsigned int nr_io_queues;
 	unsigned long size;
 	int result;
-
+	unsigned int expect_num;
+	unsigned int actual_num;
 	/*
 	 * Sample the module parameters once at reset time so that we have
 	 * stable values to work with.
@@ -2303,7 +2445,36 @@ static int nvme_setup_io_queues(struct nvme_dev *dev)
 	dev->nr_poll_queues = poll_queues;
 
 	nr_io_queues = dev->nr_allocated_queues - 1;
+	// To add the user_allocated_queues to the total num of queue 
+	if(dev->use_user_allocated)
+	{
+		expect_num = dev->nr_user_allocated_cq + nr_io_queues;
+		
+		printk("nvme_set_queue_count nr 1 is %d\n",expect_num);
+		nr_io_queues += dev->nr_user_allocated_cq;
+	}
+	
 	result = nvme_set_queue_count(&dev->ctrl, &nr_io_queues);
+
+	printk("nvme_set_queue_count nr 2 is %d\n",nr_io_queues);
+
+	if(nr_io_queues < dev->nr_allocated_queues - 1)
+	{
+		dev->use_user_allocated = 0;
+		printk("nvme_set_queue_count fail, can not allocate more ioqs\n");
+	}
+	else if (nr_io_queues < expect_num)
+	{
+		actual_num = nr_io_queues;
+		
+		nr_io_queues = dev->nr_allocated_queues - 1;
+		
+		dev->nr_user_use_cq = actual_num - nr_io_queues;
+		dev->nr_user_use_sq = actual_num - nr_io_queues;
+		printk("nvme_set_queue_count succsee, but controller limit max, exp is %u, kernel is %u, user is %u\n",expect_num,nr_io_queues,dev->nr_user_use_cq);
+	}
+	
+
 	// printk("nvme_setup_io_queues nr is %d\n",nr_io_queues);
 	if (result < 0)
 		return result;
@@ -2356,6 +2527,8 @@ static int nvme_setup_io_queues(struct nvme_dev *dev)
 	 */
 	pci_free_irq_vectors(pdev);
 
+	/*user definded queue dose need irq*/
+
 	result = nvme_setup_irqs(dev, nr_io_queues);
 	if (result <= 0) {
 		result = -EIO;
@@ -2379,6 +2552,10 @@ static int nvme_setup_io_queues(struct nvme_dev *dev)
 	mutex_unlock(&dev->shutdown_lock);
 
 	result = nvme_create_io_queues(dev);
+	printk("create io queue finish max_id is %d, online_queues is %d\n",dev->max_qid,dev->online_queues);
+	if(dev->use_user_allocated)
+		result = nvme_create_io_queues_mix(dev);
+
 	if (result || dev->online_queues < 2)
 		return result;
 
@@ -2391,10 +2568,11 @@ static int nvme_setup_io_queues(struct nvme_dev *dev)
 		nvme_suspend_io_queues(dev);
 		goto retry;
 	}
-	dev_info(dev->ctrl.device, "%d/%d/%d default/read/poll queues\n",
+	dev_info(dev->ctrl.device, "%d/%d/%d/%d default/read/poll/user queues\n",
 					dev->io_queues[HCTX_TYPE_DEFAULT],
 					dev->io_queues[HCTX_TYPE_READ],
-					dev->io_queues[HCTX_TYPE_POLL]);
+					dev->io_queues[HCTX_TYPE_POLL],
+					dev->nr_user_use_cq);
 	return 0;
 out_unlock:
 	mutex_unlock(&dev->shutdown_lock);
@@ -2546,10 +2724,12 @@ static int nvme_pci_enable(struct nvme_dev *dev)
 
 	dev->q_depth = min_t(u32, NVME_CAP_MQES(dev->ctrl.cap) + 1,
 				io_queue_depth);
+	
 	dev->ctrl.sqsize = dev->q_depth - 1; /* 0's based queue depth */
 	dev->db_stride = 1 << NVME_CAP_STRIDE(dev->ctrl.cap);
+	
 	dev->dbs = dev->bar + 4096;
-
+	printk("nvme_pci_enable is dev->q_depth %u\n",dev->q_depth);
 	/*
 	 * Some Apple controllers require a non-standard SQE size.
 	 * Interestingly they also seem to ignore the CC:IOSQES register
@@ -2767,7 +2947,7 @@ static void nvme_reset_work(struct work_struct *work)
 	result = nvme_pci_enable(dev);
 	if (result)
 		goto out_unlock;
-
+	printk("dev->db_stride is %u\n",dev->db_stride);
 	result = nvme_pci_configure_admin_queue(dev);
 	if (result)
 		goto out_unlock;
@@ -2939,7 +3119,7 @@ static int nvme_dev_map(struct nvme_dev *dev)
 	if (pci_request_mem_regions(pdev, "nvme"))
 		return -ENODEV;
 
-	if (nvme_remap_bar(dev, NVME_REG_DBS + 4096))
+	if (nvme_remap_bar(dev, NVME_REG_DBS + 4096*3))
 		goto release;
 
 	return 0;
@@ -3004,10 +3184,14 @@ static int nvme_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 {
 	int node, result = -ENOMEM;
 	struct nvme_dev *dev;
+	struct ctrl *ctrl;
 	unsigned long quirks = id->driver_data;
 	size_t alloc_size;
-    if(pdev->vendor == 0x8086 && pdev->device==0x4140)
-        printk("this device is p5800x!\n");
+	ctrl = ctrl_find_by_pci_dev(&ctrl_list,pdev);
+	if(ctrl!=NULL)
+	{
+		printk("ctrl exist, ioq_num is %u, cq_num is %u, map num is %u\n",ctrl->ioq_num,ctrl->cq_num,ctrl->map_num);
+	}
 	node = dev_to_node(&pdev->dev);
 	if (node == NUMA_NO_NODE)
 		set_dev_node(&pdev->dev, first_memory_node);
@@ -3015,6 +3199,19 @@ static int nvme_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	dev = kzalloc_node(sizeof(*dev), GFP_KERNEL, node);
 	if (!dev)
 		return -ENOMEM;
+
+	/*if the map is equal to the pre-set queue num, and set use sreg, reg the user defined io queues*/
+	if(ctrl->ioq_num==ctrl->map_num && ctrl->use_sreg)
+	{
+		dev->nr_user_allocated_queues = ctrl->ioq_num;
+		dev->nr_user_allocated_cq = ctrl->cq_num;
+		dev->nr_user_allocated_sq = ctrl->ioq_num - ctrl->cq_num;
+		dev->use_user_allocated = 1;
+		if(pdev->vendor == 0x8086 && pdev->device==0x4140)
+			printk("this device is p5800x!\n");
+	}
+	else
+		dev->use_user_allocated = 0;
 
 	dev->nr_write_queues = write_queues;
 	dev->nr_poll_queues = poll_queues;
@@ -3459,6 +3656,10 @@ static long snvm_dev_map_ioctl(struct file* file, unsigned int cmd, unsigned lon
 				}
 				map->ioq_idx = request.ioq_idx;
 				map->is_cq = request.is_cq;
+				
+
+				if(map->is_cq)
+					ctrl->cq_num++;
 				printk("map_userspace map map->ioq_idx is %d, map->is_cq is %d",map->ioq_idx,map->is_cq);
 			}
             if (!IS_ERR_OR_NULL(map))
@@ -3511,8 +3712,12 @@ static long snvm_dev_map_ioctl(struct file* file, unsigned int cmd, unsigned lon
             map = map_find(&host_list, addr);
             if (map != NULL)
             {
-				if(map->ioq_idx>0)
+				if(map->ioq_idx>=0)
 				{
+					// printk("unmap_userspace map map->ioq_idx is %d, map->is_cq is %d",map->ioq_idx,map->is_cq);
+					if(map->is_cq)
+						ctrl->cq_num--;
+
 					ctrl->map_num--;
 				}
                 unmap_and_release(map);

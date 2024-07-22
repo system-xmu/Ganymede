@@ -25,7 +25,7 @@
 #include "integrity.h"
 
 #define snvme_control_path "/dev/snvm_control"
-#define snvme_path "/dev/snvme1"
+#define snvme_path "/dev/snvme2"
 
 
 struct arguments
@@ -210,7 +210,7 @@ static void remove_queues(struct queue* queues, uint16_t n_queues)
     if (queues != NULL)
     {
 
-        for (i = 0; i < n_queues; ++i)
+        for (i = 0; i < n_queues; i++)
         {
             remove_queue(&queues[i]);
         }
@@ -257,7 +257,7 @@ static int request_queues(nvm_ctrl_t* ctrl, struct queue** queues)
     // Create submission queues
     for (i = 0; i < ctrl->sq_num; ++i)
     {
-        status = create_queue(&q[i + ctrl->cq_num], ctrl, &q[0], i+ctrl->cq_num);
+        status = create_queue(&q[i + ctrl->cq_num], ctrl, &q[0], i);
         if (status != 0)
         {
             remove_queues(q, i);
@@ -317,8 +317,8 @@ int main(int argc, char** argv)
     close(snvme_c_fd);
     close(snvme_d_fd);
 
-    ctrl->cq_num = 1;
-    ctrl->sq_num = 4;
+    ctrl->cq_num = 256;
+    ctrl->sq_num = 256;
     
     // Create queues
     status = request_queues(ctrl, &ctrl->queues);
@@ -326,9 +326,23 @@ int main(int argc, char** argv)
     {
         goto out;
     }
-
-    fprintf(stderr, "Using %u submission queues:\n", ioq_num);
-
+    status =  ioctl_use_userioq(ctrl,1);
+    if (status != 0)
+    {
+        goto out;
+    }
+    status =  ioctl_reg_nvme(ctrl,1);
+    if (status != 0)
+    {
+        goto out;
+    }
+    sleep(10);
+    status =  ioctl_reg_nvme(ctrl,0);
+    if (status != 0)
+    {
+        goto out;
+    }
+    printf("Using %u submission queues:\n", ctrl->cq_num+ctrl->sq_num);
     // if (read_bytes > 0)
     // {
     //     status = disk_read(&disk, &buffer, queues, ioq_num, fp, file_size);

@@ -2,7 +2,7 @@
   
 # 检查参数个数  
 if [ "$#" -ne 1 ]; then  
-    echo "Usage: $0 <origin|share|reload>"  
+    echo "Usage: $0 <origin|share|reload|reloadp>"  
     exit 1  
 fi  
 path="../kernel_module/nvme/host"
@@ -17,6 +17,10 @@ unload_modules() {
 unload_modified_modules() {
     rmmod snvme  
     rmmod snvme-core
+} 
+
+unload_modified_modules_pci_only() {
+    rmmod snvme  
 }  
 
 load_custom_modules() {
@@ -30,6 +34,10 @@ load_modified_modules() {
     insmod $path/snvme.ko  
 }  
 
+load_modified_modules_pci_only() {  
+    local path=$1  
+    insmod $path/snvme.ko  
+}  
 # 根据参数决定操作  
 case "$1" in  
     "share")  
@@ -44,6 +52,10 @@ case "$1" in
     "reload")
         unload_modified_modules
         load_modified_modules $path
+    ;; 
+    "reloadp")
+        unload_modified_modules_pci_only
+        load_modified_modules_pci_only $path
     ;;  
     *)  
         echo "Invalid parameter. Usage: $0 <origin|share>"  

@@ -28,6 +28,7 @@ struct ioctl_mapping
     struct va_range     range;  // Memory range descriptor
     int is_cq;
     int ioq_idx;
+    int n_entries;
 };
 
 

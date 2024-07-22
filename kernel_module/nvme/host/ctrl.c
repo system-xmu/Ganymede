@@ -30,6 +30,7 @@ struct ctrl* ctrl_get(struct list* list, struct class* cls, struct pci_dev* pdev
     ctrl->use_sreg = 0;
     ctrl->ioq_num = 0;
     ctrl->map_num = 0;
+    ctrl->cq_num = 0;
     snprintf(ctrl->name, sizeof(ctrl->name), "%s%d", KBUILD_MODNAME, ctrl->number);
     ctrl->name[sizeof(ctrl->name) - 1] = '\0';
 
@@ -149,3 +150,4 @@ void ctrl_chrdev_remove(struct ctrl* ctrl)
     }
 }
 EXPORT_SYMBOL_GPL(ctrl_chrdev_remove);
+

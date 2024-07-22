@@ -50,17 +50,19 @@ int create_queue(struct queue* q, nvm_ctrl_t* ctrl, const struct queue* cq, uint
 
     int is_cq;
     int ioq_idx;
+    size_t qmem_size;
 
-    size_t prp_lists = 0;
     is_cq = 1;
+    // q_depth 1024 sqes 6 sq mem<- 1024
     if (cq != NULL)
     {
         is_cq = 0;
-        size_t n_entries = ctrl->page_size / sizeof(nvm_cmd_t);
-        prp_lists = n_entries <= ctrl->max_qs ? n_entries : ctrl->max_qs;
+        qmem_size =  1024 * sizeof(nvm_cmd_t); //64KB
     }
-
-    status = create_buffer(&q->qmem, ctrl, prp_lists * ctrl->page_size + ctrl->page_size,is_cq,qno);
+    else
+        qmem_size =  1024 * sizeof(nvm_cpl_t); //16KB
+    
+    status = create_buffer(&q->qmem, ctrl, qmem_size,is_cq,qno);
     if (!nvm_ok(status))
     {
         return status;

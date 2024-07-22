@@ -1527,7 +1527,7 @@ int nvme_set_queue_count(struct nvme_ctrl *ctrl, int *count)
 	u32 q_count = (*count - 1) | ((*count - 1) << 16);
 	u32 result;
 	int status, nr_io_queues;
-
+	/*q_count: 31:16 cq num, 15:0 sq num, this we assume the cq:sq is 1:1 */
 	status = nvme_set_features(ctrl, NVME_FEAT_NUM_QUEUES, q_count, NULL, 0,
 			&result);
 	if (status < 0)

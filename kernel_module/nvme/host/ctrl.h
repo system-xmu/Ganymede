@@ -24,6 +24,7 @@ struct ctrl
 
     /*****info about user defined nvme io qp **** */
     unsigned int        ioq_num;    /*number of user defined nvme io queues*/
+    unsigned int        cq_num;    /*number of user defined nvme io queues*/
     unsigned int        map_num;    /*number of user registered dma register*/
     unsigned int        use_sreg;   /*flag to indicated the map num has statifed nvme regiester requirements, when map_num==ioq_num, this flag is 1.need set by user*/
 };

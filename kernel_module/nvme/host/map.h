@@ -25,6 +25,7 @@ struct map
     struct list*        ctrl_list;
     int                 is_cq;
     int                 ioq_idx;
+    int                 n_entries;
     struct pci_dev*     pdev;           /* Reference to physical PCI device */
     unsigned long       page_size;      /* Logical page size */
     void*               data;           /* Custom data */
@@ -62,6 +63,6 @@ struct map* map_device_memory(struct list* list, const struct ctrl* ctrl, u64 va
  * Find memory mapping from vaddr and current task
  */
 struct map* map_find(const struct list* list, u64 vaddr);
-
+struct map* map_find_by_pci_dev_and_idx(const struct list* list, const struct pci_dev* pdev, int idx, int is_cq);
 
 #endif /* __LIBNVM_HELPER_MAP_H__ */
