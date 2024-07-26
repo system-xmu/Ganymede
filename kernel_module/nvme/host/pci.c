@@ -37,6 +37,8 @@
 #include "../../../src/linux/ioctl.h"
 #define DRIVER_NAME         "libsnvm helper"
 
+MODULE_IMPORT_NS(NVME_TARGET_PASSTHRU);
+
 static dev_t dev_first;
 dev_t  snvm_devno;
 static struct device snvm_dev; //snvme device
@@ -337,7 +339,7 @@ static void nvme_dbbuf_init(struct nvme_dev *dev,
 {
 	if (!dev->dbbuf_dbs || !qid)
 		return;
-
+	printk("nvme_dbbuf_init\n");
 	nvmeq->dbbuf_sq_db = &dev->dbbuf_dbs[sq_idx(qid, dev->db_stride)];
 	nvmeq->dbbuf_cq_db = &dev->dbbuf_dbs[cq_idx(qid, dev->db_stride)];
 	nvmeq->dbbuf_sq_ei = &dev->dbbuf_eis[sq_idx(qid, dev->db_stride)];
@@ -1197,7 +1199,7 @@ static int adapter_alloc_cq(struct nvme_dev *dev, u16 qid,
 	c.create_cq.qsize = cpu_to_le16(nvmeq->q_depth - 1);
 	c.create_cq.cq_flags = cpu_to_le16(flags);
 	c.create_cq.irq_vector = cpu_to_le16(vector);
-	printk("adapter_alloc_cq q_depth is %u,qid is %u\n",nvmeq->q_depth,qid);
+	// printk("adapter_alloc_cq q_depth is %u,qid is %u\n",nvmeq->q_depth,qid);
 	return nvme_submit_sync_cmd(dev->ctrl.admin_q, &c, NULL, 0);
 }
 
@@ -1245,7 +1247,7 @@ static int adapter_alloc_cq_user(struct nvme_dev *dev, struct map* q_map,int qid
 	c.create_cq.qsize = cpu_to_le16(dev->q_depth - 1);
 	c.create_cq.cq_flags = cpu_to_le16(flags);
 	c.create_cq.irq_vector = 0;
-	printk("adapter_alloc_cq_user qid is %u, addr is %lx\n",qid,q_map->addrs[0]);
+	printk("adapter_alloc_cq_user qid is %u, addr is %lx,q depth is %d\n",qid,q_map->addrs[0],dev->q_depth - 1);
 	return nvme_submit_sync_cmd(dev->ctrl.admin_q, &c, NULL, 0);
 }
 
@@ -1271,7 +1273,7 @@ static int adapter_alloc_sq_user(struct nvme_dev *dev, struct map* q_map,int qid
 	c.create_sq.qsize = cpu_to_le16(dev->q_depth - 1);
 	c.create_sq.sq_flags = cpu_to_le16(flags);
 	c.create_sq.cqid = cpu_to_le16(qid);
-
+	printk("adapter_alloc_sq_user qid is %u, addr is %lx,q depth is %d\n",qid,q_map->addrs[0],dev->q_depth - 1);
 	return nvme_submit_sync_cmd(dev->ctrl.admin_q, &c, NULL, 0);
 }
 
@@ -1646,6 +1648,7 @@ static void nvme_init_queue(struct nvme_queue *nvmeq, u16 qid)
 	nvmeq->cq_head = 0;
 	nvmeq->cq_phase = 1;
 	nvmeq->q_db = &dev->dbs[qid * 2 * dev->db_stride];
+	printk("q id is %u, ab addr is %lx",qid,nvmeq->q_db);
 	memset((void *)nvmeq->cqes, 0, CQ_SIZE(nvmeq));
 	nvme_dbbuf_init(dev, nvmeq, qid);
 	dev->online_queues++;
@@ -2463,7 +2466,7 @@ static int nvme_setup_io_queues(struct nvme_dev *dev)
 		dev->use_user_allocated = 0;
 		printk("nvme_set_queue_count fail, can not allocate more ioqs\n");
 	}
-	else if (nr_io_queues < expect_num)
+	else if (nr_io_queues <= expect_num)
 	{
 		actual_num = nr_io_queues;
 		
@@ -3628,6 +3631,7 @@ static long snvm_dev_map_ioctl(struct file* file, unsigned int cmd, unsigned lon
     struct nvm_ioctl_map request;
     struct map* map = NULL;
 	struct nvme_dev *ndev;
+	struct nvme_ns *ns;
 	struct nvm_ioctl_dev drequest;
 	u64 addr;
     ctrl = ctrl_find_by_inode(&ctrl_list, file->f_inode);
@@ -3662,7 +3666,7 @@ static long snvm_dev_map_ioctl(struct file* file, unsigned int cmd, unsigned lon
 
 				if(map->is_cq)
 					ctrl->cq_num++;
-				printk("map_userspace map map->ioq_idx is %d, map->is_cq is %d",map->ioq_idx,map->is_cq);
+				// printk("map_userspace map map->ioq_idx is %d, map->is_cq is %d",map->ioq_idx,map->is_cq);
 			}
             if (!IS_ERR_OR_NULL(map))
             {
@@ -3778,16 +3782,29 @@ static long snvm_dev_map_ioctl(struct file* file, unsigned int cmd, unsigned lon
 			printk("NVM_GET_DEV_INFO 1\n");
 			if(ndev == NULL)
 			{
+				printk(" pci_get_drvdata error\n");
 				return -EFAULT;
 			}
+			ns = nvme_find_get_ns(&ndev->ctrl,1);
+			if(ns == NULL)
+			{	
+				printk(" nvme_find_get_ns error\n");
+				return -EFAULT;
+			}
+			printk("NVM_GET_DEV_INFO 2\n");
 			drequest.start_cq_idx = ndev->user_start_qid;
 			drequest.dstrd        = ndev->db_stride;
 			drequest.nr_user_q    = ndev->nr_user_use_cq;
+			drequest.block_size   = 1 << ns->lba_shift;
+			drequest.max_data_size= ndev->ctrl.max_hw_sectors;
+			if (ns)
+				nvme_put_ns(ns);
+
 			if (copy_to_user((void __user*) arg, &drequest, sizeof(struct nvm_ioctl_dev)))
 			{
 				return -EFAULT;
 			}
-			printk("NVM_GET_DEV_INFO 2\n");
+			
 			ret = 0;
 			break;
 		}
@@ -3866,7 +3883,7 @@ static int snvm_find_all_device(int max_devices, unsigned int class) {
 
 		if (count >= max_devices) {
 			// we are exiting, drop the last ref
-			pci_dev_put(pdev); // pci_get_class
+			pci_dev_put(pdev); //
 			printk("devices from class type :0x%x exceeds device table limits!\n",
 				class);
 			break;

@@ -138,7 +138,7 @@ typedef struct
     uint16_t* clean_cid;
     uint32_t qs_minus_1;
     uint32_t qs_log2;
-    uint16_t                no;             // Queue number (must be unique per SQ/CQ pair)
+    uint16_t                no;             // Queue number (must be unique per SQ/CQ pair) 0 ~ max_user_num
     uint16_t                es;             // Queue entry size
     uint32_t                qs;             // Queue size (number of entries)
     //uint16_t                head;           // Queue's head pointer
@@ -229,21 +229,21 @@ struct nvm_ns_info
     size_t                  metadata_size;  // Metadata size (MS)
 };
 
-// /* Memory descriptor */
-// struct buffer
-// {
-//     void*                   buffer;
-//     nvm_dma_t*              dma;
-// };
+/* Memory descriptor */
+struct buffer
+{
+    void*                   buffer;
+    nvm_dma_t*              dma;
+};
 
 
-// /* Queue descriptor */
-// struct queue
-// {
-//     struct buffer           qmem;
-//     nvm_queue_t             queue;
-//     size_t                  counter;
-// };
+/* Queue descriptor */
+struct queue
+{
+    struct buffer           qmem;
+    nvm_queue_t             queue;
+    size_t                  counter;
+};
 
 /* 
  * NVM controller handle.
@@ -261,11 +261,22 @@ typedef struct
     volatile void*          mm_ptr;         // Memory-mapped pointer to BAR0 of the physical device
     uint32_t                cq_num;         // Num of cq queues
     uint32_t                sq_num;         // Num of sq queues, the cq_idx is  sq_num/cq_num
+    uint32_t                qs;             // queue size, number of entries in a queue
     uint32_t    nr_user_q;
-    uint32_t*   start_cq_idx;    
+    uint32_t   start_cq_idx;    
     struct queue*           queues;   
   
 } nvm_ctrl_t;
+
+/* Disk descriptor */
+struct disk
+{
+    size_t      page_size;
+    size_t      max_data_size;
+    uint32_t    ns_id;
+    size_t      block_size;
+};
+
 
 //#ifndef __CUDACC__
 //#undef __align__

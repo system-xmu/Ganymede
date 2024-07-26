@@ -12,7 +12,7 @@
 int nvm_queue_clear(nvm_queue_t* queue, const nvm_ctrl_t* ctrl, bool cq, uint16_t no, uint32_t qs, 
         bool local, volatile void* vaddr, uint64_t ioaddr)
 {
-    if (qs < 2 || qs > 0x10000 || qs > ctrl->max_qs)
+    if (qs < 2 || qs > 0x10000)
     {
         return EINVAL;
     }
@@ -35,7 +35,11 @@ int nvm_queue_clear(nvm_queue_t* queue, const nvm_ctrl_t* ctrl, bool cq, uint16_
     queue->db = (cq ? CQ_DBL(ctrl->mm_ptr, queue->no, ctrl->dstrd) : SQ_DBL(ctrl->mm_ptr, queue->no, ctrl->dstrd));
     queue->vaddr = vaddr;
     queue->ioaddr = ioaddr;
-    
+    if(!cq)
+    {
+        // printf("nvm_queue_clear qid is %u, addr is %lx\n",queue->no,queue->ioaddr);
+    }
+    printf("mm_ptr start at %lx, qd is %lx\n",ctrl->mm_ptr,queue->db);
     return 0;
 }
 

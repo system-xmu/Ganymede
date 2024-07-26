@@ -51,16 +51,16 @@ int create_queue(struct queue* q, nvm_ctrl_t* ctrl, const struct queue* cq, uint
     int is_cq;
     int ioq_idx;
     size_t qmem_size;
-    int qs =1024;
+    
     is_cq = 1;
     // q_depth 1024 sqes 6 sq mem<- 1024
     if (cq != NULL)
     {
         is_cq = 0;
-        qmem_size =  qs * sizeof(nvm_cmd_t); //64KB
+        qmem_size =  ctrl->qs * sizeof(nvm_cmd_t); //64KB
     }
     else
-        qmem_size =  qs * sizeof(nvm_cpl_t); //16KB
+        qmem_size =  ctrl->qs * sizeof(nvm_cpl_t); //16KB
     
     status = create_buffer(&q->qmem, ctrl, qmem_size,is_cq,qno);
     if (!nvm_ok(status))

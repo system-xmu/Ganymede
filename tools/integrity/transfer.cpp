@@ -23,6 +23,7 @@ struct consumer
     struct queue*       queues;
     uint16_t            n_queues;
     bool                cancel;
+    nvm_ctrl_t*         ctrl;
 };
 
 
@@ -36,6 +37,7 @@ struct producer
     const struct disk*  disk;
     size_t              start_block;
     size_t              n_blocks;
+    nvm_ctrl_t*         ctrl;
 };
 
 
@@ -44,7 +46,8 @@ static struct consumer* consume_completions(struct consumer* c)
     nvm_cpl_t* cpl;
     nvm_queue_t* cq = &c->queues[0].queue;
     nvm_queue_t* sq = NULL;
-
+    nvm_ctrl_t*  ctrl;
+    ctrl = c->ctrl;
     while (!c->cancel)
     {
         cpl = nvm_cq_dequeue_block(cq, 10);
@@ -55,7 +58,7 @@ static struct consumer* consume_completions(struct consumer* c)
             continue;
         }
 
-        sq = &c->queues[*NVM_CPL_SQID(cpl)].queue;
+        sq = &c->queues[(*NVM_CPL_SQID(cpl))-ctrl->start_cq_idx+ctrl->cq_num].queue;
         nvm_sq_update(sq);
 
         if (!NVM_ERR_OK(cpl))
@@ -74,17 +77,17 @@ static struct consumer* consume_completions(struct consumer* c)
 static struct producer* produce_commands(struct producer* p)
 {
     nvm_cmd_t* cmd;
-    size_t block_size = p->disk->block_size;
-    size_t page_size = p->buffer->dma->page_size;
+    size_t block_size = p->disk->block_size; // 512B
+    size_t page_size = p->buffer->dma->page_size; //4096B
 
     size_t n_pages = NVM_PAGE_ALIGN(p->n_blocks * block_size, page_size) / page_size; // FIXME: block to page?
 
-    size_t transfer_pages = p->disk->max_data_size / page_size;
+    size_t transfer_pages = p->disk->max_data_size / page_size; // 每次传输的pages数量
 
-    size_t page_base = NVM_BLOCK_TO_PAGE(page_size, block_size, p->start_block);
+    size_t page_base = NVM_BLOCK_TO_PAGE(page_size, block_size, p->start_block); //0
     size_t page_offset = 0;
 
-    uint32_t ns_id = p->disk->ns_id;
+    uint32_t ns_id = p->disk->ns_id;  // 1
 
     nvm_dma_t* dma = p->buffer->dma;
     struct queue* queue = &p->queues[p->queue_no];
@@ -137,7 +140,7 @@ static struct producer* produce_commands(struct producer* p)
 
 
 
-static int transfer(const struct disk* d, struct buffer* buffer, struct queue* queues, uint16_t n_queues, off_t size, bool write)
+static int transfer(const struct disk* d, nvm_ctrl_t* ctrl, struct buffer* buffer,  uint16_t n_queues, off_t size, bool write)
 {
     size_t n_blocks = NVM_PAGE_ALIGN(size, d->block_size) / d->block_size;
     size_t n_pages = NVM_PAGE_ALIGN(size, d->page_size) / d->page_size;
@@ -145,14 +148,15 @@ static int transfer(const struct disk* d, struct buffer* buffer, struct queue* q
     size_t pages_per_queue = n_pages / n_queues;
 
     struct producer* producers = (struct producer *)calloc(n_queues, sizeof(struct producer));
-    if (producers == NULL)
+    if (producers == NULL || ctrl == NULL)
     {
         fprintf(stderr, "Failed to allocate thread descriptors\n");
         return -1;
     }
+    producers->ctrl = ctrl;
 
     struct consumer consumer;
-    consumer.queues = queues;
+    consumer.queues = ctrl->queues;
     consumer.n_queues = n_queues;
     consumer.cancel = false;
 
@@ -162,8 +166,8 @@ static int transfer(const struct disk* d, struct buffer* buffer, struct queue* q
     {
         producers[i].write = write;
         producers[i].buffer = buffer;
-        producers[i].queue_no = i + 1;
-        producers[i].queues = queues;
+        producers[i].queue_no = i + ctrl->cq_num;
+        producers[i].queues = ctrl->queues;
         producers[i].disk = d;
         producers[i].start_block = NVM_PAGE_TO_BLOCK(d->page_size, d->block_size, pages_per_queue * i);
         producers[i].n_blocks = NVM_PAGE_TO_BLOCK(d->page_size, d->block_size, pages_per_queue);
@@ -186,10 +190,10 @@ static int transfer(const struct disk* d, struct buffer* buffer, struct queue* q
     {
         struct producer* p;
         pthread_join(producers[i].thread, (void**) &p);
-        commands += queues[p->queue_no].counter;
+        commands += ctrl->queues[p->queue_no].counter;
     }
 
-    while (queues[0].counter < commands);
+    while (ctrl->queues[0].counter < commands);
 
     consumer.cancel = true;
     pthread_join(consumer.thread, NULL);
@@ -202,21 +206,17 @@ static int transfer(const struct disk* d, struct buffer* buffer, struct queue* q
 
 
 
-int disk_write(const struct disk* d, struct buffer* buffer, struct queue* queues, uint16_t n_queues, FILE* fp, off_t size)
+int disk_write(const struct disk* d, struct buffer* buffer, uint16_t n_queues, off_t size,nvm_ctrl_t* ctrl)
 {
-    fread(buffer->dma->vaddr, 1, size, fp);
-    return transfer(d, buffer, queues, n_queues, size, true);
+   
+    return transfer(d, ctrl, buffer, n_queues, size, true);
 }
 
 
-int disk_read(const struct disk* d, struct buffer* buffer, struct queue* queues, uint16_t n_queues, FILE* fp, off_t size)
+int disk_read(const struct disk* d, struct buffer* buffer, uint16_t n_queues, off_t size,nvm_ctrl_t* ctrl)
 {
-    int status = transfer(d, buffer, queues, n_queues, size, false);
-    if (status == 0)
-    {
-        fwrite(buffer->dma->vaddr, 1, size, fp);
-        fflush(fp);
-    }
-    return status;
+
+    return transfer(d, ctrl,buffer, n_queues, size, false);
+
 }
 

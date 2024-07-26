@@ -20,7 +20,7 @@
 #include "linux/ioctl.h"
 #include "lib_ctrl.h"
 #include "dprintf.h"
-
+#include <nvm_queue.h>
 
 
 /*
@@ -147,7 +147,7 @@ int ioctl_use_userioq(nvm_ctrl_t* ctrl, int use)
     return 0;
 }
 
-int ioctl_get_dev_info(nvm_ctrl_t* ctrl)
+int ioctl_get_dev_info(nvm_ctrl_t* ctrl, struct disk* d)
 {
     int err;
     struct controller* container;
@@ -168,18 +168,50 @@ int ioctl_get_dev_info(nvm_ctrl_t* ctrl)
     ctrl->dstrd = dev_info.dstrd;
     ctrl->nr_user_q = dev_info.nr_user_q;
 
+
+    d->max_data_size = dev_info.max_data_size *512; //get the ctrl->max_hw_sectors from kernel    
+    d->block_size = dev_info.block_size; // ns->lba_shift
     return 0;
 }
 
-int init_userioq(nvm_ctrl_t* ctrl)
+int init_userioq(nvm_ctrl_t* ctrl, struct disk* d)
 {
-    int err;
-    err = ioctl_get_dev_info(ctrl);
+    int err,i,count;
+    err = ioctl_get_dev_info(ctrl,d);
     if(err)
     {
         return -1;
     }
     printf("idx start is %u, dbstrd is %u, nr user q is %u\n",ctrl->start_cq_idx,ctrl->dstrd,ctrl->nr_user_q);
+    if(ctrl->nr_user_q > ctrl->cq_num)
+    {
+        return -1;
+    }
+    for(i = 0; i < ctrl->nr_user_q; i++)
+    {
+        
+        // printf("nvm_queue_clear, i is %d\n",i);
+        // clear cq
+        nvm_queue_clear(&ctrl->queues[i].queue,ctrl,true,i+ctrl->start_cq_idx,ctrl->qs,0,ctrl->queues[i].qmem.buffer,ctrl->queues[i].qmem.dma->ioaddrs[0]);
+    }
+    count = 0;
+    for(i = ctrl->cq_num; i < ctrl->cq_num + ctrl->nr_user_q; i++)
+    {
+        
+        // clear sq
+        nvm_queue_clear(&ctrl->queues[i].queue,ctrl,false,count+ctrl->start_cq_idx,ctrl->qs,0,ctrl->queues[i].qmem.buffer,ctrl->queues[i].qmem.dma->ioaddrs[0]);
+        count++;
+    }
+        
+
+    
+    // status = nvm_queue_clear(q, ctrl, is_cq, qno, qs,
+    //         q->qmem.dma->local, NVM_DMA_OFFSET(q->qmem.dma, 0), q->qmem.dma->ioaddrs[0]);
+    // if (err != 0)
+    // {
+    //     return status;
+    // }
+
     return 0;
 }
 

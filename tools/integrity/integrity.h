@@ -6,31 +6,8 @@
 #include <stdint.h>
 
 
-/* Memory descriptor */
-struct buffer
-{
-    void*                   buffer;
-    nvm_dma_t*              dma;
-};
 
 
-/* Queue descriptor */
-struct queue
-{
-    struct buffer           qmem;
-    nvm_queue_t             queue;
-    size_t                  counter;
-};
-
-
-/* Disk descriptor */
-struct disk
-{
-    size_t      page_size;
-    size_t      max_data_size;
-    uint32_t    ns_id;
-    size_t      block_size;
-};
 
 
 int create_buffer(struct buffer* b, nvm_ctrl_t* ctrl, size_t size,int is_cq, int ioq_idx);
@@ -47,9 +24,9 @@ void remove_queue(struct queue* q);
 
 
 
-int disk_write(const struct disk* disk, struct buffer* buffer, struct queue* queues, uint16_t n_queues, FILE* fp, off_t size);
+int disk_write(const struct disk* d, struct buffer* buffer, uint16_t n_queues, off_t size,nvm_ctrl_t* ctrl);
 
-int disk_read(const struct disk* disk, struct buffer* buffer, struct queue* queues, uint16_t n_queues, FILE* fp, off_t size);
+int disk_read(const struct disk* d, struct buffer* buffer, uint16_t n_queues, off_t size,nvm_ctrl_t* ctrl);
 
 
 #endif

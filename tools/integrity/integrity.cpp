@@ -23,7 +23,7 @@
 #endif
 
 #include "integrity.h"
-
+#include "read.h"
 #define snvme_control_path "/dev/snvm_control"
 #define snvme_path "/dev/snvme2"
 
@@ -264,7 +264,7 @@ static int request_queues(nvm_ctrl_t* ctrl, struct queue** queues)
             return status;
         }
     }
-    
+    printf("request_queues success\n");
     *queues = q;
     return status;
 }
@@ -283,12 +283,14 @@ int main(int argc, char** argv)
     struct buffer buffer;
     int snvme_c_fd,snvme_d_fd;
     // Parse command line arguments
-     
+    unsigned char *buffer2;
     int ioq_num;
     int read_bytes;
     ioq_num = 1;
     read_bytes = 1024*1024*1;
     snvme_c_fd = open(snvme_control_path, O_RDWR | O_NONBLOCK);
+    struct queue_pair qp;
+    struct file_info read_info;
     if (snvme_c_fd < 0)
     {
 
@@ -317,9 +319,9 @@ int main(int argc, char** argv)
     close(snvme_c_fd);
     close(snvme_d_fd);
 
-    ctrl->cq_num = 256;
-    ctrl->sq_num = 256;
-    
+    ctrl->cq_num = 1;
+    ctrl->sq_num = 1;
+    ctrl->qs = 1024;
     // Create queues
     status = request_queues(ctrl, &ctrl->queues);
     if (status != 0)
@@ -331,23 +333,48 @@ int main(int argc, char** argv)
     {
         goto out;
     }
+    /*Prepare Buffer for read/write, need convert vaddt to io addr*/
+
+    status = create_buffer(&buffer, ctrl, read_bytes,0,-1);
+    if (status != 0)
+    {
+        goto out;
+    }
+
     status =  ioctl_reg_nvme(ctrl,1);
     if (status != 0)
     {
         goto out;
     }
+
+    disk.page_size = ctrl->page_size;
+    disk.ns_id = 1;
     sleep(5);
-    status =  init_userioq(ctrl);
+
+    status =  init_userioq(ctrl,&disk);
     if (status != 0)
     {
-        goto out;
+        goto unreg;
     }
-    // status = nvm_queue_clear(q, ctrl, is_cq, qno, qs,
-    //         q->qmem.dma->local, NVM_DMA_OFFSET(q->qmem.dma, 0), q->qmem.dma->ioaddrs[0]);
-    // if (err != 0)
-    // {
-    //     return status;
-    // }
+    printf("disk block size is %u, max data size is %u\n",disk.block_size,disk.max_data_size);
+    qp.cq = &ctrl->queues[0];
+    qp.sq = &ctrl->queues[ctrl->cq_num];
+    qp.stop = false;
+    qp.num_cpls = 0;
+    printf("using cq is %u, sq is %u\n",qp.cq->queue.no,qp.sq->queue.no);
+    read_info.offset = 0x1000000;
+    read_info.num_blocks = 2048;
+
+    status = read_and_dump(&disk,&qp,buffer.dma,&read_info);
+    //status = disk_read(&disk, &buffer, 1, read_bytes,ctrl);
+    printf("disk_read ret is %d\n",status);
+    buffer2 = (unsigned char *)buffer.buffer;
+    for (int i = 0; i < 128; i++) {  
+        printf("%02X ", buffer2[i]); // 以十六进制形式打印  
+        if ((i + 1) % 16 == 0) {  
+            printf("\n"); // 每16个字节换行，方便查看  
+        }  
+    }  
 
     sleep(5);
     status =  ioctl_reg_nvme(ctrl,0);
@@ -356,15 +383,19 @@ int main(int argc, char** argv)
         goto out;
     }
     printf("Using %u submission queues:\n", ctrl->cq_num+ctrl->sq_num);
-    // if (read_bytes > 0)
-    // {
-    //     status = disk_read(&disk, &buffer, queues, ioq_num, fp, file_size);
-    // }
+    
+
+   
+    
     // else
     // {
     //     status = disk_write(&disk, &buffer, queues, ioq_num, fp, file_size);
     // }
+    goto out;
 
+unreg:
+    sleep(5);
+    ioctl_reg_nvme(ctrl,0);
 out:
     remove_queues(ctrl->queues, ctrl->cq_num+ctrl->sq_num);
     //remove_buffer(&buffer);

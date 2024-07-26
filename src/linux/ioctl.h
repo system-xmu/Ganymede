@@ -22,8 +22,10 @@ struct nvm_ioctl_map
 struct nvm_ioctl_dev
 {
     uint32_t    nr_user_q;
-    uint32_t*   start_cq_idx;
+    uint32_t   start_cq_idx;
     uint8_t     dstrd; 
+    size_t      max_data_size; //get the ctrl->max_hw_sectors from kernel
+    size_t      block_size;    // ns->lba_shift
 };
 
 
