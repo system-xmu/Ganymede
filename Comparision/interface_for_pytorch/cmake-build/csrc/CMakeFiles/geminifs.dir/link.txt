@@ -1,0 +1,2 @@
+/home/hyf/anaconda3/envs/ucxx/bin/x86_64-conda-linux-gnu-ar qc libgeminifs.a  CMakeFiles/geminifs.dir/api.cpp.o CMakeFiles/geminifs.dir/api_gpu.cu.o CMakeFiles/geminifs.dir/space_mgr.cpp.o
+/home/hyf/anaconda3/envs/ucxx/bin/x86_64-conda-linux-gnu-ranlib libgeminifs.a

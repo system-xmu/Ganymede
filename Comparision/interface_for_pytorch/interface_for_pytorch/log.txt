@@ -1,0 +1,1408 @@
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /home/hyf/Ganymede/Comparision/interface_for_pytorch/cmake-build
+running install
+/home/hyf/anaconda3/lib/python3.11/site-packages/setuptools/_distutils/cmd.py:66: SetuptoolsDeprecationWarning: setup.py install is deprecated.
+!!
+
+        ********************************************************************************
+        Please avoid running ``setup.py`` directly.
+        Instead, use pypa/build, pypa/installer or other
+        standards-based tools.
+
+        See https://blog.ganssle.io/articles/2021/10/setup-py-deprecated.html for details.
+        ********************************************************************************
+
+!!
+  self.initialize_options()
+/home/hyf/anaconda3/lib/python3.11/site-packages/setuptools/_distutils/cmd.py:66: EasyInstallDeprecationWarning: easy_install command is deprecated.
+!!
+
+        ********************************************************************************
+        Please avoid running ``setup.py`` and ``easy_install``.
+        Instead, use pypa/build, pypa/installer or other
+        standards-based tools.
+
+        See https://github.com/pypa/setuptools/issues/917 for details.
+        ********************************************************************************
+
+!!
+  self.initialize_options()
+running bdist_egg
+running egg_info
+writing Geminifs.egg-info/PKG-INFO
+writing dependency_links to Geminifs.egg-info/dependency_links.txt
+writing requirements to Geminifs.egg-info/requires.txt
+writing top-level names to Geminifs.egg-info/top_level.txt
+reading manifest file 'Geminifs.egg-info/SOURCES.txt'
+writing manifest file 'Geminifs.egg-info/SOURCES.txt'
+installing library code to build/bdist.linux-x86_64/egg
+running install_lib
+running build_py
+running build_ext
+/home/hyf/anaconda3/lib/python3.11/site-packages/torch/utils/cpp_extension.py:414: UserWarning: The detected CUDA version (12.3) has a minor version mismatch with the version that was used to compile PyTorch (12.1). Most likely this shouldn't be a problem.
+  warnings.warn(CUDA_MISMATCH_WARN.format(cuda_str_version, torch.version.cuda))
+/home/hyf/anaconda3/lib/python3.11/site-packages/torch/utils/cpp_extension.py:424: UserWarning: There are no g++ version bounds defined for CUDA version 12.3
+  warnings.warn(f'There are no {compiler_name} version bounds defined for CUDA version {cuda_str_version}')
+building 'Geminifs._C' extension
+/home/hyf/anaconda3/lib/python3.11/site-packages/torch/utils/cpp_extension.py:1965: UserWarning: TORCH_CUDA_ARCH_LIST is not set, all archs for visible cards are included for compilation. 
+If this is not desired, please set os.environ['TORCH_CUDA_ARCH_LIST'].
+  warnings.warn(
+Emitting ninja build file /home/hyf/Ganymede/Comparision/interface_for_pytorch/build/temp.linux-x86_64-cpython-311/build.ninja...
+Compiling objects...
+Allowing ninja to set a default number of workers... (overridable by setting the environment variable MAX_JOBS=N)
+[1/2] /usr/local/cuda-12.3/bin/nvcc --generate-dependencies-with-compile --dependency-output /home/hyf/Ganymede/Comparision/interface_for_pytorch/build/temp.linux-x86_64-cpython-311/home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api_gpu.o.d -I/home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc -I/home/hyf/Ganymede/Comparision/interface_for_pytorch/include -I/home/hyf/Ganymede/Comparision/gpufs/include -I/home/hyf/anaconda3/lib/python3.11/site-packages/torch/include -I/home/hyf/anaconda3/lib/python3.11/site-packages/torch/include/torch/csrc/api/include -I/home/hyf/anaconda3/lib/python3.11/site-packages/torch/include/TH -I/home/hyf/anaconda3/lib/python3.11/site-packages/torch/include/THC -I/usr/local/cuda-12.3/include -I/home/hyf/anaconda3/include/python3.11 -c -c /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api_gpu.cu -o /home/hyf/Ganymede/Comparision/interface_for_pytorch/build/temp.linux-x86_64-cpython-311/home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api_gpu.o -D__CUDA_NO_HALF_OPERATORS__ -D__CUDA_NO_HALF_CONVERSIONS__ -D__CUDA_NO_BFLOAT16_CONVERSIONS__ -D__CUDA_NO_HALF2_OPERATORS__ --expt-relaxed-constexpr --compiler-options ''"'"'-fPIC'"'"'' -DTORCH_API_INCLUDE_EXTENSION_H '-DPYBIND11_COMPILER_TYPE="_gcc"' '-DPYBIND11_STDLIB="_libstdcpp"' '-DPYBIND11_BUILD_ABI="_cxxabi1011"' -DTORCH_EXTENSION_NAME=_C -D_GLIBCXX_USE_CXX11_ABI=0 -gencode=arch=compute_80,code=compute_80 -gencode=arch=compute_80,code=sm_80 -std=c++17
+FAILED: /home/hyf/Ganymede/Comparision/interface_for_pytorch/build/temp.linux-x86_64-cpython-311/home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api_gpu.o 
+/usr/local/cuda-12.3/bin/nvcc --generate-dependencies-with-compile --dependency-output /home/hyf/Ganymede/Comparision/interface_for_pytorch/build/temp.linux-x86_64-cpython-311/home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api_gpu.o.d -I/home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc -I/home/hyf/Ganymede/Comparision/interface_for_pytorch/include -I/home/hyf/Ganymede/Comparision/gpufs/include -I/home/hyf/anaconda3/lib/python3.11/site-packages/torch/include -I/home/hyf/anaconda3/lib/python3.11/site-packages/torch/include/torch/csrc/api/include -I/home/hyf/anaconda3/lib/python3.11/site-packages/torch/include/TH -I/home/hyf/anaconda3/lib/python3.11/site-packages/torch/include/THC -I/usr/local/cuda-12.3/include -I/home/hyf/anaconda3/include/python3.11 -c -c /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api_gpu.cu -o /home/hyf/Ganymede/Comparision/interface_for_pytorch/build/temp.linux-x86_64-cpython-311/home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api_gpu.o -D__CUDA_NO_HALF_OPERATORS__ -D__CUDA_NO_HALF_CONVERSIONS__ -D__CUDA_NO_BFLOAT16_CONVERSIONS__ -D__CUDA_NO_HALF2_OPERATORS__ --expt-relaxed-constexpr --compiler-options ''"'"'-fPIC'"'"'' -DTORCH_API_INCLUDE_EXTENSION_H '-DPYBIND11_COMPILER_TYPE="_gcc"' '-DPYBIND11_STDLIB="_libstdcpp"' '-DPYBIND11_BUILD_ABI="_cxxabi1011"' -DTORCH_EXTENSION_NAME=_C -D_GLIBCXX_USE_CXX11_ABI=0 -gencode=arch=compute_80,code=compute_80 -gencode=arch=compute_80,code=sm_80 -std=c++17
+/home/hyf/Ganymede/Comparision/gpufs/include/host_loop.h(622): warning #177-D: variable "cpyTime" was declared but never referenced
+   double cpyTime = 0;
+          ^
+
+Remark: The warnings can be suppressed with "-diag-suppress <warning-number>"
+
+/home/hyf/Ganymede/Comparision/gpufs/include/async_ipc.cuh(27): warning #20044-D: extern declaration of the entity gpu_rb_lock is treated as a static definition
+
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_globals.cuh(34): warning #20044-D: extern declaration of the entity g_cpu_ipcOpenQueue is treated as a static definition
+
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_globals.cuh(35): warning #20044-D: extern declaration of the entity g_cpu_ipcRWQueue is treated as a static definition
+
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_globals.cuh(36): warning #20044-D: extern declaration of the entity g_cpu_ipcRWFlags is treated as a static definition
+
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_globals.cuh(37): warning #20044-D: extern declaration of the entity g_async_close_rb is treated as a static definition
+
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_globals.cuh(40): warning #20044-D: extern declaration of the entity g_ipcRWManager is treated as a static definition
+
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_globals.cuh(43): warning #20044-D: extern declaration of the entity g_ppool is treated as a static definition
+
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_globals.cuh(46): warning #20044-D: extern declaration of the entity g_ftable is treated as a static definition
+
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_globals.cuh(49): warning #20044-D: extern declaration of the entity g_hashMap is treated as a static definition
+
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_globals.cuh(52): warning #20044-D: extern declaration of the entity g_file_id is treated as a static definition
+
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_globals.cuh(54): warning #20044-D: extern declaration of the entity g_stagingArea is treated as a static definition
+
+ptxas fatal   : Unresolved extern function '_Z5gopenPKci'
+[2/2] c++ -MMD -MF /home/hyf/Ganymede/Comparision/interface_for_pytorch/build/temp.linux-x86_64-cpython-311/home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.o.d -pthread -B /home/hyf/anaconda3/compiler_compat -DNDEBUG -fwrapv -O2 -Wall -fPIC -O2 -isystem /home/hyf/anaconda3/include -fPIC -O2 -isystem /home/hyf/anaconda3/include -fPIC -I/home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc -I/home/hyf/Ganymede/Comparision/interface_for_pytorch/include -I/home/hyf/Ganymede/Comparision/gpufs/include -I/home/hyf/anaconda3/lib/python3.11/site-packages/torch/include -I/home/hyf/anaconda3/lib/python3.11/site-packages/torch/include/torch/csrc/api/include -I/home/hyf/anaconda3/lib/python3.11/site-packages/torch/include/TH -I/home/hyf/anaconda3/lib/python3.11/site-packages/torch/include/THC -I/usr/local/cuda-12.3/include -I/home/hyf/anaconda3/include/python3.11 -c -c /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp -o /home/hyf/Ganymede/Comparision/interface_for_pytorch/build/temp.linux-x86_64-cpython-311/home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.o -DTORCH_API_INCLUDE_EXTENSION_H '-DPYBIND11_COMPILER_TYPE="_gcc"' '-DPYBIND11_STDLIB="_libstdcpp"' '-DPYBIND11_BUILD_ABI="_cxxabi1011"' -DTORCH_EXTENSION_NAME=_C -D_GLIBCXX_USE_CXX11_ABI=0 -std=c++17
+FAILED: /home/hyf/Ganymede/Comparision/interface_for_pytorch/build/temp.linux-x86_64-cpython-311/home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.o 
+c++ -MMD -MF /home/hyf/Ganymede/Comparision/interface_for_pytorch/build/temp.linux-x86_64-cpython-311/home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.o.d -pthread -B /home/hyf/anaconda3/compiler_compat -DNDEBUG -fwrapv -O2 -Wall -fPIC -O2 -isystem /home/hyf/anaconda3/include -fPIC -O2 -isystem /home/hyf/anaconda3/include -fPIC -I/home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc -I/home/hyf/Ganymede/Comparision/interface_for_pytorch/include -I/home/hyf/Ganymede/Comparision/gpufs/include -I/home/hyf/anaconda3/lib/python3.11/site-packages/torch/include -I/home/hyf/anaconda3/lib/python3.11/site-packages/torch/include/torch/csrc/api/include -I/home/hyf/anaconda3/lib/python3.11/site-packages/torch/include/TH -I/home/hyf/anaconda3/lib/python3.11/site-packages/torch/include/THC -I/usr/local/cuda-12.3/include -I/home/hyf/anaconda3/include/python3.11 -c -c /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp -o /home/hyf/Ganymede/Comparision/interface_for_pytorch/build/temp.linux-x86_64-cpython-311/home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.o -DTORCH_API_INCLUDE_EXTENSION_H '-DPYBIND11_COMPILER_TYPE="_gcc"' '-DPYBIND11_STDLIB="_libstdcpp"' '-DPYBIND11_BUILD_ABI="_cxxabi1011"' -DTORCH_EXTENSION_NAME=_C -D_GLIBCXX_USE_CXX11_ABI=0 -std=c++17
+In file included from /home/hyf/Ganymede/Comparision/gpufs/include/fs_calls.cuh:25,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:6,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:32:1: warning: multi-line comment [-Wcomment]
+   32 | //#define GPU_ASSERT(x) if (!(x)){WRITE_DEBUG(__FILE__,__LINE__); \
+      | ^
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:63:1: error: ‘__forceinline__’ does not name a type
+   63 | __forceinline__ __device__ void bzero_thread(volatile void* dst, uint size)
+      | ^~~~~~~~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:77:1: error: ‘__forceinline__’ does not name a type
+   77 | __forceinline__ __device__ void bzero_page(volatile char* dst){
+      | ^~~~~~~~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:83:1: error: ‘__forceinline__’ does not name a type
+   83 | __forceinline__ __device__ void bzero_page_warp(volatile char* dst){
+      | ^~~~~~~~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:91:1: error: ‘__forceinline__’ does not name a type
+   91 | __forceinline__ __device__ void strcpy_thread(volatile char* dst, const volatile char* src, uint size)
+      | ^~~~~~~~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:100:1: error: ‘__forceinline__’ does not name a type
+  100 | __forceinline__ __device__ char strcmp_thread(volatile const char* dst, volatile const char* src, uint size)
+      | ^~~~~~~~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:114:1: error: ‘__forceinline__’ does not name a type
+  114 | __forceinline__ __device__ double readNoCache(const volatile double* ptr){
+      | ^~~~~~~~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:121:1: error: ‘__forceinline__’ does not name a type
+  121 | __forceinline__ __device__ float readNoCache(const volatile float* ptr){
+      | ^~~~~~~~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:128:1: error: ‘__forceinline__’ does not name a type
+  128 | __forceinline__ __device__ char2 readNoCache(const volatile uchar* ptr){
+      | ^~~~~~~~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:135:1: error: ‘__forceinline__’ does not name a type
+  135 | __forceinline__ __device__ unsigned int readNoCache(const volatile unsigned int* ptr){
+      | ^~~~~~~~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:141:1: error: ‘__forceinline__’ does not name a type
+  141 | __forceinline__ __device__ int readNoCache(const volatile int* ptr){
+      | ^~~~~~~~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:147:1: error: ‘__forceinline__’ does not name a type
+  147 | __forceinline__ __device__ char readNoCache(const volatile char* ptr){
+      | ^~~~~~~~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:151:1: error: ‘__forceinline__’ does not name a type
+  151 | __forceinline__ __device__ size_t readNoCache(const volatile size_t* ptr){
+      | ^~~~~~~~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:161:1: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+  161 | __device__ __forceinline__ void valcpy_128(double2* dst, double2* src){
+      | ^~~~~~~~~~
+      | __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:168:1: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+  168 | __device__ __forceinline__ void valcpy_256_interleave(  double2* dst, double2* src){
+      | ^~~~~~~~~~
+      | __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:183:1: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+  183 | __device__
+      | ^~~~~~~~~~
+      | __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:196:1: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+  196 | __device__ void inline aligned_copy(uchar* dst, volatile uchar* src, int newsize, int tid)
+      | ^~~~~~~~~~
+      | __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:206:1: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+  206 | __device__ void inline aligned_copy_warp(uchar* dst, volatile uchar* src, int newsize)
+      | ^~~~~~~~~~
+      | __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:218:1: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+  218 | __device__
+      | ^~~~~~~~~~
+      | __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:238:1: error: ‘__forceinline__’ does not name a type
+  238 | __forceinline__ __device__ void copy_block(uchar* dst, volatile uchar*src, int size)
+      | ^~~~~~~~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:288:1: error: ‘__forceinline__’ does not name a type
+  288 | __forceinline__ __device__ void copy_block_warp(uchar* dst, volatile uchar*src, int size)
+      | ^~~~~~~~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:333:1: error: ‘__forceinline__’ does not name a type
+  333 | __forceinline__ __device__ void copyNoCache_block(uchar* dst, volatile uchar*src, int size)
+      | ^~~~~~~~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:338:1: error: ‘__forceinline__’ does not name a type
+  338 | __forceinline__ __device__ void copyNoCache_thread(char* dst, volatile char*src, int size)
+      | ^~~~~~~~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:346:1: error: ‘__forceinline__’ does not name a type
+  346 | __forceinline__ __device__ void write_thread(uchar* dst, uchar*src, int size)
+      | ^~~~~~~~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:353:1: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+  353 | __device__ inline size_t offset2block(size_t offset, int log_blocksize)
+      | ^~~~~~~~~~
+      | __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:357:1: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+  357 | __device__ inline uint offset2blockoffset(size_t offset, int blocksize)
+      | ^~~~~~~~~~
+      | __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:372:1: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+  372 | __device__ inline BroadcastHelper broadcast(BroadcastHelper b, int leader = 0)
+      | ^~~~~~~~~~
+      | __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:382:1: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+  382 | __device__ inline int broadcast(int b, int leader = 0)
+      | ^~~~~~~~~~
+      | __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:389:1: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+  389 | __device__ inline unsigned int broadcast(unsigned int b, int leader = 0)
+      | ^~~~~~~~~~
+      | __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:396:1: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+  396 | __device__ inline float broadcast(float b, int leader = 0)
+      | ^~~~~~~~~~
+      | __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:406:2: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+  406 |  __device__ int is_last() volatile
+      |  ^~~~~~~~~~
+      |  __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:416:2: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+  416 |  __device__ int try_wait() volatile{
+      |  ^~~~~~~~~~
+      |  __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:424:2: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+  424 |  __device__ void signal() volatile{
+      |  ^~~~~~~~~~
+      |  __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:435:1: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+  435 | __device__ int getNewFileId();
+      | ^~~~~~~~~~
+      | __dev_t
+In file included from /home/hyf/Ganymede/Comparision/gpufs/include/cpu_ipc.cuh:23,
+                 from /home/hyf/Ganymede/Comparision/gpufs/include/fs_calls.cuh:26,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:6,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_structures.cuh:47:2: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+   47 |  __device__ void init_thread( volatile Page* _page, int _rs_offset ) volatile;
+      |  ^~~~~~~~~~
+      |  __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_structures.cuh:48:2: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+   48 |  __device__ void clean() volatile;
+      |  ^~~~~~~~~~
+      |  __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_structures.cuh:50:2: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+   50 |  __device__ bool try_lock_init(int ref = 1) volatile;
+      |  ^~~~~~~~~~
+      |  __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_structures.cuh:51:2: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+   51 |  __device__ void unlock_init() volatile;
+      |  ^~~~~~~~~~
+      |  __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_structures.cuh:53:2: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+   53 |  __device__ bool try_lock_rw( int fd, int version, size_t offset, int ref = 1 ) volatile;
+      |  ^~~~~~~~~~
+      |  __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_structures.cuh:54:2: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+   54 |  __device__ void unlock_rw(int ref = 1) volatile;
+      |  ^~~~~~~~~~
+      |  __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_structures.cuh:55:2: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+   55 |  __device__ void lock_rw(int ref = 1) volatile;
+      |  ^~~~~~~~~~
+      |  __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_structures.cuh:57:2: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+   57 |  __device__ bool try_invalidate( int fd, size_t offset ) volatile;
+      |  ^~~~~~~~~~
+      |  __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_structures.cuh:59:2: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+   59 |  __device__ void markDirty() volatile;
+      |  ^~~~~~~~~~
+      |  __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_structures.cuh:71:2: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+   71 |  __device__ void init_thread() volatile;
+      |  ^~~~~~~~~~
+      |  __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_structures.cuh:72:2: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+   72 |  __device__ void clean() volatile;
+      |  ^~~~~~~~~~
+      |  __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_structures.cuh:74:2: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+   74 |  __device__ void push( volatile PFrame* frame ) volatile;
+      |  ^~~~~~~~~~
+      |  __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_structures.cuh:76:2: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+   76 |  __device__ void lock(int id) volatile;
+      |  ^~~~~~~~~~
+      |  __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_structures.cuh:77:2: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+   77 |  __device__ bool try_lock(int id) volatile;
+      |  ^~~~~~~~~~
+      |  __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_structures.cuh:78:2: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+   78 |  __device__ void unlock(int id) volatile;
+      |  ^~~~~~~~~~
+      |  __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_structures.cuh:99:2: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+   99 |  __device__ void init_thread() volatile;
+      |  ^~~~~~~~~~
+      |  __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_structures.cuh:101:2: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+  101 |  __device__ void init( volatile const char* _filename, int _flags ) volatile;
+      |  ^~~~~~~~~~
+      |  __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_structures.cuh:103:2: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+  103 |  __device__ void notify( int fd, int cpu_fd, size_t size, double timestamp, int _did_open ) volatile;
+      |  ^~~~~~~~~~
+      |  __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_structures.cuh:105:2: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+  105 |  __device__ void wait_open() volatile;
+      |  ^~~~~~~~~~
+      |  __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_structures.cuh:107:2: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+  107 |  __device__ void flush(bool closeFile) volatile;
+      |  ^~~~~~~~~~
+      |  __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_structures.cuh:109:2: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+  109 |  __device__ void clean() volatile;
+      |  ^~~~~~~~~~
+      |  __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_structures.cuh:111:2: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+  111 |  __device__ void close() volatile;
+      |  ^~~~~~~~~~
+      |  __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_structures.cuh:120:2: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+  120 |  __device__ void lock() volatile;
+      |  ^~~~~~~~~~
+      |  __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_structures.cuh:122:2: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+  122 |  __device__ void unlock() volatile;
+      |  ^~~~~~~~~~
+      |  __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_structures.cuh:124:2: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+  124 |  __device__ int findEntry( const volatile char* filename, volatile bool* isNewEntry, int o_flags ) volatile;
+      |  ^~~~~~~~~~
+      |  __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_structures.cuh:126:2: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+  126 |  __device__ void init_thread() volatile;
+      |  ^~~~~~~~~~
+      |  __dev_t
+In file included from /home/hyf/Ganymede/Comparision/gpufs/include/fs_calls.cuh:26,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:6,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/home/hyf/Ganymede/Comparision/gpufs/include/cpu_ipc.cuh:44:2: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+   44 |  __device__ void clean() volatile;
+      |  ^~~~~~~~~~
+      |  __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/cpu_ipc.cuh:46:2: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+   46 |  __device__ int open(const char* reqFname, int flags, int do_not_open) volatile;
+      |  ^~~~~~~~~~
+      |  __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/cpu_ipc.cuh:47:2: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+   47 |  __device__ int reopen() volatile;
+      |  ^~~~~~~~~~
+      |  __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/cpu_ipc.cuh:48:2: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+   48 |  __device__ int unlink(const char* reqFname) volatile;
+      |  ^~~~~~~~~~
+      |  __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/cpu_ipc.cuh:49:2: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+   49 |  __device__ int close(int cpu_fd, unsigned int _drop_residence_inode, bool _is_dirty) volatile;
+      |  ^~~~~~~~~~
+      |  __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/cpu_ipc.cuh:52:2: error: ‘__host__’ does not name a type
+   52 |  __host__ void init_host() volatile;
+      |  ^~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/cpu_ipc.cuh:60:2: error: ‘__host__’ does not name a type
+   60 |  __host__ void init_host() volatile;
+      |  ^~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/cpu_ipc.cuh:69:2: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+   69 |  __device__ int findEntry() volatile;
+      |  ^~~~~~~~~~
+      |  __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/cpu_ipc.cuh:70:2: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+   70 |  __device__ void freeEntry(int entry) volatile;
+      |  ^~~~~~~~~~
+      |  __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/cpu_ipc.cuh:71:2: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+   71 |  __device__ void init_thread() volatile;
+      |  ^~~~~~~~~~
+      |  __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/cpu_ipc.cuh:88:2: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+   88 |  __device__ void clean() volatile;
+      |  ^~~~~~~~~~
+      |  __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/cpu_ipc.cuh:90:2: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+   90 |  __device__ int read_write(int fd, int _cpu_fd, volatile PFrame* frame, uint purpose, bool addToDirtyList = false) volatile;
+      |  ^~~~~~~~~~
+      |  __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/cpu_ipc.cuh:92:2: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+   92 |  __device__ int ftruncate(int cpu_fd) volatile;
+      |  ^~~~~~~~~~
+      |  __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/cpu_ipc.cuh:94:2: error: ‘__host__’ does not name a type
+   94 |  __host__ void init_host() volatile;
+      |  ^~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/cpu_ipc.cuh:101:2: error: ‘__host__’ does not name a type
+  101 |  __host__ void init_host() volatile;
+      |  ^~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/cpu_ipc.cuh:103:2: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+  103 |  __device__ int read_write_page(int fd, int cpu_fd, volatile PFrame* frame, int type, int& entry, bool addToDirtyList = false) volatile;
+      |  ^~~~~~~~~~
+      |  __dev_t
+In file included from /home/hyf/Ganymede/Comparision/gpufs/include/fs_calls.cuh:26,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:6,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/home/hyf/Ganymede/Comparision/gpufs/include/cpu_ipc.cuh:110:2: error: ‘__host__’ does not name a type
+  110 |  __host__ void init_host() volatile;
+      |  ^~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/cpu_ipc.cuh:113:1: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+  113 | __device__ int read_cpu( int fd, int cpu_fd, volatile PFrame* frame, int purpose, int& entry );
+      | ^~~~~~~~~~
+      | __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/cpu_ipc.cuh:114:1: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+  114 | __device__ int write_cpu( int fd, int cpu_fd, volatile PFrame* frame, int flags );
+      | ^~~~~~~~~~
+      | __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/cpu_ipc.cuh:116:1: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+  116 | __device__ int writeback_page_async_on_close(int cpu_fd, volatile PFrame* frame, int flags);
+      | ^~~~~~~~~~
+      | __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/cpu_ipc.cuh:117:1: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+  117 | __device__ void writeback_page_async_on_close_done(int cpu_fd);
+      | ^~~~~~~~~~
+      | __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/cpu_ipc.cuh:119:1: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+  119 | __device__ void freeEntry(int entry);
+      | ^~~~~~~~~~
+      | __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/cpu_ipc.cuh:121:1: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+  121 | __device__ int truncate_cpu(int cpu_fd);
+      | ^~~~~~~~~~
+      | __dev_t
+In file included from /home/hyf/Ganymede/Comparision/gpufs/include/fs_calls.cuh:27,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:6,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/home/hyf/Ganymede/Comparision/gpufs/include/mallocfree.cuh:45:2: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+   45 |  __device__  void init_thread(volatile Page* _storage) volatile;
+      |  ^~~~~~~~~~
+      |  __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/mallocfree.cuh:47:2: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+   47 |  __device__ volatile PFrame *allocPage() volatile;
+      |  ^~~~~~~~~~
+      |  __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/mallocfree.cuh:49:2: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+   49 |  __device__ void freePage(volatile PFrame* frame, volatile unsigned int& tail, uint base) volatile;
+      |  ^~~~~~~~~~
+      |  __dev_t
+In file included from /home/hyf/Ganymede/Comparision/gpufs/include/fs_globals.cuh:25,
+                 from /home/hyf/Ganymede/Comparision/gpufs/include/fs_calls.cuh:30,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:6,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/home/hyf/Ganymede/Comparision/gpufs/include/hashMap.cuh:31:2: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+   31 |  __device__ void init_thread() volatile;
+      |  ^~~~~~~~~~
+      |  __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/hashMap.cuh:33:2: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+   33 |  __device__ volatile PFrame* readPFrame( int fd, int version, size_t block_id, bool& busy, int ref = 1 ) volatile;
+      |  ^~~~~~~~~~
+      |  __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/hashMap.cuh:35:2: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+   35 |  __device__ volatile PFrame* getPFrame( int fd, int version, size_t block_id, int ref = 1 ) volatile;
+      |  ^~~~~~~~~~
+      |  __dev_t
+/home/hyf/Ganymede/Comparision/gpufs/include/hashMap.cuh:37:2: error: ‘__device__’ does not name a type; did you mean ‘__dev_t’?
+   37 |  __device__ bool removePFrame( volatile PFrame* pframe ) volatile;
+      |  ^~~~~~~~~~
+      |  __dev_t
+In file included from /home/hyf/Ganymede/Comparision/gpufs/include/fs_calls.cuh:25,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:6,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh: In constructor ‘_nonEmptyTLB<N>::_nonEmptyTLB()’:
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:14: error: ‘threadIdx’ was not declared in this scope
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |              ^~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:14: note: in definition of macro ‘TID’
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |              ^~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:129:7: note: in expansion of macro ‘LANE_ID’
+  129 |   if( LANE_ID == 0 )
+      |       ^~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:38: error: ‘blockDim’ was not declared in this scope
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |                                      ^~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:38: note: in definition of macro ‘TID’
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |                                      ^~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:129:7: note: in expansion of macro ‘LANE_ID’
+  129 |   if( LANE_ID == 0 )
+      |       ^~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh: In destructor ‘_nonEmptyTLB<N>::~_nonEmptyTLB()’:
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:14: error: ‘threadIdx’ was not declared in this scope
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |              ^~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:14: note: in definition of macro ‘TID’
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |              ^~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:144:7: note: in expansion of macro ‘LANE_ID’
+  144 |   if( LANE_ID == 0 )
+      |       ^~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:38: error: ‘blockDim’ was not declared in this scope
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |                                      ^~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:38: note: in definition of macro ‘TID’
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |                                      ^~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:144:7: note: in expansion of macro ‘LANE_ID’
+  144 |   if( LANE_ID == 0 )
+      |       ^~~~~~~
+In file included from /home/hyf/Ganymede/Comparision/gpufs/include/fs_calls.cuh:31,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:6,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh: In destructor ‘_FatPointerWithTLB<T, N>::~_FatPointerWithTLB()’:
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:256:25: error: there are no arguments to ‘__ballot_sync’ that depend on a template parameter, so a declaration of ‘__ballot_sync’ must be available [-fpermissive]
+  256 |    int invalidThreads = __ballot_sync(0xFFFFFFFF, 1 );
+      |                         ^~~~~~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:256:25: note: (if you use ‘-fpermissive’, G++ will accept your code, but allowing the use of an undeclared name is deprecated)
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:257:17: error: there are no arguments to ‘__ffs’ that depend on a template parameter, so a declaration of ‘__ffs’ must be available [-fpermissive]
+  257 |    int leader = __ffs( invalidThreads );
+      |                 ^~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:264:14: error: there are no arguments to ‘broadcast’ that depend on a template parameter, so a declaration of ‘broadcast’ must be available [-fpermissive]
+  264 |    bHelper = broadcast( bHelper, leader );
+      |              ^~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:267:22: error: there are no arguments to ‘__ballot_sync’ that depend on a template parameter, so a declaration of ‘__ballot_sync’ must be available [-fpermissive]
+  267 |    int wantThreads = __ballot_sync(0xFFFFFFFF, want );
+      |                      ^~~~~~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:268:19: error: there are no arguments to ‘__popc’ that depend on a template parameter, so a declaration of ‘__popc’ must be available [-fpermissive]
+  268 |    int numWants = __popc( wantThreads );
+      |                   ^~~~~~
+In file included from /home/hyf/Ganymede/Comparision/gpufs/include/fs_calls.cuh:25,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:6,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:14: error: ‘threadIdx’ was not declared in this scope
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |              ^~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:14: note: in definition of macro ‘TID’
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |              ^~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:272:8: note: in expansion of macro ‘LANE_ID’
+  272 |    if( LANE_ID == leader )
+      |        ^~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:38: error: ‘blockDim’ was not declared in this scope
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |                                      ^~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:38: note: in definition of macro ‘TID’
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |                                      ^~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:272:8: note: in expansion of macro ‘LANE_ID’
+  272 |    if( LANE_ID == leader )
+      |        ^~~~~~~
+In file included from /home/hyf/Ganymede/Comparision/gpufs/include/fs_calls.cuh:31,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:6,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:279:15: error: there are no arguments to ‘atomicSub’ that depend on a template parameter, so a declaration of ‘atomicSub’ must be available [-fpermissive]
+  279 |     int old = atomicSub( (int*)&(m_tlb->locks[h]), numWants );
+      |               ^~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh: In member function ‘_FatPointerWithTLB<T, N>& _FatPointerWithTLB<T, N>::moveTo(size_t)’:
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:322:26: error: there are no arguments to ‘__ballot_sync’ that depend on a template parameter, so a declaration of ‘__ballot_sync’ must be available [-fpermissive]
+  322 |     int invalidThreads = __ballot_sync(0xFFFFFFFF, 1 );
+      |                          ^~~~~~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:324:18: error: there are no arguments to ‘__ffs’ that depend on a template parameter, so a declaration of ‘__ffs’ must be available [-fpermissive]
+  324 |     int leader = __ffs( invalidThreads );
+      |                  ^~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:331:15: error: there are no arguments to ‘broadcast’ that depend on a template parameter, so a declaration of ‘broadcast’ must be available [-fpermissive]
+  331 |     bHelper = broadcast( bHelper, leader );
+      |               ^~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:334:23: error: there are no arguments to ‘__ballot_sync’ that depend on a template parameter, so a declaration of ‘__ballot_sync’ must be available [-fpermissive]
+  334 |     int wantThreads = __ballot_sync(0xFFFFFFFF, want );
+      |                       ^~~~~~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:335:20: error: there are no arguments to ‘__popc’ that depend on a template parameter, so a declaration of ‘__popc’ must be available [-fpermissive]
+  335 |     int numWants = __popc( wantThreads );
+      |                    ^~~~~~
+In file included from /home/hyf/Ganymede/Comparision/gpufs/include/fs_calls.cuh:25,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:6,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:14: error: ‘threadIdx’ was not declared in this scope
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |              ^~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:14: note: in definition of macro ‘TID’
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |              ^~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:337:9: note: in expansion of macro ‘LANE_ID’
+  337 |     if( LANE_ID == leader )
+      |         ^~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:38: error: ‘blockDim’ was not declared in this scope
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |                                      ^~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:38: note: in definition of macro ‘TID’
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |                                      ^~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:337:9: note: in expansion of macro ‘LANE_ID’
+  337 |     if( LANE_ID == leader )
+      |         ^~~~~~~
+In file included from /home/hyf/Ganymede/Comparision/gpufs/include/fs_calls.cuh:31,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:6,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:343:16: error: there are no arguments to ‘atomicSub’ that depend on a template parameter, so a declaration of ‘atomicSub’ must be available [-fpermissive]
+  343 |      int old = atomicSub( (int*)&(m_tlb->locks[h]), numWants );
+      |                ^~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh: In member function ‘_FatPointerWithTLB<T, N>& _FatPointerWithTLB<T, N>::move(size_t)’:
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:387:26: error: there are no arguments to ‘__ballot_sync’ that depend on a template parameter, so a declaration of ‘__ballot_sync’ must be available [-fpermissive]
+  387 |     int invalidThreads = __ballot_sync(0xFFFFFFFF, 1 );
+      |                          ^~~~~~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:388:18: error: there are no arguments to ‘__ffs’ that depend on a template parameter, so a declaration of ‘__ffs’ must be available [-fpermissive]
+  388 |     int leader = __ffs( invalidThreads );
+      |                  ^~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:395:15: error: there are no arguments to ‘broadcast’ that depend on a template parameter, so a declaration of ‘broadcast’ must be available [-fpermissive]
+  395 |     bHelper = broadcast( bHelper, leader );
+      |               ^~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:400:23: error: there are no arguments to ‘__ballot_sync’ that depend on a template parameter, so a declaration of ‘__ballot_sync’ must be available [-fpermissive]
+  400 |     int wantThreads = __ballot_sync(0xFFFFFFFF, want );
+      |                       ^~~~~~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:401:20: error: there are no arguments to ‘__popc’ that depend on a template parameter, so a declaration of ‘__popc’ must be available [-fpermissive]
+  401 |     int numWants = __popc( wantThreads );
+      |                    ^~~~~~
+In file included from /home/hyf/Ganymede/Comparision/gpufs/include/fs_calls.cuh:25,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:6,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:14: error: ‘threadIdx’ was not declared in this scope
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |              ^~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:14: note: in definition of macro ‘TID’
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |              ^~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:405:9: note: in expansion of macro ‘LANE_ID’
+  405 |     if( LANE_ID == leader )
+      |         ^~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:38: error: ‘blockDim’ was not declared in this scope
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |                                      ^~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:38: note: in definition of macro ‘TID’
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |                                      ^~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:405:9: note: in expansion of macro ‘LANE_ID’
+  405 |     if( LANE_ID == leader )
+      |         ^~~~~~~
+In file included from /home/hyf/Ganymede/Comparision/gpufs/include/fs_calls.cuh:31,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:6,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:413:16: error: there are no arguments to ‘atomicSub’ that depend on a template parameter, so a declaration of ‘atomicSub’ must be available [-fpermissive]
+  413 |      int old = atomicSub( (int*)&(m_tlb->locks[h]), numWants );
+      |                ^~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:417:15: error: there are no arguments to ‘broadcast’ that depend on a template parameter, so a declaration of ‘broadcast’ must be available [-fpermissive]
+  417 |     bHelper = broadcast( bHelper, leader );
+      |               ^~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh: In member function ‘T& _FatPointerWithTLB<T, N>::operator*()’:
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:441:18: error: there are no arguments to ‘__all_sync’ that depend on a template parameter, so a declaration of ‘__all_sync’ must be available [-fpermissive]
+  441 |   int allValid = __all_sync(0xFFFFFFFF, valid);
+      |                  ^~~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:457:24: error: there are no arguments to ‘__ballot_sync’ that depend on a template parameter, so a declaration of ‘__ballot_sync’ must be available [-fpermissive]
+  457 |    int invalidThread = __ballot_sync(0xFFFFFFFF, !valid );
+      |                        ^~~~~~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:458:17: error: there are no arguments to ‘__ffs’ that depend on a template parameter, so a declaration of ‘__ffs’ must be available [-fpermissive]
+  458 |    int leader = __ffs( invalidThread );
+      |                 ^~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:471:14: error: there are no arguments to ‘broadcast’ that depend on a template parameter, so a declaration of ‘broadcast’ must be available [-fpermissive]
+  471 |    bHelper = broadcast( bHelper, leader );
+      |              ^~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:475:22: error: there are no arguments to ‘__ballot_sync’ that depend on a template parameter, so a declaration of ‘__ballot_sync’ must be available [-fpermissive]
+  475 |    int wantThreads = __ballot_sync(0xFFFFFFFF, want );
+      |                      ^~~~~~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:476:19: error: there are no arguments to ‘__popc’ that depend on a template parameter, so a declaration of ‘__popc’ must be available [-fpermissive]
+  476 |    int numWants = __popc( wantThreads );
+      |                   ^~~~~~
+In file included from /home/hyf/Ganymede/Comparision/gpufs/include/fs_calls.cuh:25,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:6,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:14: error: ‘threadIdx’ was not declared in this scope
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |              ^~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:14: note: in definition of macro ‘TID’
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |              ^~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:488:8: note: in expansion of macro ‘LANE_ID’
+  488 |    if( LANE_ID == 0 )
+      |        ^~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:38: error: ‘blockDim’ was not declared in this scope
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |                                      ^~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:38: note: in definition of macro ‘TID’
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |                                      ^~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:488:8: note: in expansion of macro ‘LANE_ID’
+  488 |    if( LANE_ID == 0 )
+      |        ^~~~~~~
+In file included from /home/hyf/Ganymede/Comparision/gpufs/include/fs_calls.cuh:31,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:6,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:490:11: error: there are no arguments to ‘atomicAdd’ that depend on a template parameter, so a declaration of ‘atomicAdd’ must be available [-fpermissive]
+  490 |     old = atomicAdd( pRefCount, numWants );
+      |           ^~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:495:10: error: there are no arguments to ‘__shfl_sync’ that depend on a template parameter, so a declaration of ‘__shfl_sync’ must be available [-fpermissive]
+  495 |    old = __shfl_sync( 0xFFFFFFFF, old, 0  );
+      |          ^~~~~~~~~~~
+In file included from /home/hyf/Ganymede/Comparision/gpufs/include/fs_calls.cuh:25,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:6,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:14: error: ‘threadIdx’ was not declared in this scope
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |              ^~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:14: note: in definition of macro ‘TID’
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |              ^~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:507:9: note: in expansion of macro ‘LANE_ID’
+  507 |     if( LANE_ID == 0 )
+      |         ^~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:38: error: ‘blockDim’ was not declared in this scope
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |                                      ^~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:38: note: in definition of macro ‘TID’
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |                                      ^~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:507:9: note: in expansion of macro ‘LANE_ID’
+  507 |     if( LANE_ID == 0 )
+      |         ^~~~~~~
+In file included from /home/hyf/Ganymede/Comparision/gpufs/include/fs_calls.cuh:31,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:6,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:509:12: error: there are no arguments to ‘atomicSub’ that depend on a template parameter, so a declaration of ‘atomicSub’ must be available [-fpermissive]
+  509 |      old = atomicSub( pRefCount, numWants );
+      |            ^~~~~~~~~
+In file included from /home/hyf/Ganymede/Comparision/gpufs/include/fs_calls.cuh:25,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:6,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:14: error: ‘threadIdx’ was not declared in this scope
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |              ^~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:14: note: in definition of macro ‘TID’
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |              ^~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:515:10: note: in expansion of macro ‘LANE_ID’
+  515 |      if( LANE_ID == 0 )
+      |          ^~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:38: error: ‘blockDim’ was not declared in this scope
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |                                      ^~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:38: note: in definition of macro ‘TID’
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |                                      ^~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:515:10: note: in expansion of macro ‘LANE_ID’
+  515 |      if( LANE_ID == 0 )
+      |          ^~~~~~~
+In file included from /home/hyf/Ganymede/Comparision/gpufs/include/fs_calls.cuh:31,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:6,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:517:13: error: there are no arguments to ‘atomicCAS’ that depend on a template parameter, so a declaration of ‘atomicCAS’ must be available [-fpermissive]
+  517 |       old = atomicCAS(pRefCount, 0, INT_MIN);
+      |             ^~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:522:12: error: there are no arguments to ‘__shfl_sync’ that depend on a template parameter, so a declaration of ‘__shfl_sync’ must be available [-fpermissive]
+  522 |      old = __shfl_sync(0xFFFFFFFF, old, 0 );
+      |            ^~~~~~~~~~~
+In file included from /home/hyf/Ganymede/Comparision/gpufs/include/fs_calls.cuh:25,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:6,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:14: error: ‘threadIdx’ was not declared in this scope
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |              ^~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:14: note: in definition of macro ‘TID’
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |              ^~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:531:12: note: in expansion of macro ‘LANE_ID’
+  531 |        if( LANE_ID == 0 )
+      |            ^~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:38: error: ‘blockDim’ was not declared in this scope
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |                                      ^~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:38: note: in definition of macro ‘TID’
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |                                      ^~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:531:12: note: in expansion of macro ‘LANE_ID’
+  531 |        if( LANE_ID == 0 )
+      |            ^~~~~~~
+In file included from /home/hyf/Ganymede/Comparision/gpufs/include/fs_calls.cuh:31,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:6,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:533:15: error: there are no arguments to ‘atomicAdd’ that depend on a template parameter, so a declaration of ‘atomicAdd’ must be available [-fpermissive]
+  533 |         old = atomicAdd( pRefCount, numWants );
+      |               ^~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:538:14: error: there are no arguments to ‘__shfl_sync’ that depend on a template parameter, so a declaration of ‘__shfl_sync’ must be available [-fpermissive]
+  538 |        old = __shfl_sync(0xFFFFFFFF, old, 0 );
+      |              ^~~~~~~~~~~
+In file included from /home/hyf/Ganymede/Comparision/gpufs/include/fs_calls.cuh:25,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:6,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:14: error: ‘threadIdx’ was not declared in this scope
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |              ^~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:14: note: in definition of macro ‘TID’
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |              ^~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:549:13: note: in expansion of macro ‘LANE_ID’
+  549 |         if( LANE_ID == 0 )
+      |             ^~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:38: error: ‘blockDim’ was not declared in this scope
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |                                      ^~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:38: note: in definition of macro ‘TID’
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |                                      ^~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:549:13: note: in expansion of macro ‘LANE_ID’
+  549 |         if( LANE_ID == 0 )
+      |             ^~~~~~~
+In file included from /home/hyf/Ganymede/Comparision/gpufs/include/fs_calls.cuh:31,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:6,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:551:16: error: there are no arguments to ‘atomicSub’ that depend on a template parameter, so a declaration of ‘atomicSub’ must be available [-fpermissive]
+  551 |          old = atomicSub( pRefCount, numWants );
+      |                ^~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:556:15: error: there are no arguments to ‘__shfl_sync’ that depend on a template parameter, so a declaration of ‘__shfl_sync’ must be available [-fpermissive]
+  556 |         old = __shfl_sync(0xFFFFFFFF, old, 0 );
+      |               ^~~~~~~~~~~
+In file included from /home/hyf/Ganymede/Comparision/gpufs/include/fs_calls.cuh:25,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:6,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:14: error: ‘threadIdx’ was not declared in this scope
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |              ^~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:14: note: in definition of macro ‘TID’
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |              ^~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:579:12: note: in expansion of macro ‘LANE_ID’
+  579 |        if( LANE_ID == 0 )
+      |            ^~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:38: error: ‘blockDim’ was not declared in this scope
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |                                      ^~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:38: note: in definition of macro ‘TID’
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |                                      ^~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:579:12: note: in expansion of macro ‘LANE_ID’
+  579 |        if( LANE_ID == 0 )
+      |            ^~~~~~~
+In file included from /home/hyf/Ganymede/Comparision/gpufs/include/fs_calls.cuh:31,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:6,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:583:33: error: ‘struct PFrame’ has no member named ‘unlock_rw’
+  583 |         m_frames[line.physPage].unlock_rw();
+      |                                 ^~~~~~~~~
+In file included from /home/hyf/Ganymede/Comparision/gpufs/include/fs_calls.cuh:25,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:6,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:14: error: ‘threadIdx’ was not declared in this scope
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |              ^~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:14: note: in definition of macro ‘TID’
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |              ^~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:593:11: note: in expansion of macro ‘LANE_ID’
+  593 |       if( LANE_ID == 0 )
+      |           ^~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:38: error: ‘blockDim’ was not declared in this scope
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |                                      ^~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:38: note: in definition of macro ‘TID’
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |                                      ^~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:593:11: note: in expansion of macro ‘LANE_ID’
+  593 |       if( LANE_ID == 0 )
+      |           ^~~~~~~
+In file included from /home/hyf/Ganymede/Comparision/gpufs/include/fs_calls.cuh:31,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:6,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:603:7: error: there are no arguments to ‘__threadfence’ that depend on a template parameter, so a declaration of ‘__threadfence’ must be available [-fpermissive]
+  603 |       __threadfence();
+      |       ^~~~~~~~~~~~~
+In file included from /home/hyf/Ganymede/Comparision/gpufs/include/fs_calls.cuh:25,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:6,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:14: error: ‘threadIdx’ was not declared in this scope
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |              ^~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:14: note: in definition of macro ‘TID’
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |              ^~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:605:11: note: in expansion of macro ‘LANE_ID’
+  605 |       if( LANE_ID == 0 )
+      |           ^~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:38: error: ‘blockDim’ was not declared in this scope
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |                                      ^~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:38: note: in definition of macro ‘TID’
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |                                      ^~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:605:11: note: in expansion of macro ‘LANE_ID’
+  605 |       if( LANE_ID == 0 )
+      |           ^~~~~~~
+In file included from /home/hyf/Ganymede/Comparision/gpufs/include/fs_calls.cuh:31,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:6,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:607:14: error: there are no arguments to ‘atomicAdd’ that depend on a template parameter, so a declaration of ‘atomicAdd’ must be available [-fpermissive]
+  607 |        old = atomicAdd(pRefCount, numWants - INT_MIN);
+      |              ^~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:620:15: error: there are no arguments to ‘__shfl_sync’ that depend on a template parameter, so a declaration of ‘__shfl_sync’ must be available [-fpermissive]
+  620 |    physical = __shfl_sync(0xFFFFFFFF, physical, 0  );
+      |               ^~~~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh: In destructor ‘_FatPointerNoTLB<T, N>::~_FatPointerNoTLB()’:
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:727:25: error: there are no arguments to ‘__ballot_sync’ that depend on a template parameter, so a declaration of ‘__ballot_sync’ must be available [-fpermissive]
+  727 |    int invalidThreads = __ballot_sync(0xFFFFFFFF, 1 );
+      |                         ^~~~~~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:729:17: error: there are no arguments to ‘__ffs’ that depend on a template parameter, so a declaration of ‘__ffs’ must be available [-fpermissive]
+  729 |    int leader = __ffs( invalidThreads );
+      |                 ^~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:736:14: error: there are no arguments to ‘broadcast’ that depend on a template parameter, so a declaration of ‘broadcast’ must be available [-fpermissive]
+  736 |    bHelper = broadcast( bHelper, leader );
+      |              ^~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:739:22: error: there are no arguments to ‘__ballot_sync’ that depend on a template parameter, so a declaration of ‘__ballot_sync’ must be available [-fpermissive]
+  739 |    int wantThreads = __ballot_sync(0xFFFFFFFF, want );
+      |                      ^~~~~~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:740:19: error: there are no arguments to ‘__popc’ that depend on a template parameter, so a declaration of ‘__popc’ must be available [-fpermissive]
+  740 |    int numWants = __popc( wantThreads );
+      |                   ^~~~~~
+In file included from /home/hyf/Ganymede/Comparision/gpufs/include/fs_calls.cuh:25,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:6,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:14: error: ‘threadIdx’ was not declared in this scope
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |              ^~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:14: note: in definition of macro ‘TID’
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |              ^~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:742:8: note: in expansion of macro ‘LANE_ID’
+  742 |    if( LANE_ID == leader )
+      |        ^~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:38: error: ‘blockDim’ was not declared in this scope
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |                                      ^~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:38: note: in definition of macro ‘TID’
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |                                      ^~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:742:8: note: in expansion of macro ‘LANE_ID’
+  742 |    if( LANE_ID == leader )
+      |        ^~~~~~~
+In file included from /home/hyf/Ganymede/Comparision/gpufs/include/fs_calls.cuh:31,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:6,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:744:30: error: ‘struct PFrame’ has no member named ‘unlock_rw’
+  744 |     m_frames[m_ptr.physPage].unlock_rw(numWants);
+      |                              ^~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh: In member function ‘_FatPointerNoTLB<T, N>& _FatPointerNoTLB<T, N>::moveTo(size_t)’:
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:783:26: error: there are no arguments to ‘__ballot_sync’ that depend on a template parameter, so a declaration of ‘__ballot_sync’ must be available [-fpermissive]
+  783 |     int invalidThreads = __ballot_sync(0xFFFFFFFF, 1 );
+      |                          ^~~~~~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:785:18: error: there are no arguments to ‘__ffs’ that depend on a template parameter, so a declaration of ‘__ffs’ must be available [-fpermissive]
+  785 |     int leader = __ffs( invalidThreads );
+      |                  ^~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:792:15: error: there are no arguments to ‘broadcast’ that depend on a template parameter, so a declaration of ‘broadcast’ must be available [-fpermissive]
+  792 |     bHelper = broadcast( bHelper, leader );
+      |               ^~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:795:23: error: there are no arguments to ‘__ballot_sync’ that depend on a template parameter, so a declaration of ‘__ballot_sync’ must be available [-fpermissive]
+  795 |     int wantThreads = __ballot_sync(0xFFFFFFFF, want );
+      |                       ^~~~~~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:796:20: error: there are no arguments to ‘__popc’ that depend on a template parameter, so a declaration of ‘__popc’ must be available [-fpermissive]
+  796 |     int numWants = __popc( wantThreads );
+      |                    ^~~~~~
+In file included from /home/hyf/Ganymede/Comparision/gpufs/include/fs_calls.cuh:25,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:6,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:14: error: ‘threadIdx’ was not declared in this scope
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |              ^~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:14: note: in definition of macro ‘TID’
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |              ^~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:798:9: note: in expansion of macro ‘LANE_ID’
+  798 |     if( LANE_ID == leader )
+      |         ^~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:38: error: ‘blockDim’ was not declared in this scope
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |                                      ^~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:38: note: in definition of macro ‘TID’
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |                                      ^~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:798:9: note: in expansion of macro ‘LANE_ID’
+  798 |     if( LANE_ID == leader )
+      |         ^~~~~~~
+In file included from /home/hyf/Ganymede/Comparision/gpufs/include/fs_calls.cuh:31,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:6,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:800:31: error: ‘struct PFrame’ has no member named ‘unlock_rw’
+  800 |      m_frames[m_ptr.physPage].unlock_rw(numWants);
+      |                               ^~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh: In member function ‘_FatPointerNoTLB<T, N>& _FatPointerNoTLB<T, N>::move(size_t)’:
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:843:26: error: there are no arguments to ‘__ballot_sync’ that depend on a template parameter, so a declaration of ‘__ballot_sync’ must be available [-fpermissive]
+  843 |     int invalidThreads = __ballot_sync(0xFFFFFFFF, 1 );
+      |                          ^~~~~~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:845:18: error: there are no arguments to ‘__ffs’ that depend on a template parameter, so a declaration of ‘__ffs’ must be available [-fpermissive]
+  845 |     int leader = __ffs( invalidThreads );
+      |                  ^~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:852:15: error: there are no arguments to ‘broadcast’ that depend on a template parameter, so a declaration of ‘broadcast’ must be available [-fpermissive]
+  852 |     bHelper = broadcast( bHelper, leader );
+      |               ^~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:855:23: error: there are no arguments to ‘__ballot_sync’ that depend on a template parameter, so a declaration of ‘__ballot_sync’ must be available [-fpermissive]
+  855 |     int wantThreads = __ballot_sync( 0xFFFFFFFF, want );
+      |                       ^~~~~~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:856:20: error: there are no arguments to ‘__popc’ that depend on a template parameter, so a declaration of ‘__popc’ must be available [-fpermissive]
+  856 |     int numWants = __popc( wantThreads );
+      |                    ^~~~~~
+In file included from /home/hyf/Ganymede/Comparision/gpufs/include/fs_calls.cuh:25,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:6,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:14: error: ‘threadIdx’ was not declared in this scope
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |              ^~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:14: note: in definition of macro ‘TID’
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |              ^~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:860:9: note: in expansion of macro ‘LANE_ID’
+  860 |     if( LANE_ID == leader )
+      |         ^~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:38: error: ‘blockDim’ was not declared in this scope
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |                                      ^~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:53:38: note: in definition of macro ‘TID’
+   53 | #define TID (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.x*blockDim.y)
+      |                                      ^~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:860:9: note: in expansion of macro ‘LANE_ID’
+  860 |     if( LANE_ID == leader )
+      |         ^~~~~~~
+In file included from /home/hyf/Ganymede/Comparision/gpufs/include/fs_calls.cuh:31,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:6,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:863:31: error: ‘struct PFrame’ has no member named ‘unlock_rw’
+  863 |      m_frames[m_ptr.physPage].unlock_rw(numWants);
+      |                               ^~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:867:15: error: there are no arguments to ‘broadcast’ that depend on a template parameter, so a declaration of ‘broadcast’ must be available [-fpermissive]
+  867 |     bHelper = broadcast( bHelper, leader );
+      |               ^~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh: In member function ‘T& _FatPointerNoTLB<T, N>::operator*()’:
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:887:18: error: there are no arguments to ‘__all’ that depend on a template parameter, so a declaration of ‘__all’ must be available [-fpermissive]
+  887 |   int allValid = __all( valid );
+      |                  ^~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:898:24: error: there are no arguments to ‘__ballot_sync’ that depend on a template parameter, so a declaration of ‘__ballot_sync’ must be available [-fpermissive]
+  898 |    int invalidThread = __ballot_sync(0xFFFFFFFF, !valid );
+      |                        ^~~~~~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:900:17: error: there are no arguments to ‘__ffs’ that depend on a template parameter, so a declaration of ‘__ffs’ must be available [-fpermissive]
+  900 |    int leader = __ffs( invalidThread );
+      |                 ^~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:913:14: error: there are no arguments to ‘broadcast’ that depend on a template parameter, so a declaration of ‘broadcast’ must be available [-fpermissive]
+  913 |    bHelper = broadcast( bHelper, leader );
+      |              ^~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:916:22: error: there are no arguments to ‘__ballot_sync’ that depend on a template parameter, so a declaration of ‘__ballot_sync’ must be available [-fpermissive]
+  916 |    int wantThreads = __ballot_sync( 0xFFFFFFFF, want );
+      |                      ^~~~~~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:917:19: error: there are no arguments to ‘__popc’ that depend on a template parameter, so a declaration of ‘__popc’ must be available [-fpermissive]
+  917 |    int numWants = __popc( wantThreads );
+      |                   ^~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/fat_pointer.cuh:922:15: error: there are no arguments to ‘__shfl’ that depend on a template parameter, so a declaration of ‘__shfl’ must be available [-fpermissive]
+  922 |    physical = __shfl( physical, 0 );
+      |               ^~~~~~
+In file included from /home/hyf/Ganymede/Comparision/gpufs/include/fs_calls.cuh:25,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:6,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_initializer.cuh: In constructor ‘GPUGlobals::GPUGlobals()’:
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_initializer.cuh:141:55: error: invalid conversion from ‘volatile void*’ to ‘const void*’ [-fpermissive]
+   46 |  CUDA_SAFE_CALL(cudaMemcpyToSymbol((symbol),&d_ptr,sizeof(void*)));\
+      |                                    ~~~~~~~~            
+......
+  141 |   initGpuShmemPtr(CPU_IPC_OPEN_Queue,cpu_ipcOpenQueue,g_cpu_ipcOpenQueue);
+      |                                                       |
+      |                                                       volatile void*
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:26:31: note: in definition of macro ‘CUDA_SAFE_CALL’
+   26 | #define CUDA_SAFE_CALL(x) if((x)!=cudaSuccess) { fprintf(stderr,"CUDA ERROR %s: %d %s\n",__FILE__, __LINE__, cudaGetErrorString(cudaGetLastError())); exit(-1); }
+      |                               ^
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_initializer.cuh:141:3: note: in expansion of macro ‘initGpuShmemPtr’
+  141 |   initGpuShmemPtr(CPU_IPC_OPEN_Queue,cpu_ipcOpenQueue,g_cpu_ipcOpenQueue);
+      |   ^~~~~~~~~~~~~~~
+In file included from /usr/local/cuda-12.3/include/channel_descriptor.h:61,
+                 from /usr/local/cuda-12.3/include/cuda_runtime.h:94,
+                 from /home/hyf/Ganymede/Comparision/gpufs/include/async_ipc.cuh:14,
+                 from /home/hyf/Ganymede/Comparision/gpufs/include/fs_globals.cuh:27,
+                 from /home/hyf/Ganymede/Comparision/gpufs/include/fs_calls.cuh:30,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:6,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/usr/local/cuda-12.3/include/cuda_runtime_api.h:6856:70: note:   initializing argument 1 of ‘cudaError_t cudaMemcpyToSymbol(const void*, const void*, size_t, size_t, cudaMemcpyKind)’
+ 6856 | extern __host__ cudaError_t CUDARTAPI cudaMemcpyToSymbol(const void *symbol, const void *src, size_t count, size_t offset __dv(0), enum cudaMemcpyKind kind __dv(cudaMemcpyHostToDevice));
+      |                                                          ~~~~~~~~~~~~^~~~~~
+In file included from /home/hyf/Ganymede/Comparision/gpufs/include/host_loop.h:37,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:7,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_initializer.cuh:142:21: error: ‘volatile struct CPU_IPC_OPEN_Queue’ has no member named ‘init_host’
+  142 |   cpu_ipcOpenQueue->init_host();
+      |                     ^~~~~~~~~
+In file included from /home/hyf/Ganymede/Comparision/gpufs/include/fs_calls.cuh:25,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:6,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_initializer.cuh:144:51: error: invalid conversion from ‘volatile void*’ to ‘const void*’ [-fpermissive]
+   46 |  CUDA_SAFE_CALL(cudaMemcpyToSymbol((symbol),&d_ptr,sizeof(void*)));\
+      |                                    ~~~~~~~~        
+......
+  144 |   initGpuShmemPtr(CPU_IPC_RW_Queue,cpu_ipcRWQueue,g_cpu_ipcRWQueue);
+      |                                                   |
+      |                                                   volatile void*
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:26:31: note: in definition of macro ‘CUDA_SAFE_CALL’
+   26 | #define CUDA_SAFE_CALL(x) if((x)!=cudaSuccess) { fprintf(stderr,"CUDA ERROR %s: %d %s\n",__FILE__, __LINE__, cudaGetErrorString(cudaGetLastError())); exit(-1); }
+      |                               ^
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_initializer.cuh:144:3: note: in expansion of macro ‘initGpuShmemPtr’
+  144 |   initGpuShmemPtr(CPU_IPC_RW_Queue,cpu_ipcRWQueue,g_cpu_ipcRWQueue);
+      |   ^~~~~~~~~~~~~~~
+In file included from /usr/local/cuda-12.3/include/channel_descriptor.h:61,
+                 from /usr/local/cuda-12.3/include/cuda_runtime.h:94,
+                 from /home/hyf/Ganymede/Comparision/gpufs/include/async_ipc.cuh:14,
+                 from /home/hyf/Ganymede/Comparision/gpufs/include/fs_globals.cuh:27,
+                 from /home/hyf/Ganymede/Comparision/gpufs/include/fs_calls.cuh:30,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:6,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/usr/local/cuda-12.3/include/cuda_runtime_api.h:6856:70: note:   initializing argument 1 of ‘cudaError_t cudaMemcpyToSymbol(const void*, const void*, size_t, size_t, cudaMemcpyKind)’
+ 6856 | extern __host__ cudaError_t CUDARTAPI cudaMemcpyToSymbol(const void *symbol, const void *src, size_t count, size_t offset __dv(0), enum cudaMemcpyKind kind __dv(cudaMemcpyHostToDevice));
+      |                                                          ~~~~~~~~~~~~^~~~~~
+In file included from /home/hyf/Ganymede/Comparision/gpufs/include/host_loop.h:37,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:7,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_initializer.cuh:145:19: error: ‘volatile struct CPU_IPC_RW_Queue’ has no member named ‘init_host’
+  145 |   cpu_ipcRWQueue->init_host();
+      |                   ^~~~~~~~~
+In file included from /home/hyf/Ganymede/Comparision/gpufs/include/fs_calls.cuh:25,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:6,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_initializer.cuh:147:51: error: invalid conversion from ‘volatile void*’ to ‘const void*’ [-fpermissive]
+   46 |  CUDA_SAFE_CALL(cudaMemcpyToSymbol((symbol),&d_ptr,sizeof(void*)));\
+      |                                    ~~~~~~~~        
+......
+  147 |   initGpuShmemPtr(CPU_IPC_RW_Flags,cpu_ipcRWFlags,g_cpu_ipcRWFlags);
+      |                                                   |
+      |                                                   volatile void*
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:26:31: note: in definition of macro ‘CUDA_SAFE_CALL’
+   26 | #define CUDA_SAFE_CALL(x) if((x)!=cudaSuccess) { fprintf(stderr,"CUDA ERROR %s: %d %s\n",__FILE__, __LINE__, cudaGetErrorString(cudaGetLastError())); exit(-1); }
+      |                               ^
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_initializer.cuh:147:3: note: in expansion of macro ‘initGpuShmemPtr’
+  147 |   initGpuShmemPtr(CPU_IPC_RW_Flags,cpu_ipcRWFlags,g_cpu_ipcRWFlags);
+      |   ^~~~~~~~~~~~~~~
+In file included from /usr/local/cuda-12.3/include/channel_descriptor.h:61,
+                 from /usr/local/cuda-12.3/include/cuda_runtime.h:94,
+                 from /home/hyf/Ganymede/Comparision/gpufs/include/async_ipc.cuh:14,
+                 from /home/hyf/Ganymede/Comparision/gpufs/include/fs_globals.cuh:27,
+                 from /home/hyf/Ganymede/Comparision/gpufs/include/fs_calls.cuh:30,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:6,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/usr/local/cuda-12.3/include/cuda_runtime_api.h:6856:70: note:   initializing argument 1 of ‘cudaError_t cudaMemcpyToSymbol(const void*, const void*, size_t, size_t, cudaMemcpyKind)’
+ 6856 | extern __host__ cudaError_t CUDARTAPI cudaMemcpyToSymbol(const void *symbol, const void *src, size_t count, size_t offset __dv(0), enum cudaMemcpyKind kind __dv(cudaMemcpyHostToDevice));
+      |                                                          ~~~~~~~~~~~~^~~~~~
+In file included from /home/hyf/Ganymede/Comparision/gpufs/include/host_loop.h:37,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:7,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_initializer.cuh:148:19: error: ‘volatile struct CPU_IPC_RW_Flags’ has no member named ‘init_host’
+  148 |   cpu_ipcRWFlags->init_host();
+      |                   ^~~~~~~~~
+In file included from /home/hyf/Ganymede/Comparision/gpufs/include/fs_calls.cuh:25,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:6,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_initializer.cuh:150:50: error: invalid conversion from ‘volatile void*’ to ‘const void*’ [-fpermissive]
+   53 |  CUDA_SAFE_CALL(cudaMemcpyToSymbol((symbol),&(d_ptr),sizeof(void*)));\
+      |                                    ~~~~~~~~       
+......
+  150 |   initGpuGlobals(GPU_IPC_RW_Manager,ipcRWManager,g_ipcRWManager);
+      |                                                  |
+      |                                                  volatile void*
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:26:31: note: in definition of macro ‘CUDA_SAFE_CALL’
+   26 | #define CUDA_SAFE_CALL(x) if((x)!=cudaSuccess) { fprintf(stderr,"CUDA ERROR %s: %d %s\n",__FILE__, __LINE__, cudaGetErrorString(cudaGetLastError())); exit(-1); }
+      |                               ^
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_initializer.cuh:150:3: note: in expansion of macro ‘initGpuGlobals’
+  150 |   initGpuGlobals(GPU_IPC_RW_Manager,ipcRWManager,g_ipcRWManager);
+      |   ^~~~~~~~~~~~~~
+In file included from /usr/local/cuda-12.3/include/channel_descriptor.h:61,
+                 from /usr/local/cuda-12.3/include/cuda_runtime.h:94,
+                 from /home/hyf/Ganymede/Comparision/gpufs/include/async_ipc.cuh:14,
+                 from /home/hyf/Ganymede/Comparision/gpufs/include/fs_globals.cuh:27,
+                 from /home/hyf/Ganymede/Comparision/gpufs/include/fs_calls.cuh:30,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:6,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/usr/local/cuda-12.3/include/cuda_runtime_api.h:6856:70: note:   initializing argument 1 of ‘cudaError_t cudaMemcpyToSymbol(const void*, const void*, size_t, size_t, cudaMemcpyKind)’
+ 6856 | extern __host__ cudaError_t CUDARTAPI cudaMemcpyToSymbol(const void *symbol, const void *src, size_t count, size_t offset __dv(0), enum cudaMemcpyKind kind __dv(cudaMemcpyHostToDevice));
+      |                                                          ~~~~~~~~~~~~^~~~~~
+In file included from /home/hyf/Ganymede/Comparision/gpufs/include/fs_calls.cuh:25,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:6,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_initializer.cuh:151:30: error: invalid conversion from ‘volatile void*’ to ‘const void*’ [-fpermissive]
+   53 |  CUDA_SAFE_CALL(cudaMemcpyToSymbol((symbol),&(d_ptr),sizeof(void*)));\
+      |                                    ~~~~~~~~
+......
+  151 |   initGpuGlobals(PPool,ppool,g_ppool);
+      |                              |
+      |                              volatile void*
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:26:31: note: in definition of macro ‘CUDA_SAFE_CALL’
+   26 | #define CUDA_SAFE_CALL(x) if((x)!=cudaSuccess) { fprintf(stderr,"CUDA ERROR %s: %d %s\n",__FILE__, __LINE__, cudaGetErrorString(cudaGetLastError())); exit(-1); }
+      |                               ^
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_initializer.cuh:151:3: note: in expansion of macro ‘initGpuGlobals’
+  151 |   initGpuGlobals(PPool,ppool,g_ppool);
+      |   ^~~~~~~~~~~~~~
+In file included from /usr/local/cuda-12.3/include/channel_descriptor.h:61,
+                 from /usr/local/cuda-12.3/include/cuda_runtime.h:94,
+                 from /home/hyf/Ganymede/Comparision/gpufs/include/async_ipc.cuh:14,
+                 from /home/hyf/Ganymede/Comparision/gpufs/include/fs_globals.cuh:27,
+                 from /home/hyf/Ganymede/Comparision/gpufs/include/fs_calls.cuh:30,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:6,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/usr/local/cuda-12.3/include/cuda_runtime_api.h:6856:70: note:   initializing argument 1 of ‘cudaError_t cudaMemcpyToSymbol(const void*, const void*, size_t, size_t, cudaMemcpyKind)’
+ 6856 | extern __host__ cudaError_t CUDARTAPI cudaMemcpyToSymbol(const void *symbol, const void *src, size_t count, size_t offset __dv(0), enum cudaMemcpyKind kind __dv(cudaMemcpyHostToDevice));
+      |                                                          ~~~~~~~~~~~~^~~~~~
+In file included from /home/hyf/Ganymede/Comparision/gpufs/include/fs_calls.cuh:25,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:6,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_initializer.cuh:152:32: error: invalid conversion from ‘volatile void*’ to ‘const void*’ [-fpermissive]
+   53 |  CUDA_SAFE_CALL(cudaMemcpyToSymbol((symbol),&(d_ptr),sizeof(void*)));\
+      |                                    ~~~~~~~~
+......
+  152 |   initGpuGlobals(FTable,ftable,g_ftable);
+      |                                |
+      |                                volatile void*
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:26:31: note: in definition of macro ‘CUDA_SAFE_CALL’
+   26 | #define CUDA_SAFE_CALL(x) if((x)!=cudaSuccess) { fprintf(stderr,"CUDA ERROR %s: %d %s\n",__FILE__, __LINE__, cudaGetErrorString(cudaGetLastError())); exit(-1); }
+      |                               ^
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_initializer.cuh:152:3: note: in expansion of macro ‘initGpuGlobals’
+  152 |   initGpuGlobals(FTable,ftable,g_ftable);
+      |   ^~~~~~~~~~~~~~
+In file included from /usr/local/cuda-12.3/include/channel_descriptor.h:61,
+                 from /usr/local/cuda-12.3/include/cuda_runtime.h:94,
+                 from /home/hyf/Ganymede/Comparision/gpufs/include/async_ipc.cuh:14,
+                 from /home/hyf/Ganymede/Comparision/gpufs/include/fs_globals.cuh:27,
+                 from /home/hyf/Ganymede/Comparision/gpufs/include/fs_calls.cuh:30,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:6,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/usr/local/cuda-12.3/include/cuda_runtime_api.h:6856:70: note:   initializing argument 1 of ‘cudaError_t cudaMemcpyToSymbol(const void*, const void*, size_t, size_t, cudaMemcpyKind)’
+ 6856 | extern __host__ cudaError_t CUDARTAPI cudaMemcpyToSymbol(const void *symbol, const void *src, size_t count, size_t offset __dv(0), enum cudaMemcpyKind kind __dv(cudaMemcpyHostToDevice));
+      |                                                          ~~~~~~~~~~~~^~~~~~
+In file included from /home/hyf/Ganymede/Comparision/gpufs/include/fs_calls.cuh:25,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:6,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_initializer.cuh:153:34: error: invalid conversion from ‘volatile void*’ to ‘const void*’ [-fpermissive]
+   53 |  CUDA_SAFE_CALL(cudaMemcpyToSymbol((symbol),&(d_ptr),sizeof(void*)));\
+      |                                    ~~~~~~~~
+......
+  153 |   initGpuGlobals(HashMap,hashMap,g_hashMap);
+      |                                  |
+      |                                  volatile void*
+/home/hyf/Ganymede/Comparision/gpufs/include/util.cuh:26:31: note: in definition of macro ‘CUDA_SAFE_CALL’
+   26 | #define CUDA_SAFE_CALL(x) if((x)!=cudaSuccess) { fprintf(stderr,"CUDA ERROR %s: %d %s\n",__FILE__, __LINE__, cudaGetErrorString(cudaGetLastError())); exit(-1); }
+      |                               ^
+/home/hyf/Ganymede/Comparision/gpufs/include/fs_initializer.cuh:153:3: note: in expansion of macro ‘initGpuGlobals’
+  153 |   initGpuGlobals(HashMap,hashMap,g_hashMap);
+      |   ^~~~~~~~~~~~~~
+In file included from /usr/local/cuda-12.3/include/channel_descriptor.h:61,
+                 from /usr/local/cuda-12.3/include/cuda_runtime.h:94,
+                 from /home/hyf/Ganymede/Comparision/gpufs/include/async_ipc.cuh:14,
+                 from /home/hyf/Ganymede/Comparision/gpufs/include/fs_globals.cuh:27,
+                 from /home/hyf/Ganymede/Comparision/gpufs/include/fs_calls.cuh:30,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:6,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/usr/local/cuda-12.3/include/cuda_runtime_api.h:6856:70: note:   initializing argument 1 of ‘cudaError_t cudaMemcpyToSymbol(const void*, const void*, size_t, size_t, cudaMemcpyKind)’
+ 6856 | extern __host__ cudaError_t CUDARTAPI cudaMemcpyToSymbol(const void *symbol, const void *src, size_t count, size_t offset __dv(0), enum cudaMemcpyKind kind __dv(cudaMemcpyHostToDevice));
+      |                                                          ~~~~~~~~~~~~^~~~~~
+In file included from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:7,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/home/hyf/Ganymede/Comparision/gpufs/include/host_loop.h: In function ‘uchar* diff_and_merge(const char (*)[2097152], uint, size_t, size_t)’:
+/home/hyf/Ganymede/Comparision/gpufs/include/host_loop.h:86:16: warning: comparison of integer expressions of different signedness: ‘__off_t’ {aka ‘long int’} and ‘size_t’ {aka ‘long unsigned int’} [-Wsign-compare]
+   86 |  if (s.st_size < req_file_offset)
+      |      ~~~~~~~~~~^~~~~~~~~~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/host_loop.h:127:25: warning: comparison of integer expressions of different signedness: ‘int’ and ‘long unsigned int’ [-Wsign-compare]
+  127 |   for (int zzz = 0; zzz < (data_read / sizeof(v32c) + (left != 0)); zzz++)
+      |                     ~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/host_loop.h: In function ‘void async_close_loop(volatile GPUGlobals*)’:
+/home/hyf/Ganymede/Comparision/gpufs/include/host_loop.h:308:11: warning: comparison of integer expressions of different signedness: ‘int’ and ‘volatile uint’ {aka ‘volatile unsigned int’} [-Wsign-compare]
+  308 |    if (ws != md.content_size)
+      |        ~~~^~~~~~~~~~~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/host_loop.h:269:8: warning: unused variable ‘no_files’ [-Wunused-variable]
+  269 |  char* no_files = getenv("GPU_NOFILE");
+      |        ^~~~~~~~
+In file included from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api_gpu.cuh:7,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:13,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/home/hyf/Ganymede/Comparision/gpufs/include/host_loop.h: In function ‘void* rw_task(void*)’:
+/home/hyf/Ganymede/Comparision/gpufs/include/host_loop.h:495:48: warning: format ‘%ld’ expects argument of type ‘long int’, but argument 3 has type ‘int’ [-Wformat=]
+  495 |       printf("cpu_read_size: %d, req_cpu_fd: %ld, req_size: %ld, req_file_offset: %ld\n",
+      |                                              ~~^
+      |                                                |
+      |                                                long int
+      |                                              %d
+  496 |         cpu_read_size, req_cpu_fd, req_size, req_file_offset);
+      |                        ~~~~~~~~~~               
+      |                        |
+      |                        int
+/home/hyf/Ganymede/Comparision/gpufs/include/host_loop.h:471:12: warning: unused variable ‘req_buffer_offset’ [-Wunused-variable]
+  471 |     size_t req_buffer_offset = e->buffer_offset;
+      |            ^~~~~~~~~~~~~~~~~
+/home/hyf/Ganymede/Comparision/gpufs/include/host_loop.h: In function ‘void run_gpufs_handler(volatile GPUGlobals*, int)’:
+/home/hyf/Ganymede/Comparision/gpufs/include/host_loop.h:622:9: warning: unused variable ‘cpyTime’ [-Wunused-variable]
+  622 |  double cpyTime = 0;
+      |         ^~~~~~~
+In file included from /home/hyf/anaconda3/lib/python3.11/site-packages/torch/include/torch/csrc/Exceptions.h:12,
+                 from /home/hyf/anaconda3/lib/python3.11/site-packages/torch/include/torch/csrc/api/include/torch/python.h:11,
+                 from /home/hyf/anaconda3/lib/python3.11/site-packages/torch/include/torch/extension.h:9,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/include/api.h:4,
+                 from /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:2:
+/home/hyf/anaconda3/lib/python3.11/site-packages/torch/include/pybind11/pybind11.h: In instantiation of ‘class pybind11::class_<GPUfs>’:
+/home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp:69:33:   required from here
+/home/hyf/anaconda3/lib/python3.11/site-packages/torch/include/pybind11/pybind11.h:1555:7: warning: ‘pybind11::class_<GPUfs>’ declared with greater visibility than its base ‘pybind11::detail::generic_type’ [-Wattributes]
+ 1555 | class class_ : public detail::generic_type {
+      |       ^~~~~~
+ninja: build stopped: subcommand failed.
+Traceback (most recent call last):
+  File "/home/hyf/anaconda3/lib/python3.11/site-packages/torch/utils/cpp_extension.py", line 2105, in _run_ninja_build
+    subprocess.run(
+  File "/home/hyf/anaconda3/lib/python3.11/subprocess.py", line 571, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['ninja', '-v']' returned non-zero exit status 1.
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/hyf/Ganymede/Comparision/interface_for_pytorch/setup.py", line 110, in <module>
+    setup(
+  File "/home/hyf/anaconda3/lib/python3.11/site-packages/setuptools/__init__.py", line 103, in setup
+    return distutils.core.setup(**attrs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/hyf/anaconda3/lib/python3.11/site-packages/setuptools/_distutils/core.py", line 185, in setup
+    return run_commands(dist)
+           ^^^^^^^^^^^^^^^^^^
+  File "/home/hyf/anaconda3/lib/python3.11/site-packages/setuptools/_distutils/core.py", line 201, in run_commands
+    dist.run_commands()
+  File "/home/hyf/anaconda3/lib/python3.11/site-packages/setuptools/_distutils/dist.py", line 969, in run_commands
+    self.run_command(cmd)
+  File "/home/hyf/anaconda3/lib/python3.11/site-packages/setuptools/dist.py", line 989, in run_command
+    super().run_command(command)
+  File "/home/hyf/anaconda3/lib/python3.11/site-packages/setuptools/_distutils/dist.py", line 988, in run_command
+    cmd_obj.run()
+  File "/home/hyf/anaconda3/lib/python3.11/site-packages/setuptools/command/install.py", line 84, in run
+    self.do_egg_install()
+  File "/home/hyf/anaconda3/lib/python3.11/site-packages/setuptools/command/install.py", line 132, in do_egg_install
+    self.run_command('bdist_egg')
+  File "/home/hyf/anaconda3/lib/python3.11/site-packages/setuptools/_distutils/cmd.py", line 318, in run_command
+    self.distribution.run_command(command)
+  File "/home/hyf/anaconda3/lib/python3.11/site-packages/setuptools/dist.py", line 989, in run_command
+    super().run_command(command)
+  File "/home/hyf/anaconda3/lib/python3.11/site-packages/setuptools/_distutils/dist.py", line 988, in run_command
+    cmd_obj.run()
+  File "/home/hyf/anaconda3/lib/python3.11/site-packages/setuptools/command/bdist_egg.py", line 167, in run
+    cmd = self.call_command('install_lib', warn_dir=0)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/hyf/anaconda3/lib/python3.11/site-packages/setuptools/command/bdist_egg.py", line 153, in call_command
+    self.run_command(cmdname)
+  File "/home/hyf/anaconda3/lib/python3.11/site-packages/setuptools/_distutils/cmd.py", line 318, in run_command
+    self.distribution.run_command(command)
+  File "/home/hyf/anaconda3/lib/python3.11/site-packages/setuptools/dist.py", line 989, in run_command
+    super().run_command(command)
+  File "/home/hyf/anaconda3/lib/python3.11/site-packages/setuptools/_distutils/dist.py", line 988, in run_command
+    cmd_obj.run()
+  File "/home/hyf/anaconda3/lib/python3.11/site-packages/setuptools/command/install_lib.py", line 11, in run
+    self.build()
+  File "/home/hyf/anaconda3/lib/python3.11/site-packages/setuptools/_distutils/command/install_lib.py", line 111, in build
+    self.run_command('build_ext')
+  File "/home/hyf/anaconda3/lib/python3.11/site-packages/setuptools/_distutils/cmd.py", line 318, in run_command
+    self.distribution.run_command(command)
+  File "/home/hyf/anaconda3/lib/python3.11/site-packages/setuptools/dist.py", line 989, in run_command
+    super().run_command(command)
+  File "/home/hyf/anaconda3/lib/python3.11/site-packages/setuptools/_distutils/dist.py", line 988, in run_command
+    cmd_obj.run()
+  File "/home/hyf/anaconda3/lib/python3.11/site-packages/setuptools/command/build_ext.py", line 88, in run
+    _build_ext.run(self)
+  File "/home/hyf/anaconda3/lib/python3.11/site-packages/setuptools/_distutils/command/build_ext.py", line 345, in run
+    self.build_extensions()
+  File "/home/hyf/anaconda3/lib/python3.11/site-packages/torch/utils/cpp_extension.py", line 866, in build_extensions
+    build_ext.build_extensions(self)
+  File "/home/hyf/anaconda3/lib/python3.11/site-packages/setuptools/_distutils/command/build_ext.py", line 467, in build_extensions
+    self._build_extensions_serial()
+  File "/home/hyf/anaconda3/lib/python3.11/site-packages/setuptools/_distutils/command/build_ext.py", line 493, in _build_extensions_serial
+    self.build_extension(ext)
+  File "/home/hyf/anaconda3/lib/python3.11/site-packages/setuptools/command/build_ext.py", line 249, in build_extension
+    _build_ext.build_extension(self, ext)
+  File "/home/hyf/anaconda3/lib/python3.11/site-packages/setuptools/_distutils/command/build_ext.py", line 548, in build_extension
+    objects = self.compiler.compile(
+              ^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/hyf/anaconda3/lib/python3.11/site-packages/torch/utils/cpp_extension.py", line 679, in unix_wrap_ninja_compile
+    _write_ninja_file_and_compile_objects(
+  File "/home/hyf/anaconda3/lib/python3.11/site-packages/torch/utils/cpp_extension.py", line 1785, in _write_ninja_file_and_compile_objects
+    _run_ninja_build(
+  File "/home/hyf/anaconda3/lib/python3.11/site-packages/torch/utils/cpp_extension.py", line 2121, in _run_ninja_build
+    raise RuntimeError(message) from e
+RuntimeError: Error compiling objects for extension

@@ -1,0 +1,12 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api_gpu.cu
+api_gpu.cuh
+/home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api_gpu.cuh
+

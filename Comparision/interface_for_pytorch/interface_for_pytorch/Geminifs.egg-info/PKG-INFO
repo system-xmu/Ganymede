@@ -1,0 +1,9 @@
+Metadata-Version: 2.1
+Name: Geminifs
+Version: 0.1.0
+Summary: Geminifs interface for save and load checkpoints
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Requires-Python: >=3.6
+Requires-Dist: torch

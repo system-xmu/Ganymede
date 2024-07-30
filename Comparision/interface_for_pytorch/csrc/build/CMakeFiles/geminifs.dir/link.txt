@@ -1,0 +1,2 @@
+/usr/bin/ar qc libgeminifs.a  CMakeFiles/geminifs.dir/api.o CMakeFiles/geminifs.dir/api_gpu.o CMakeFiles/geminifs.dir/space_mgr.o
+/usr/bin/ranlib libgeminifs.a
