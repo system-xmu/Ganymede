@@ -155,7 +155,7 @@ host_refine_nvmeofst_1(vaddr_t va,
       perror("ioctl failed");
       assert(0);
   } 
-  printf("%lx, %lx\n", va, mapping.address);
+  //printf("%lx, %lx\n", va, mapping.address);
   return mapping.address;
 }
 
