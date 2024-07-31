@@ -13,6 +13,8 @@
 # undefine_macros: 取消宏
 
 from setuptools import setup, find_packages
+from setuptools.command.install import install
+
 from subprocess import call
 from typing import List
 from platform import uname
@@ -27,9 +29,9 @@ enable_gpufs = True
 if os.environ.get('DISABLE_GPUFS') == '1':
     enable_gpufs = False
 
-libraries = ['gpufs']
+libraries = ['gpufs', 'cudadevrt', 'cufft_static', 'cudart_static']
 library_dirs = ['/home/hyf/Ganymede/Comparision/gpufs/lib']
-sources = ['csrc/api.cpp', 'csrc/space_mgr.cpp', 'csrc/api_gpu.cu'] #,
+sources = ['csrc/api.cpp', 'csrc/space_mgr.cpp', 'csrc/api_gpu.cu']
 include_dirs = ['../gpufs/include', 'include/']
 extra_objects = []
 define_macros = []  # 定义的宏
@@ -53,12 +55,13 @@ def cpp_ext_helper(name, sources, **kwargs):
                       os.path.join(gpufs_install_dir, 'include'),
                       *extra_include_dirs],
         library_dirs=[os.path.join(gpufs_install_dir, 'lib')],
+        extra_compile_args = {"nvcc" : ["-dc", "-rdc=true"]},
         **kwargs
     )
 
 def find_static_lib(lib_name: str, lib_paths: List[str] = []) -> str:
     static_lib_name = f'lib{lib_name}.a'
-    lib_paths.extend(['/usr/lib', '/usr/lib64', ' /home/hyf/Ganymede/Comparision/gpufs/lib/', '/home/hyf/anaconda3/lib'])
+    lib_paths.extend(['/usr/lib', '/usr/lib64',  '/home/hyf/anaconda3/lib', ' /home/hyf/Ganymede/Comparision/gpufs/lib/']) # ,
     if os.environ.get('LIBRARY_PATH', None) is not None:
         lib_paths.extend(os.environ['LIBRARY_PATH'].split(':'))
     for lib_dir in lib_paths:
@@ -79,14 +82,27 @@ def setup_dependencies():
     os.chdir(build_dir)
     call(['cmake', '..', f'-DBACKEND_INSTALL_PREFIX={install_dir}'])
     if enable_gpufs:
-        # 编译外部gpufs库
         # call(['make', 'gpufs'])
+        make_path = '/home/hyf/Ganymede/Comparision/gpufs/libgpufs'
+        call(['make', '-C', make_path])
+        call(['make', '-C', make_path, 'install'])
         extra_objects.append(find_static_lib(
             'gpufs', [os.path.join(gpufs_install_dir, 'lib')]))
 
     os.chdir(this_dir)
 
+class UninstallCommand(install):
+    """Custom command to uninstall the package."""
+    def run(self):
+        call(['pip', 'uninstall', '-y', 'Geminifs'])
+        install_dir = os.path.join(sys.prefix, 'lib', 'python3.x', 'site-packages', 'Geminifs')  # 替换 python 版本
+        if os.path.exists(install_dir):
+            shutil.rmtree(install_dir)
+        if enable_gpufs:
+            make_path = '/home/hyf/Ganymede/Comparision/gpufs/libgpufs'
+            call(['make', '-C', make_path, 'clean'])
 
+            
 if sys.argv[1] in ('install', 'develop', 'bdist_wheel'):
     setup_dependencies()
     from torch.utils.cpp_extension import BuildExtension
@@ -97,9 +113,10 @@ if sys.argv[1] in ('install', 'develop', 'bdist_wheel'):
                                       ))
     cmdclass['build_ext'] = BuildExtension
 
+cmdclass['uninstall'] = UninstallCommand
 
 def get_version():
-    with open('version.txt') as f:
+    with open('interface_for_pytorch/version.txt') as f:
         version = f.read().strip()
         return version
 
@@ -118,7 +135,7 @@ setup(
     cmdclass=cmdclass,
     description='Geminifs interface for save and load checkpoints',
   
-    install_requires=fetch_requirements('requirements.txt'),
+    install_requires=fetch_requirements('interface_for_pytorch/requirements.txt'),
     python_requires='>=3.6',
     classifiers=[
         'Programming Language :: Python :: 3',

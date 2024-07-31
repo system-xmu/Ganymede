@@ -60,15 +60,15 @@ include csrc/CMakeFiles/geminifs.dir/flags.make
 csrc/CMakeFiles/geminifs.dir/api.cpp.o: csrc/CMakeFiles/geminifs.dir/flags.make
 csrc/CMakeFiles/geminifs.dir/api.cpp.o: ../csrc/api.cpp
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/hyf/Ganymede/Comparision/interface_for_pytorch/cmake-build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object csrc/CMakeFiles/geminifs.dir/api.cpp.o"
-	cd /home/hyf/Ganymede/Comparision/interface_for_pytorch/cmake-build/csrc && /home/hyf/anaconda3/envs/ucxx/bin/x86_64-conda-linux-gnu-c++  $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -o CMakeFiles/geminifs.dir/api.cpp.o -c /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp
+	cd /home/hyf/Ganymede/Comparision/interface_for_pytorch/cmake-build/csrc && /usr/bin/c++  $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -o CMakeFiles/geminifs.dir/api.cpp.o -c /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp
 
 csrc/CMakeFiles/geminifs.dir/api.cpp.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/geminifs.dir/api.cpp.i"
-	cd /home/hyf/Ganymede/Comparision/interface_for_pytorch/cmake-build/csrc && /home/hyf/anaconda3/envs/ucxx/bin/x86_64-conda-linux-gnu-c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp > CMakeFiles/geminifs.dir/api.cpp.i
+	cd /home/hyf/Ganymede/Comparision/interface_for_pytorch/cmake-build/csrc && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp > CMakeFiles/geminifs.dir/api.cpp.i
 
 csrc/CMakeFiles/geminifs.dir/api.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/geminifs.dir/api.cpp.s"
-	cd /home/hyf/Ganymede/Comparision/interface_for_pytorch/cmake-build/csrc && /home/hyf/anaconda3/envs/ucxx/bin/x86_64-conda-linux-gnu-c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp -o CMakeFiles/geminifs.dir/api.cpp.s
+	cd /home/hyf/Ganymede/Comparision/interface_for_pytorch/cmake-build/csrc && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.cpp -o CMakeFiles/geminifs.dir/api.cpp.s
 
 csrc/CMakeFiles/geminifs.dir/api_gpu.cu.o: csrc/CMakeFiles/geminifs.dir/flags.make
 csrc/CMakeFiles/geminifs.dir/api_gpu.cu.o: ../csrc/api_gpu.cu
@@ -86,15 +86,15 @@ csrc/CMakeFiles/geminifs.dir/api_gpu.cu.s: cmake_force
 csrc/CMakeFiles/geminifs.dir/space_mgr.cpp.o: csrc/CMakeFiles/geminifs.dir/flags.make
 csrc/CMakeFiles/geminifs.dir/space_mgr.cpp.o: ../csrc/space_mgr.cpp
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/hyf/Ganymede/Comparision/interface_for_pytorch/cmake-build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Building CXX object csrc/CMakeFiles/geminifs.dir/space_mgr.cpp.o"
-	cd /home/hyf/Ganymede/Comparision/interface_for_pytorch/cmake-build/csrc && /home/hyf/anaconda3/envs/ucxx/bin/x86_64-conda-linux-gnu-c++  $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -o CMakeFiles/geminifs.dir/space_mgr.cpp.o -c /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/space_mgr.cpp
+	cd /home/hyf/Ganymede/Comparision/interface_for_pytorch/cmake-build/csrc && /usr/bin/c++  $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -o CMakeFiles/geminifs.dir/space_mgr.cpp.o -c /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/space_mgr.cpp
 
 csrc/CMakeFiles/geminifs.dir/space_mgr.cpp.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/geminifs.dir/space_mgr.cpp.i"
-	cd /home/hyf/Ganymede/Comparision/interface_for_pytorch/cmake-build/csrc && /home/hyf/anaconda3/envs/ucxx/bin/x86_64-conda-linux-gnu-c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/space_mgr.cpp > CMakeFiles/geminifs.dir/space_mgr.cpp.i
+	cd /home/hyf/Ganymede/Comparision/interface_for_pytorch/cmake-build/csrc && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/space_mgr.cpp > CMakeFiles/geminifs.dir/space_mgr.cpp.i
 
 csrc/CMakeFiles/geminifs.dir/space_mgr.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/geminifs.dir/space_mgr.cpp.s"
-	cd /home/hyf/Ganymede/Comparision/interface_for_pytorch/cmake-build/csrc && /home/hyf/anaconda3/envs/ucxx/bin/x86_64-conda-linux-gnu-c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/space_mgr.cpp -o CMakeFiles/geminifs.dir/space_mgr.cpp.s
+	cd /home/hyf/Ganymede/Comparision/interface_for_pytorch/cmake-build/csrc && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/space_mgr.cpp -o CMakeFiles/geminifs.dir/space_mgr.cpp.s
 
 # Object files for target geminifs
 geminifs_OBJECTS = \

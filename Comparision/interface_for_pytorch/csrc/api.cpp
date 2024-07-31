@@ -61,11 +61,12 @@ void GPUfs::release(ull offset, ull bytes)
 {
     this->space_mgr.free(offset, bytes);
 }
-
 namespace py = pybind11;
 
-PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
+PYBIND11_MODULE(_C, m)
 {
+
+    m.def("add", [](int a, int b) -> int {return a + b;});
     py::class_<GPUfs>(m, "GPUfs")
         .def(py::init<const std::string &, const std::string &>(), py::arg("filename"),  py::arg("backend") = "GPUfs")
         .def("gpufs_write", &GPUfs::gpufs_write, py::arg("tensor"), py::arg("key"))
