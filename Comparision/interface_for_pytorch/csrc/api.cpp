@@ -2,12 +2,12 @@
 #include "api.h"
 
 
+// write需要写cuda Tensor
 SpaceInfo GPUfs::prepare_write(const at::Tensor &tensor, const std::string &key)
 {
-    if (!tensor.is_contiguous() || !tensor.is_cpu())
-        throw std::runtime_error("Tensor must be contiguous and on cpu");
+    if (!tensor.is_contiguous() || !tensor.is_cuda())
+        throw std::runtime_error("Tensor must be contiguous and on cuda");
     ull bytes = tensor.storage().nbytes();
-    // 分配一块空间， 这里的offset是如何求出来的，能直接传给gpufs里面吗
     ull offset = this->space_mgr.alloc(bytes);
     SpaceInfo space_info(offset, bytes);
     this->tensors_info[key] = space_info;
@@ -16,6 +16,7 @@ SpaceInfo GPUfs::prepare_write(const at::Tensor &tensor, const std::string &key)
 
 SpaceInfo GPUfs::prepare_read(const at::Tensor &tensor, const std::string &key)
 {
+    // TODO, 同时支持cuda 和cpu tensor
     if (!tensor.is_contiguous() || !tensor.is_cpu())
         throw std::runtime_error("Tensor must be contiguous and on cpu");
     if (this->tensors_info.find(key) == this->tensors_info.end())
@@ -40,7 +41,8 @@ void GPUfs::gpufs_write(const at::Tensor &tensor, const std::string &key)
 {
     ull offset, bytes;
     std::tie(offset, bytes) = prepare_write(tensor, key);
-    gpu_write(const_cast<char*>(this->filename.c_str()), offset, bytes, reinterpret_cast<uchar*>(tensor.data_ptr()));
+    printf("[C++]Tensor ptr:%p, offset: %lld, bytes: %lld\n", (void*)tensor.data_ptr(), offset, bytes);
+    gpu_write(const_cast<char*>(this->filename.c_str()), offset, bytes, reinterpret_cast<char*>(tensor.data_ptr()));
 
     // lseek(this->fd, offset, SEEK_SET);
     // write(this->fd, tensor.data_ptr(), bytes);
@@ -53,7 +55,7 @@ void GPUfs::gpufs_read(const at::Tensor &tensor, const std::string &key)
     std::tie(offset, bytes) = prepare_read(tensor, key);
     // lseek(this->fd, offset, SEEK_SET);
     // read(this->fd, tensor.data_ptr(), bytes);
-    gpu_read(const_cast<char*>(this->filename.c_str()), offset, bytes, reinterpret_cast<uchar*>(tensor.data_ptr()));
+    gpu_read(const_cast<char*>(this->filename.c_str()), offset, bytes, reinterpret_cast<char*>(tensor.data_ptr()));
     release(offset, bytes);
 }
 

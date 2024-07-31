@@ -1,3 +1,0 @@
-/home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/build/CMakeFiles/rebuild_cache.dir
-/home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/build/CMakeFiles/edit_cache.dir
-/home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/build/CMakeFiles/geminifs.dir

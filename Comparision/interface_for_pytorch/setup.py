@@ -1,17 +1,3 @@
-# setup()函数中变量的含义
-
-# cuda c++混合编译实现python模块扩展
-# name: 在python中，import该模块的名称
-# sources: 源代码文件的名称
-# laungage: 默认为c，可以改成c++
-# include_dirs: 传递给gcc或者g++编译器，include的头文件目录
-# library_dirs: 传递给gcc或者g++编译器，指定链接文件的目录
-# libraries: 传递给gcc或者g++编译器，指定链接的文件
-# extra_compile_args: 额外的gcc或者g++编译参数
-# extra_links_args: 额外的传给g++或者gcc编译器的链接参数
-# define_macros: 定义的宏
-# undefine_macros: 取消宏
-
 from setuptools import setup, find_packages
 from setuptools.command.install import install
 
@@ -29,9 +15,9 @@ enable_gpufs = True
 if os.environ.get('DISABLE_GPUFS') == '1':
     enable_gpufs = False
 
-libraries = ['gpufs', 'cudadevrt', 'cufft_static', 'cudart_static']
-library_dirs = ['/home/hyf/Ganymede/Comparision/gpufs/lib']
-sources = ['csrc/api.cpp', 'csrc/space_mgr.cpp', 'csrc/api_gpu.cu']
+libraries = ['cudadevrt', 'cufft_static', 'cudart_static', 'gpufs']
+# library_dirs = ['/home/hyf/Ganymede/Comparision/gpufs/lib']
+sources = ['csrc/api_gpu.cu', 'csrc/space_mgr.cpp', 'csrc/api.cpp']
 include_dirs = ['../gpufs/include', 'include/']
 extra_objects = []
 define_macros = []  # 定义的宏
@@ -54,8 +40,11 @@ def cpp_ext_helper(name, sources, **kwargs):
         include_dirs=[os.path.join(this_dir, 'csrc'), os.path.join(this_dir, 'include'),
                       os.path.join(gpufs_install_dir, 'include'),
                       *extra_include_dirs],
+        dlink = True,
+        dlink_libraries = ["gpufs"],
         library_dirs=[os.path.join(gpufs_install_dir, 'lib')],
-        extra_compile_args = {"nvcc" : ["-dc", "-rdc=true"]},
+        extra_compile_args = {"nvcc" : ["-Xcompiler", "-fPIC", "-dc"]},
+
         **kwargs
     )
 
@@ -81,13 +70,13 @@ def setup_dependencies():
     os.makedirs(install_dir, exist_ok=True)
     os.chdir(build_dir)
     call(['cmake', '..', f'-DBACKEND_INSTALL_PREFIX={install_dir}'])
-    if enable_gpufs:
-        # call(['make', 'gpufs'])
-        make_path = '/home/hyf/Ganymede/Comparision/gpufs/libgpufs'
-        call(['make', '-C', make_path])
-        call(['make', '-C', make_path, 'install'])
-        extra_objects.append(find_static_lib(
-            'gpufs', [os.path.join(gpufs_install_dir, 'lib')]))
+    # if enable_gpufs:
+    #     # call(['make', 'gpufs'])
+    #     make_path = '/home/hyf/Ganymede/Comparision/gpufs/libgpufs'
+    #     call(['make', '-C', make_path])
+    #     call(['make', '-C', make_path, 'install'])
+    #     extra_objects.append(find_static_lib(
+    #         'gpufs', [os.path.join(gpufs_install_dir, 'lib')]))
 
     os.chdir(this_dir)
 
@@ -106,6 +95,7 @@ class UninstallCommand(install):
 if sys.argv[1] in ('install', 'develop', 'bdist_wheel'):
     setup_dependencies()
     from torch.utils.cpp_extension import BuildExtension
+                
     ext_modules.append(cpp_ext_helper('Geminifs._C', sources,
                                       extra_objects=extra_objects,
                                       libraries=libraries,
@@ -116,7 +106,7 @@ if sys.argv[1] in ('install', 'develop', 'bdist_wheel'):
 cmdclass['uninstall'] = UninstallCommand
 
 def get_version():
-    with open('interface_for_pytorch/version.txt') as f:
+    with open('/home/hyf/Ganymede/Comparision/interface_for_pytorch/version.txt') as f:
         version = f.read().strip()
         return version
 
@@ -135,7 +125,7 @@ setup(
     cmdclass=cmdclass,
     description='Geminifs interface for save and load checkpoints',
   
-    install_requires=fetch_requirements('interface_for_pytorch/requirements.txt'),
+    install_requires=fetch_requirements('/home/hyf/Ganymede/Comparision/interface_for_pytorch/requirements.txt'),
     python_requires='>=3.6',
     classifiers=[
         'Programming Language :: Python :: 3',
@@ -143,3 +133,5 @@ setup(
         'Topic :: Scientific/Engineering :: Artificial Intelligence',
     ],
 )
+
+

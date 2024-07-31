@@ -15,9 +15,6 @@
 
 typedef unsigned char uchar;  
 
-extern "C" void gpu_write(char* filename, size_t offset, size_t size, uchar *data);
-extern "C" void gpu_read(char* filename, size_t offset, size_t size, uchar *buffer);
-
 class GPUfs
 {
 public:
@@ -33,10 +30,18 @@ public:
 private:
     const std::string filename;
     const std::string backend;
-    // 管理tensor分配的信息
+    
     SpaceManager space_mgr;
     std::unordered_map<std::string, SpaceInfo> tensors_info;
     void release(ull offset, ull bytes);
 
 };
+#ifdef __cplusplus
+extern "C" {
+#endif
+void gpu_write(char* filename, size_t offset, size_t size, char *d_data);
+void gpu_read(char* filename, size_t offset, size_t size, char *buffer);
 
+#ifdef __cplusplus
+}
+#endif

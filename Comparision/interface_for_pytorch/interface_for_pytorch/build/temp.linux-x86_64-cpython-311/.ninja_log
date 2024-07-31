@@ -1,6 +1,0 @@
-# ninja log v5
-1	248	1722320891740355501	/home/hyf/Ganymede/Comparision/interface_for_pytorch/build/temp.linux-x86_64-cpython-311/home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/space_mgr.o	1fe20747a357c7e9
-1	341	1722320991646998697	/home/hyf/Ganymede/Comparision/interface_for_pytorch/build/temp.linux-x86_64-cpython-311/home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/space_mgr.o	1fe20747a357c7e9
-1	344	1722328545605109819	/home/hyf/Ganymede/Comparision/interface_for_pytorch/build/temp.linux-x86_64-cpython-311/home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/space_mgr.o	57692d18ab278d7a
-0	17904	1722344424762228570	/home/hyf/Ganymede/Comparision/interface_for_pytorch/build/temp.linux-x86_64-cpython-311/home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.o	a91292c49341d9cb
-16	18849	1722345284912542370	/home/hyf/Ganymede/Comparision/interface_for_pytorch/build/temp.linux-x86_64-cpython-311/home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.o	a91292c49341d9cb

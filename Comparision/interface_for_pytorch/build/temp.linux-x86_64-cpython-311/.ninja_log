@@ -1,9 +1,0 @@
-# ninja log v5
-1	348	1722355598945642439	/home/hyf/Ganymede/Comparision/interface_for_pytorch/build/temp.linux-x86_64-cpython-311/home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/space_mgr.o	57692d18ab278d7a
-1	1822	1722355600417621457	/home/hyf/Ganymede/Comparision/interface_for_pytorch/build/temp.linux-x86_64-cpython-311/home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api_gpu.o	692744775cfe7468
-0	21336	1722355619913343497	/home/hyf/Ganymede/Comparision/interface_for_pytorch/build/temp.linux-x86_64-cpython-311/home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api.o	a91292c49341d9cb
-18	1704	1722391667601599632	/home/hyf/Ganymede/Comparision/interface_for_pytorch/build/temp.linux-x86_64-cpython-311/home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api_gpu.o	692744775cfe7468
-18	1590	1722391739660244254	/home/hyf/Ganymede/Comparision/interface_for_pytorch/build/temp.linux-x86_64-cpython-311/home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api_gpu.o	692744775cfe7468
-21	1559	1722392290466795249	/home/hyf/Ganymede/Comparision/interface_for_pytorch/build/temp.linux-x86_64-cpython-311/home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api_gpu.o	692744775cfe7468
-19	1688	1722392463668024720	/home/hyf/Ganymede/Comparision/interface_for_pytorch/build/temp.linux-x86_64-cpython-311/home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api_gpu.o	692744775cfe7468
-19	1840	1722392645293174519	/home/hyf/Ganymede/Comparision/interface_for_pytorch/build/temp.linux-x86_64-cpython-311/home/hyf/Ganymede/Comparision/interface_for_pytorch/csrc/api_gpu.o	692744775cfe7468

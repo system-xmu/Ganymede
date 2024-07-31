@@ -12,6 +12,7 @@ case $1 in
     0)
         echo "Uninstalling..."
         python interface_for_pytorch/setup.py uninstall
+        rm -rf interface_for_pytorch/build/ interface_for_pytorch/cmake-build/ interface_for_pytorch/dist/ interface_for_pytorch/Geminifs.egg-info/
         ;;
     *)
         echo "Invalid argument. Use 1 for install or 0 for uninstall."
