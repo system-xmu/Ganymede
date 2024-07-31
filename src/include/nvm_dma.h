@@ -10,9 +10,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#ifdef __DIS_CLUSTER__
-#include <sisci_types.h>
-#endif
 
 
 
@@ -88,53 +85,6 @@ int nvm_dma_map_device(nvm_dma_t** map, const nvm_ctrl_t* ctrl, void* devptr, si
 
 
 
-#if defined( __DIS_CLUSTER__ )
-
-/*
- * Create DMA mapping descriptor from local SISCI segment.
- *
- * Create DMA mapping descriptor from a local segment handler, and 
- * reverse-map the segment making it accessible from the controller.
- * As segment memory is always continuous and page-aligned, it is not
- * necessary to calculate physical memory addresses. However, the user
- * should ensure that the mapping size is aligned to a controller
- * page-size (MPS).
- * 
- * The controller handle must have been created using SmartIO, and
- * the segment must already be prepared on the local adapter.
- */
-int nvm_dis_dma_map_local(nvm_dma_t** map,              // Mapping descriptor reference
-                          const nvm_ctrl_t* ctrl,       // NVM controller handle
-                          uint32_t dis_adapter,         // Local DIS adapter segment is prepared on
-                          sci_local_segment_t segment,  // Local segment descriptor
-                          bool map_vaddr);              // Should function also map segment into local space
-
-#endif /* __DIS_CLUSTER__ */
-
-
-
-#if defined( __DIS_CLUSTER__ )
-
-/*
- * Create DMA mapping descriptor from remote SISCI segment.
- *
- * Create DMA mapping descriptor from a remote segment handler, and 
- * reverse-map the segment making it accessible from the controller.
- * This function is similar to nvm_dis_dma_map_local.
- *
- * The remote segment must already be connected.
- *
- * Note: You should generally prefer write combining, except
- *       for mapped device registers that require fine-grained writes.
- */
-int nvm_dis_dma_map_remote(nvm_dma_t** map,             // Mapping descriptor reference
-                           const nvm_ctrl_t* ctrl,      // NVM controller handle
-                           sci_remote_segment_t segment,// Remote segment descriptor
-                           bool map_vaddr,              // Should function also map segment into local space
-                           bool map_wc);                // Should function map with write combining
-
-#endif /* __DIS_CLUSTER__ */
-
 
 
 #if ( !defined( __CUDA__ ) && !defined( __CUDACC__ ) ) && ( defined (__unix__) )
@@ -146,38 +96,6 @@ int nvm_dis_dma_map_remote(nvm_dma_t** map,             // Mapping descriptor re
  */
 int nvm_dma_create(nvm_dma_t** map, const nvm_ctrl_t* ctrl, size_t size);
 #endif
-
-
-
-#if defined( __DIS_CLUSTER__ )
-/*
- * Create device memory segment and map it for the controller.
- * Short-hand function for creating a device memory segment.
- * If mem_hints is 0, the API will create a local segment instead.
- */
-int nvm_dis_dma_create(nvm_dma_t** map, const nvm_ctrl_t* ctrl, size_t size, unsigned int mem_hints);
-
-#endif /* __DIS_CLUSTER__ */
-
-
-
-#if defined ( __DIS_CLUSTER__ )
-
-/*
- * Note: This function requires the IOMMU to be enabled.
- */
-int nvm_dis_dma_map_host(nvm_dma_t** map, const nvm_ctrl_t* ctrl, void* vaddr, size_t size);
-
-#endif
-
-
-#if ( ( defined( __CUDA__ ) || defined( __CUDACC__ ) ) && defined( __DIS_CLUSTER__ ) )
-
-int nvm_dis_dma_map_device(nvm_dma_t** map, const nvm_ctrl_t* ctrl, void* devptr, size_t size);
-
-#endif /* __DIS_CLUSTER__ && __CUDA__ */
-
-
 
 
 #endif /* __NVM_DMA_H__ */

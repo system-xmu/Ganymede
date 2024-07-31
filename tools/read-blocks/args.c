@@ -29,11 +29,7 @@ static struct option opts[] = {
 
 static void show_usage(const char* name)
 {
-#ifdef __DIS_CLUSTER__
-    fprintf(stderr, "Usage: %s --ctrl <device id> --blocks <count> [--offset <count>] [--ns <id>] [--ascii | --output <path>]\n", name);
-#else
     fprintf(stderr, "Usage: %s --ctrl <path> --blocks <count> [--offset <count>] [--ns <id>] [--ascii | --output <path>]\n", name);
-#endif
 }
 
 
@@ -43,11 +39,7 @@ static void show_help(const char* name)
     show_usage(name);
 
     fprintf(stderr, ""
-#ifdef __DIS_CLUSTER__
-            "    --ctrl         <id>      Specify controller's device identifier.\n"
-#else
             "    --ctrl         <path>    Specify path to controller.\n"
-#endif
             "    --chunk        <count>   Limit reads to a number of blocks at the time.\n"
             "    --depth        <count>   Set submission queue depth.\n"
             "    --blocks       <count>   Read specified number of blocks from disk.\n"
@@ -64,21 +56,13 @@ static void show_help(const char* name)
 
 void parse_options(int argc, char** argv, struct options* args)
 {
-#ifdef __DIS_CLUSTER__
-    const char* argstr = ":hc:a:n:b:o:s:w:q:";
-#else
-    const char* argstr = ":hc:b:n:o:s:w:q:";
-#endif
 
+    const char* argstr = ":hc:b:n:o:s:w:q:";
     int opt;
     int idx;
     char* endptr;
 
-#ifdef __DIS_CLUSTER__
-    args->controller_id = 0;
-#else
     args->controller_path = NULL;
-#endif
     args->queue_size = 0;
     args->chunk_size = 0;
     args->namespace_id = 1;
@@ -134,27 +118,10 @@ void parse_options(int argc, char** argv, struct options* args)
                 args->identify = true;
                 break;
 
-#ifdef __DIS_CLUSTER__
-            case 'c':
-                args->controller_id = strtoul(optarg, &endptr, 16);
-                if (endptr == NULL || *endptr != '\0')
-                {
-                    fprintf(stderr, "Invalid controller id: `%s'\n", optarg);
-                    exit(1);
-                }
 
-                if (args->controller_id == 0)
-                {
-                    fprintf(stderr, "Controller id can not be 0!\n");
-                    exit(1);
-                }
-                break;
-#else
             case 'c':
                 args->controller_path = optarg;
                 break;
-#endif
-
             case 'n':
                 args->namespace_id = strtoul(optarg, &endptr, 0);
                 if (endptr == NULL || *endptr != '\0' || args->namespace_id == 0xffffffff)
@@ -219,21 +186,13 @@ void parse_options(int argc, char** argv, struct options* args)
         }
     }
 
-#ifdef __DIS_CLUSTER__
-    if (args->controller_id == 0)
-    {
-        fprintf(stderr, "No controller specified!\n");
-        show_usage(argv[0]);
-        exit(1);
-    }
-#else
+
     if (args->controller_path == NULL)
     {
         fprintf(stderr, "No controller specified!\n");
         show_usage(argv[0]);
         exit(1);
     }
-#endif
 
     if (args->num_blocks == 0)
     {

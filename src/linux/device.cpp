@@ -62,12 +62,9 @@ static int ioctl_map(const struct device* dev, const struct va_range* va, uint64
         case MAP_TYPE_HOST:
             type = NVM_MAP_HOST_MEMORY;
             break;
-
-#ifdef _CUDA
         case MAP_TYPE_CUDA:
             type = NVM_MAP_DEVICE_MEMORY;
             break;
-#endif
         default:
             dprintf("Unknown memory type in map for device");
             return EINVAL;

@@ -60,9 +60,6 @@ struct Controller
 
     void* d_ctrl_ptr;
     BufferPtr d_ctrl_buff;
-#ifdef __DIS_CLUSTER__
-    Controller(uint64_t controllerId, uint32_t nvmNamespace, uint32_t adapter, uint32_t segmentId);
-#endif
 
     Controller(const char* path, uint32_t nvmNamespace, uint32_t cudaDevice, uint64_t queueDepth, uint64_t numQueues);
 
@@ -122,26 +119,6 @@ static void initializeController(struct Controller& ctrl, uint32_t ns_id)
     }
 }
 
-
-
-#ifdef __DIS_CLUSTER__
-Controller::Controller(uint64_t ctrl_id, uint32_t ns_id, uint32_t)
-    : ctrl(nullptr)
-    , aq_ref(nullptr)
-{
-    // Get controller reference
-    int status = nvm_dis_ctrl_init(&ctrl, ctrl_id);
-    if (!nvm_ok(status))
-    {
-        throw error(string("Failed to get controller reference: ") + nvm_strerror(status));
-    }
-
-    // Create admin queue memory
-    aq_mem = createDma(ctrl, ctrl->page_size * 3, 0, 0);
-
-    initializeController(*this, ns_id);
-}
-#endif
 
 
 

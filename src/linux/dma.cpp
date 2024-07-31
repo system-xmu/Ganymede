@@ -1,13 +1,3 @@
-#ifndef __linux__
-#error "Must compile for Linux"
-#endif
-
-#ifdef _CUDA
-#ifndef __CUDA__
-#define __CUDA__
-#endif
-#endif
-
 #include <nvm_types.h>
 #include <nvm_util.h>
 #include <nvm_dma.h>
@@ -151,7 +141,6 @@ int nvm_dma_map_host(nvm_dma_t** handle, const nvm_ctrl_t* ctrl, void* vaddr, si
 
 
 
-#ifdef _CUDA
 int nvm_dma_map_device(nvm_dma_t** handle, const nvm_ctrl_t* ctrl, void* devptr, size_t size)
 {
     struct ioctl_mapping* md;
@@ -177,4 +166,4 @@ int nvm_dma_map_device(nvm_dma_t** handle, const nvm_ctrl_t* ctrl, void* devptr,
 
     return 0;
 }
-#endif
+

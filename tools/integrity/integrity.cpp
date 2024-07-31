@@ -13,14 +13,10 @@
 #include <string.h>
 #include <errno.h>
 
-#ifdef __DIS_CLUSTER__
-#include <sisci_api.h>
-#include <dis/dis_types.h>
-#define MAX_ADAPTERS DIS_MAX_NSCIS
-#else
+
 #include <fcntl.h>
 #include <unistd.h>
-#endif
+
 
 #include "integrity.h"
 #include "read.h"

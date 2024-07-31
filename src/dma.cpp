@@ -1,9 +1,3 @@
-#ifdef _CUDA
-#ifndef __CUDA__
-#define __CUDA__
-#endif
-#endif
-
 #include <nvm_types.h>
 #include <nvm_dma.h>
 #include <nvm_util.h>

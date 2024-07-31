@@ -50,12 +50,12 @@ void unmap_and_release(struct map* map);
 
 
 
-#ifdef _CUDA
+
 /*
  * Lock and map GPU device memory.
  */
 struct map* map_device_memory(struct list* list, const struct ctrl* ctrl, u64 vaddr, unsigned long n_pages, struct list* ctrl_list);
-#endif
+
 
 
 

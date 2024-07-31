@@ -10,16 +10,16 @@
 #include <linux/mm.h>
 #include <linux/dma-mapping.h>
 #include <linux/err.h>
+#include "nvfs-p2p.h"
 
-#ifdef _CUDA
-#include <nv-p2p.h>
+
 
 struct gpu_region
 {
     nvidia_p2p_page_table_t* pages;
     nvidia_p2p_dma_mapping_t** mappings;
 };
-#endif
+
 
 
 #define GPU_PAGE_SHIFT  16
@@ -239,7 +239,7 @@ struct map* map_userspace(struct list* list, const struct ctrl* ctrl, u64 vaddr,
 
 
 
-#ifdef _CUDA
+
 static void force_release_gpu_memory(struct map* map)
 {
     struct gpu_region* gd = (struct gpu_region*) map->data;
@@ -257,7 +257,7 @@ static void force_release_gpu_memory(struct map* map)
             {
                 ctrl = container_of(element, struct ctrl, list);
                 if (gd->mappings[j] != NULL)
-                    nvidia_p2p_dma_unmap_pages(ctrl->pdev, gd->pages, gd->mappings[j++]);
+                    nvfs_nvidia_p2p_dma_unmap_pages(ctrl->pdev, gd->pages, gd->mappings[j++]);
 
                 element = list_next(element);
             }
@@ -267,7 +267,7 @@ static void force_release_gpu_memory(struct map* map)
 
         if (gd->pages != NULL)
         {
-            nvidia_p2p_free_page_table(gd->pages);
+            nvfs_nvidia_p2p_free_page_table(gd->pages);
         }
 
         kfree(gd);
@@ -278,11 +278,10 @@ static void force_release_gpu_memory(struct map* map)
 
     unmap_and_release(map);
 }
-#endif
 
 
 
-#ifdef _CUDA
+
 void release_gpu_memory(struct map* map)
 {
     struct gpu_region* gd = (struct gpu_region*) map->data;
@@ -300,7 +299,7 @@ void release_gpu_memory(struct map* map)
             {
                 ctrl = container_of(element, struct ctrl, list);
                 if (gd->mappings[j] != NULL)
-                    nvidia_p2p_dma_unmap_pages(ctrl->pdev, gd->pages, gd->mappings[j++]);
+                    nvfs_nvidia_p2p_dma_unmap_pages(ctrl->pdev, gd->pages, gd->mappings[j++]);
 
                 element = list_next(element);
             }
@@ -310,7 +309,7 @@ void release_gpu_memory(struct map* map)
 
         if (gd->pages != NULL)
         {
-            nvidia_p2p_put_pages(0, 0, map->vaddr, gd->pages);
+            nvfs_nvidia_p2p_put_pages(0, 0, map->vaddr, gd->pages);
         }
 
         kfree(gd);
@@ -319,11 +318,11 @@ void release_gpu_memory(struct map* map)
         //printk(KERN_DEBUG "Released %lu GPU pages\n", map->n_addrs);
     }
 }
-#endif
 
 
 
-#ifdef _CUDA
+
+
 int map_gpu_memory(struct map* map, struct list* list)
 {
     unsigned long i;
@@ -358,11 +357,11 @@ int map_gpu_memory(struct map* map, struct list* list)
     map->data = gd;
     map->release = release_gpu_memory;
 
-    err = nvidia_p2p_get_pages(0, 0, map->vaddr, GPU_PAGE_SIZE * map->n_addrs, &gd->pages, 
+    err = nvfs_nvidia_p2p_get_pages(0, 0, map->vaddr, GPU_PAGE_SIZE * map->n_addrs, &gd->pages, 
             (void (*)(void*)) force_release_gpu_memory, map);
     if (err != 0)
     {
-        printk(KERN_ERR "nvidia_p2p_get_pages() failed: %d\n", err);
+        printk(KERN_ERR "nvfs_nvidia_p2p_get_pages() failed: %d\n", err);
         return err;
     }
 
@@ -374,10 +373,10 @@ int map_gpu_memory(struct map* map, struct list* list)
     {
         ctrl = container_of(element, struct ctrl, list);
 
-        err = nvidia_p2p_dma_map_pages(ctrl->pdev, gd->pages, gd->mappings + (j++));
+        err = nvfs_nvidia_p2p_dma_map_pages(ctrl->pdev, gd->pages, gd->mappings + (j++));
         if (err != 0)
         {
-            //printk(KERN_ERR "nvidia_p2p_dma_map_pages() failed for nvme%u: %d\n", j-1, err);
+            //printk(KERN_ERR "nvfs_nvidia_p2p_dma_map_pages() failed for nvme%u: %d\n", j-1, err);
             return err;
         }
         //for (i = 0; i < map->n_addrs; ++i)
@@ -411,11 +410,11 @@ int map_gpu_memory(struct map* map, struct list* list)
     
     return 0;
 }
-#endif
 
 
 
-#ifdef _CUDA
+
+
 struct map* map_device_memory(struct list* list, const struct ctrl* ctrl, u64 vaddr, unsigned long n_pages, struct list* ctrl_list)
 {
     int err;
@@ -447,5 +446,5 @@ struct map* map_device_memory(struct list* list, const struct ctrl* ctrl, u64 va
     //        md->n_addrs, md->vaddr);
     return md;
 }
-#endif
+
 

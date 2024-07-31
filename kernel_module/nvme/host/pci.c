@@ -35,6 +35,7 @@
 #include "ctrl.h"
 #include "map.h"
 #include "../../../src/linux/ioctl.h"
+#include "nvfs-p2p.h"
 #define DRIVER_NAME         "libsnvm helper"
 
 MODULE_IMPORT_NS(NVME_TARGET_PASSTHRU);
@@ -3684,32 +3685,31 @@ static long snvm_dev_map_ioctl(struct file* file, unsigned int cmd, unsigned lon
             break;
 		} 
 
+		case NVM_MAP_DEVICE_MEMORY: // 将用户态cuda malloc 分配的地址pin住并得到dma地址返回用户态
+		{
+			if (copy_from_user(&request, (void __user*) arg, sizeof(request)))
+			{
+				return -EFAULT;
+			}
 
-#ifdef _CUDA
-        case NVM_MAP_DEVICE_MEMORY: // 将用户态cuda malloc 分配的地址pin住并得到dma地址返回用户态
-            if (copy_from_user(&request, (void __user*) arg, sizeof(request)))
-            {
-                return -EFAULT;
-            }
+			map = map_device_memory(&device_list, ctrl, request.vaddr_start, request.n_pages, &ctrl_list);
 
-            map = map_device_memory(&device_list, ctrl, request.vaddr_start, request.n_pages, &ctrl_list);
-
-            if (!IS_ERR_OR_NULL(map))
-            {
-                if (copy_to_user((void __user*) request.ioaddrs, map->addrs, map->n_addrs * sizeof(uint64_t)))
-                {
-                    return -EFAULT;
-                }
-                ret = 0;
-            }
-            else 
-            {
-                retval = PTR_ERR(map);
-            }
-            break;
-#endif
-
-        case NVM_UNMAP_MEMORY:
+			if (!IS_ERR_OR_NULL(map))
+			{
+				if (copy_to_user((void __user*) request.ioaddrs, map->addrs, map->n_addrs * sizeof(uint64_t)))
+				{
+					return -EFAULT;
+				}
+				ret = 0;
+			}
+			else 
+			{
+				ret = PTR_ERR(map);
+			}
+			break;
+		}
+        case NVM_UNMAP_HOST_MEMORY:
+		{
             if (copy_from_user(&addr, (void __user*) arg, sizeof(u64)))
             {
                 return -EFAULT;
@@ -3729,18 +3729,36 @@ static long snvm_dev_map_ioctl(struct file* file, unsigned int cmd, unsigned lon
                 unmap_and_release(map);
                 break;
             }
-
-#ifdef _CUDA
-            map = map_find(&device_list, addr);
-            if (map != NULL)
-            {
-                unmap_and_release(map);
-                break;
-            }
-#endif
             ret = -EINVAL;
             printk(KERN_WARNING "Mapping for address %llx not found\n", addr);
             break;
+		}
+        case NVM_UNMAP_DEVICE_MEMORY:
+		{
+            if (copy_from_user(&addr, (void __user*) arg, sizeof(u64)))
+            {
+                return -EFAULT;
+            }
+
+            map = map_find(&device_list, addr);
+            if (map != NULL)
+            {
+				if(map->ioq_idx>=0)
+				{
+					// printk("unmap_userspace map map->ioq_idx is %d, map->is_cq is %d",map->ioq_idx,map->is_cq);
+					if(map->is_cq)
+						ctrl->cq_num--;
+
+					ctrl->map_num--;
+				}
+                unmap_and_release(map);
+				ret = 0;
+                break;
+            }
+            ret = -EINVAL;
+            printk(KERN_WARNING "Mapping for address %llx not found\n", addr);
+            break;
+		}
 		case NVM_SET_IOQ_NUM:
 		{
             if (copy_from_user(&request, (void __user*) arg, sizeof(request)))
@@ -4081,6 +4099,11 @@ static int __init nvme_init(void)
 {
     int ret;
     snvm_registered = 0;
+	if(nvfs_nvidia_p2p_init()) {
+		printk("Could not load nvidia_p2p* symbols\n");
+		ret = -EOPNOTSUPP;
+		return ret;
+	}
     list_init(&ctrl_list);
     list_init(&host_list);
     list_init(&device_list);
@@ -4107,6 +4130,7 @@ static void __exit nvme_exit(void)
     // {
     //     printk(KERN_NOTICE "%lu GPU memory mappings were still in use on unload\n", remaining);
     // }
+	nvfs_nvidia_p2p_exit();
 
     remaining = clear_map_list(&host_list);
     if (remaining != 0)

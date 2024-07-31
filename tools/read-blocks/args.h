@@ -9,11 +9,8 @@
 
 struct options
 {
-#ifdef __DIS_CLUSTER__
-    uint64_t    controller_id;
-#else
+
     const char* controller_path;
-#endif
     size_t      queue_size;
     size_t      chunk_size;
     uint32_t    namespace_id;

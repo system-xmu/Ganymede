@@ -164,7 +164,7 @@ inline DmaPtr createDma(const nvm_ctrl_t* ctrl, size_t size)
     if (err) {
         throw error(string("Failed to allocate host memory: ") + std::to_string(err));
     }
-    int status = nvm_dma_map_host(&dma, ctrl, buffer, size);
+    int status = nvm_dma_map_host(&dma, ctrl, buffer, size,-1,-1);
     if (!nvm_ok(status))
     {
         //cudaFreeHost(buffer);

@@ -53,7 +53,7 @@
 #define nvfs_msg(KRNLVL, FMT, ARGS...) printk(KRNLVL DEVICE_NAME ":" FMT, ## ARGS)
 //#define nvfs_msg(KRNLVL, FMT, ARGS...) printk_ratelimited(KRNLVL DEVNAME ":" FMT, ## ARGS)
 
-int nvfs_dbg_enabled = 1;
+extern int nvfs_dbg_enabled;
 #define nvfs_dbg(FMT, ARGS...)                               \
     do {                                                    \
         if (unlikely(nvfs_dbg_enabled))                                    \

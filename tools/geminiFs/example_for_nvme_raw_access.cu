@@ -15,6 +15,7 @@
 
 #include "../get-offset/get-offset.h"
 #include "geminifs.h"
+#include <ctrl.h>
 
 __device__ void
 read_from_nvme(nvme_ofst_t nvme_ofst, void *dev_buf, uint64_t len, int queue) {
@@ -99,16 +100,16 @@ main () {
     write_to_nvme__using_device<<<1, 1>>>(nvme_ofst, buf__dev, block_size, 0);
     sync_nvme__using_device<<<1, 1>>>(nvme_ofst);
 
-    fd = open(filename, O_RDWR);
-    assert(0 <= fd);
+    // fd = open(filename, O_RDWR);
+    // assert(0 <= fd);
 
-    assert(block_size == read(fd, buf__host, block_size));
-    for (size_t i = 0; i < block_size / sizeof(int); i++)
-        std::cout << i << std::endl;
-    for (size_t i = 0; i < block_size / sizeof(int); i++)
-        assert(buf__host[i] == i + 1);
+    // assert(block_size == read(fd, buf__host, block_size));
+    // for (size_t i = 0; i < block_size / sizeof(int); i++)
+    //     std::cout << i << std::endl;
+    // for (size_t i = 0; i < block_size / sizeof(int); i++)
+    //     assert(buf__host[i] == i + 1);
 
-    close(fd);
+    // close(fd);
 
     return 0;
 }

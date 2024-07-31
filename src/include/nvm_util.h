@@ -10,10 +10,6 @@
 #include <stdint.h>
 #include <cuda.h>
 
-#ifdef __DIS_CLUSTER__
-#include <sisci_types.h>
-#include <sisci_api.h>
-#endif
 
 
 
@@ -25,63 +21,18 @@
     (_NVM_MASK((hi) + 1) - _NVM_MASK(lo))
 
 
-#if defined( __NO_COHERENCE__ ) && defined( __DIS_CLUSTER__ )
-#ifdef __CUDACC__
-__host__ __device__
-#endif
-static inline
-void _nvm_cache_flush(void* ptr, size_t size)
-{
-#ifndef __CUDA_ARCH__ 
-    sci_error_t err;
-    SCICacheSync(NULL, ptr, size, SCI_FLAG_CACHE_FLUSH, &err);
-#endif
-}
 
-#define nvm_cache_flush(ptr, size) _nvm_cache_flush(ptr, size)
-#else
 #define nvm_cache_flush(ptr, size)
-#endif
 
 
 
-#if defined( __NO_COHERENCE__ ) && defined( __DIS_CLUSTER__ )
-#ifdef __CUDACC__
-__host__ __device__
-#endif
-static inline
-void _nvm_cache_invalidate(void* ptr, size_t size)
-{
-#ifndef __CUDA_ARCH__ 
-    sci_error_t err;
-    SCICacheSync(NULL, ptr, size, SCI_FLAG_CACHE_FLUSH | SCI_FLAG_CACHE_INVALIDATE, &err);
-#endif
-}
 
-#define nvm_cache_invalidate(ptr, size) _nvm_cache_invalidate(ptr, size)
-#else
 #define nvm_cache_invalidate(ptr, size)
-#endif
 
 
 
-#if defined( __DIS_CLUSTER__ )
-#ifdef __CUDACC__
-__host__ __device__
-#endif
-static inline
-void _nvm_wcb_flush()
-{
-#ifndef __CUDA_ARCH__
-    SCIFlush(NULL, 0);
-#endif
-}
 
-#define nvm_wcb_flush() _nvm_wcb_flush()
-#else
 #define nvm_wcb_flush()
-#endif
-
 
 
 /* Extract specific bits */
@@ -252,26 +203,6 @@ const nvm_ctrl_t* nvm_ctrl_from_dma(const nvm_dma_t* dma);
 #endif
 
 
-
-#if defined( __DIS_CLUSTER__ )
-#ifdef __cplusplus
-extern "C" {
-#endif
-/*
- * Get cluster node identifier from map.
- */
-uint32_t nvm_dis_node_from_dma(const nvm_dma_t* dma);
-
-
-/*
- * Get cluster node identifier from controller.
- */
-uint32_t nvm_dis_node_from_ctrl(const nvm_ctrl_t* ctrl);
-
-#ifdef __cplusplus
-}
-#endif
-#endif
 
 __forceinline__ __device__ uint32_t lane_id()
 {

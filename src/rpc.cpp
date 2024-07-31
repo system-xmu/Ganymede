@@ -1,12 +1,3 @@
-#ifdef _SISCI
-#include <sisci_api.h>
-#include <sisci_types.h>
-#include <sisci_error.h>
-#ifndef __DIS_CLUSTER__
-#define __DIS_CLUSTER__
-#endif
-#endif
-
 #include <nvm_types.h>
 #include <nvm_ctrl.h>
 #include <nvm_aq.h>

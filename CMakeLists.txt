@@ -10,15 +10,12 @@ find_package (CUDA 12.3)
 
 
 
-set (DIS "/opt/DIS" CACHE PATH "SISCI install location")
+
 set (NVIDIA "" CACHE PATH "Path to Nvidia driver source")
 set (KERNEL "/lib/modules/${CMAKE_SYSTEM_VERSION}/build" CACHE PATH "Path to kernel source, or module directory")
 
 
 set (nvidia_archs "70;80;90" CACHE STRING "NVIDIA compute architectures")
-set (no_smartio_samples true CACHE BOOL "Do not use SISCI for examples")
-set (no_smartio_benchmarks true CACHE BOOL "Do not use SISCI for benchmarks")
-set (no_smartio true CACHE BOOL "Do not use SISCI for library or examples")
 set (no_module false CACHE BOOL "Do not build kernel module")
 set (no_cuda false CACHE BOOL "Do not build library with CUDA support")
 set (no_cc false CACHE BOOL "Do not assume cache-coherent architecture")
@@ -125,17 +122,10 @@ CUDA_ADD_LIBRARY (libnvm ${libnvm_source} ${libnvm_linux_source}) # TODO: add ch
 target_include_directories (libnvm PRIVATE "${libnvm_root}")
 target_link_libraries(libnvm ${CUDA_LIBRARIES})
 
-# if (sisci_include AND sisci_lib AND NOT no_smartio)
-#     target_sources (libnvm PRIVATE ${libnvm_dis_source})
-#     target_compile_definitions (libnvm PRIVATE _REENTRANT _SISCI __DIS_CLUSTER__)
-#     target_link_libraries (libnvm ${sisci_lib} Threads::Threads)
-#     message (STATUS "Configuring libnvm with SmartIO")
 
-# else ()
 target_link_libraries (libnvm Threads::Threads)
 message (STATUS "Configuring libnvm without SmartIO")
 
-# endif ()
 
 
 
@@ -170,12 +160,6 @@ install (TARGETS libnvm DESTINATION "lib")
 # endif ()
 
 
-# Create FIO plugin makefile
-# if (NOT no_fio AND NOT no_smartio AND sisci_include AND sisci_lib)
-#     add_library (libnvmfio MODULE ${fio_source})
-#     target_link_libraries (libnvmfio libnvm ${sisci_lib} Threads::Threads)
-#     target_include_directories (libnvmfio PRIVATE "${FIO}" "${libnvm_root}" "${sisci_include}")
-# endif ()
 
 
 
@@ -198,18 +182,6 @@ endmacro ()
 
 
 
-# # Macro for making a target depend on SISCI
-# macro (set_sisci target)
-#     if (NOT no_smartio_samples AND sisci_include AND sisci_lib)
-#         target_link_libraries (${target} ${sisci_lib})
-#         target_compile_definitions (${target} PRIVATE _REENTRANT __DIS_CLUSTER__)
-#     else ()
-#         list (REMOVE_ITEM sample_targets "${target}")
-#         set (sample_targets "${sample_targets}" PARENT_SCOPE)
-#         set_target_properties (${target} PROPERTIES EXCLUDE_FROM_ALL 1)
-#     endif ()
-# endmacro ()
-
 
 
 # Make target depend on pthreads
@@ -219,17 +191,7 @@ endmacro ()
 
 
 # Set preferred ordering for sample targets
-macro (make_samples_choice ctarget sisci_target other_target)
-    if (NOT no_smartio_samples AND sisci_include AND sisci_lib)
-        add_custom_target (${ctarget} DEPENDS ${sisci_target})
-        list (REMOVE_ITEM sample_targets "${other_target}")
-        set (sample_targets "${sample_targets}" PARENT_SCOPE)
-    else ()
-        add_custom_target (${ctarget} DEPENDS ${other_target})
-        list (REMOVE_ITEM sample_targets "${sisci_target}")
-        set (sample_targets "${sample_targets}" PARENT_SCOPE)
-    endif ()
-endmacro ()
+
 
 
 
@@ -250,40 +212,11 @@ endmacro ()
 #     endif ()
 # endmacro ()
 
-# macro (make_sisci_benchmark target binary_name files)
-#     if (CUDA_FOUND AND NOT no_cuda AND sisci_include AND sisci_lib AND NOT (no_smartio OR no_smartio_benchmarks))
-#         cuda_add_executable (${target} ${files} EXCLUDE_FROM_ALL OPTIONS ${GPU_ARCHS} -D__CUDA__ -D__DIS_CLUSTER__ -D_REENTRANT)
-#         target_compile_definitions(${target} PRIVATE __DIS_CLUSTER__ __CUDA__ _REENTRANT)
-
-#         add_dependencies (${target} libnvm)
-#         target_link_libraries (${target} libnvm ${sisci_lib})
-#         set_target_properties (${target} PROPERTIES OUTPUT_NAME "nvm-${binary_name}")
-
-#         list (APPEND benchmark_targets "${target}")
-#         set (benchmark_targets "${benchmark_targets}" PARENT_SCOPE)
-#     endif ()
-# endmacro ()
-
-#macro (make_sisci_ptx prefix files)
-#    cuda_compile_ptx (${prefix}_files "${files}" OPTIONS -D__CUDA__ -D__DIS_CLUSTER__ -D_REENTRANT)
-#    add_custom_target (${prefix}-ptx DEPENDS ${prefix_files} SOURCES ${files})
-#endmacro ()
 
 
-# # Set preferred ordering for benchmark targets
-# macro (make_benchmark_choice ctarget sisci_target other_target)
-#     if (NOT no_smartio_benchmarks AND sisci_include AND sisci_lib AND NOT no_smartio)
-#         add_custom_target (${ctarget} DEPENDS ${sisci_target})
-#         list (REMOVE_ITEM benchmark_targets "${other_target}")
-#         set (benchmark_targets "${benchmark_targets}" PARENT_SCOPE)
 
-#     else ()
-#         add_custom_target (${ctarget} DEPENDS ${other_target})
-#         list (REMOVE_ITEM benchmark_targets "${sisci_target}")
-#         set (benchmark_targets "${benchmark_targets}" PARENT_SCOPE)
 
-#     endif ()
-# endmacro ()
+
 
 
 
@@ -297,9 +230,7 @@ add_subdirectory ("${samples_root}/integrity")
 add_custom_target (samples DEPENDS ${sample_targets})
 add_custom_target (examples DEPENDS samples)
 
-# if (NOT no_fio AND sisci_include AND sisci_lib)
-#     add_custom_target (fio DEPENDS libnvmfio)
-# endif ()
+
 
 # # Add individual benchmarks
 # if (CUDA_FOUND AND NOT no_cuda)

@@ -10,9 +10,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#ifdef __DIS_CLUSTER__
-#include <sisci_types.h>
-#endif
 
 
 
@@ -69,15 +66,6 @@ struct controller* ctrl_to_controller(nvm_ctrl_t* ctrl);
 
 
 
-#ifdef __DIS_CLUSTER__
-int nvm_dis_ctrl_map_p2p_device(const nvm_ctrl_t* ctrl, sci_smartio_device_t dev, uint64_t* ioaddr);
-#endif
-
-
-
-#ifdef __DIS_CLUSTER__
-void nvm_dis_ctrl_unmap_p2p_device(const nvm_ctrl_t* ctrl, sci_smartio_device_t dev);
-#endif
 
 
 #endif /* __NVM_CTRL_H__ */
