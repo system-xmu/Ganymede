@@ -1,5 +1,3 @@
-from .api import Geminifs
-
-__all__ = [
-    'Geminifs'
-]
+from Geminifs._C import *
+from . import _C as _C
+__all__ = ["add"]
