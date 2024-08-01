@@ -18,7 +18,7 @@
  */
 #define NVM_CTRL_MEM_MINSIZE                        0x2000
 
-
+#define NVM_CTRL_IOQ_MINNUM                        64
 
 #if defined (__unix__)
 /*

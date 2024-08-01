@@ -122,46 +122,60 @@ static void initializeController(struct Controller& ctrl, uint32_t ns_id)
 
 
 
-inline Controller::Controller(const char* path, uint32_t ns_id, uint32_t cudaDevice, uint64_t queueDepth, uint64_t numQueues)
+inline Controller::Controller(const char* snvme_control_path, const char* snvme_path, uint32_t ns_id, uint32_t cudaDevice, uint64_t queueDepth, uint64_t numQueues)
     : ctrl(nullptr)
     , aq_ref(nullptr)
     , deviceId(cudaDevice)
 {
-    int fd = open(path, O_RDWR);
-    if (fd < 0)
+    int status;
+    int snvme_c_fd = open(snvme_control_path, O_RDWR);
+    if (snvme_c_fd < 0)
     {
         throw error(string("Failed to open descriptor: ") + strerror(errno));
     }
-
+    int snvme_d_fd = open(snvme_path, O_RDWR);
+    if (snvme_d_fd < 0)
+    {
+        throw error(string("Failed to open descriptor: ") + strerror(errno));
+    }
     // Get controller reference
-    int status = nvm_ctrl_init(&ctrl, fd);
+    status = nvm_ctrl_init(&ctrl, snvme_c_fd,snvme_d_fd);
     if (!nvm_ok(status))
     {
         throw error(string("Failed to get controller reference: ") + nvm_strerror(status));
     }
 
-    // Create admin queue memory
-    aq_mem = createDma(ctrl, ctrl->page_size * 3);
-
-    initializeController(*this, ns_id);
+    // initializeController(*this, ns_id);
     cudaError_t err = cudaHostRegister((void*) ctrl->mm_ptr, NVM_CTRL_MEM_MINSIZE, cudaHostRegisterIoMemory); //UVM
     if (err != cudaSuccess)
     {
         throw error(string("Unexpected error while mapping IO memory (cudaHostRegister): ") + cudaGetErrorString(err));
     }
-    queue_counter = 0;
-    page_size = ctrl->page_size;
-    blk_size = this->ns.lba_data_size;
-    blk_size_log = std::log2(blk_size);
-    reserveQueues(MAX_QUEUES,MAX_QUEUES);
-    n_qps = std::min(n_sqs, n_cqs);
-    n_qps = std::min(n_qps, (uint16_t)numQueues);
+    // queue_counter = 0;
+    // page_size = ctrl->page_size;
+    // blk_size = this->ns.lba_data_size;
+    // blk_size_log = std::log2(blk_size);
+   
+    // n_qps = std::min(n_sqs, n_cqs);
+    // n_qps = std::min(n_qps, (uint16_t)numQueues);
+
+    n_qps = std::min(NVM_CTRL_IOQ_MINNUM, (uint16_t)numQueues);
+    n_sqs = n_qps;
+    n_qps = n_qps;
     printf("SQs: %d\tCQs: %d\tn_qps: %d\n", n_sqs, n_cqs, n_qps);
+
+    status = ioctl_set_qnum(ctrl, n_sqs+n_qps);
+    if (status!=0)
+    {
+        throw error(string("Failed to set user io queue num: ") + nvm_strerror(status));
+    }
+
     h_qps = (QueuePair**) malloc(sizeof(QueuePair)*n_qps);
     cuda_err_chk(cudaMalloc((void**)&d_qps, sizeof(QueuePair)*n_qps));
+
     for (size_t i = 0; i < n_qps; i++) {
         //printf("started creating qp\n");
-        h_qps[i] = new QueuePair(ctrl, cudaDevice, ns, info, aq_ref, i+1, queueDepth);
+        h_qps[i] = new QueuePair(ctrl, cudaDevice, ns, info, i+1, queueDepth);
         //printf("finished creating qp\n");
         cuda_err_chk(cudaMemcpy(d_qps+i, h_qps[i], sizeof(QueuePair), cudaMemcpyHostToDevice));
     }

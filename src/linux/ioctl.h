@@ -35,11 +35,13 @@ enum nvm_ioctl_type
 {
     NVM_MAP_HOST_MEMORY         = _IOW(NVM_IOCTL_TYPE, 1, struct nvm_ioctl_map),
     NVM_MAP_DEVICE_MEMORY       = _IOW(NVM_IOCTL_TYPE, 2, struct nvm_ioctl_map),
-    NVM_UNMAP_HOST_MEMORY            = _IOW(NVM_IOCTL_TYPE, 3, uint64_t),
-    NVM_UNMAP_DEVICE_MEMORY            = _IOW(NVM_IOCTL_TYPE, 4, uint64_t),
-    NVM_SET_IOQ_NUM            = _IOW(NVM_IOCTL_TYPE, 5, uint64_t),
-    NVM_SET_SHARE_REG            = _IOW(NVM_IOCTL_TYPE, 6, uint64_t),
-    NVM_GET_DEV_INFO             = _IOR(NVM_IOCTL_TYPE, 7, struct nvm_ioctl_dev),   
+    NVM_MAP_DEVICE_QUEUE_MEMORY       = _IOW(NVM_IOCTL_TYPE, 3, struct nvm_ioctl_map),
+    NVM_UNMAP_HOST_MEMORY            = _IOW(NVM_IOCTL_TYPE, 4, uint64_t),
+    NVM_UNMAP_DEVICE_MEMORY            = _IOW(NVM_IOCTL_TYPE, 5, uint64_t),
+    NVM_UNMAP_DEVICE_QUEUE_MEMORY            = _IOW(NVM_IOCTL_TYPE, 6, uint64_t),
+    NVM_SET_IOQ_NUM            = _IOW(NVM_IOCTL_TYPE, 7, uint64_t),
+    NVM_SET_SHARE_REG            = _IOW(NVM_IOCTL_TYPE, 8, uint64_t),
+    NVM_GET_DEV_INFO             = _IOR(NVM_IOCTL_TYPE, 9, struct nvm_ioctl_dev),   
 };
 
 // snvm_ctrl_ioctl_type

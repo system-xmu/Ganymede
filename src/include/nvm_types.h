@@ -229,6 +229,15 @@ struct nvm_ns_info
     size_t                  metadata_size;  // Metadata size (MS)
 };
 
+struct disk_info
+{
+    uint32_t                ns_id;          // Namespace identifier
+    size_t                  size;           // Size in logical blocks (NSZE)
+    size_t                  capacity;       // Capacity in logical blocks (NCAP)
+    size_t                  utilization;    // Utilization in logical blocks (NUSE)
+    size_t                  lba_data_size;  // Logical block size (LBADS)
+    size_t                  metadata_size;  // Metadata size (MS)
+};
 /* Memory descriptor */
 struct buffer
 {

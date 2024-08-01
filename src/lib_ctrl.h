@@ -54,7 +54,6 @@ enum device_type
 {
     DEVICE_TYPE_UNKNOWN =   0x00,       /* Device is mapped manually by the user */
     DEVICE_TYPE_IOCTL   =   0x01,       /* Device is mapped through UNIX file descriptor */
-    DEVICE_TYPE_SMARTIO =   0x02,       /* Device is mapped by SISCI SmartIO API */
 };
 
 

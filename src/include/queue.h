@@ -86,7 +86,7 @@ struct QueuePair
 
 
 
-    inline QueuePair( const nvm_ctrl_t* ctrl, const uint32_t cudaDevice, const struct nvm_ns_info ns, const struct nvm_ctrl_info info, nvm_aq_ref& aq_ref, const uint16_t qp_id, const uint64_t queueDepth)
+    inline QueuePair( const nvm_ctrl_t* ctrl, const uint32_t cudaDevice, const struct nvm_ns_info ns, const struct nvm_ctrl_info info, const uint16_t qp_id, const uint64_t queueDepth)
     {
         //this->this = (QueuePairThis*) malloc(sizeof(QueuePairThis));
 
@@ -178,11 +178,7 @@ struct QueuePair
       //  std::cout << "before nvm_admin_cq_create\n";
         // Create completion queue
         // (nvm_aq_ref ref, nvm_queue_t* cq, uint16_t id, const nvm_dma_t* dma, size_t offset, size_t qs, bool need_prp = false)
-        int status = nvm_admin_cq_create(aq_ref, &this->cq, qp_id, this->cq_mem.get(), 0, cq_size, cq_need_prp);
-        if (!nvm_ok(status))
-        {
-            throw error(string("Failed to create completion queue: ") + nvm_strerror(status));
-        }
+
         // std::cout << "after nvm_admin_cq_create\n";
 
         // Get a valid device pointer for CQ doorbell

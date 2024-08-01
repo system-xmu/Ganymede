@@ -62,6 +62,9 @@ static struct list host_list;
 /* List of mapped device memory */
 static struct list device_list;
 
+/* List of mapped device queue memory */
+static struct list device_queue_list;
+
 /* Number of devices */
 static int max_num_ctrls = 64;
 module_param(max_num_ctrls, int, 0);
@@ -211,6 +214,7 @@ struct nvme_dev {
 	unsigned int nr_user_allocated_sq;
 	unsigned int nr_user_use_sq;
 	unsigned int use_user_allocated;
+	unsigned int queue_on_host;
 	bool attrs_added;
 };
 
@@ -1736,13 +1740,17 @@ static int nvme_create_user_queue(struct nvme_dev *dev , int uqid,int qid)
 
 	struct pci_dev *pdev = to_pci_dev(dev->dev);
 	struct map* q_map; 
-	
-	
+	struct list* list;
+		
+	if(dev->queue_on_host)
+		list = &host_list;
+	else
+		list = &device_queue_list;
 	/*
 	 * A queue's vector matches the queue identifier unless the controller
 	 * has only one vector available.
 	 */
-	q_map = map_find_by_pci_dev_and_idx(&host_list,pdev,uqid,1);
+	q_map = map_find_by_pci_dev_and_idx(list,pdev,uqid,1);
 	if(q_map==NULL)
 	{
 		printk("map_find_by_pci_dev_and_idx cq error!\n");
@@ -1752,7 +1760,7 @@ static int nvme_create_user_queue(struct nvme_dev *dev , int uqid,int qid)
 	if (result)
 		return result;
 
-	q_map = map_find_by_pci_dev_and_idx(&host_list,pdev,uqid,0);
+	q_map = map_find_by_pci_dev_and_idx(list,pdev,uqid,0);
 	if(q_map==NULL)
 	{
 		printk("map_find_by_pci_dev_and_idx sq error!\n");
@@ -3212,6 +3220,7 @@ static int nvme_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 		dev->nr_user_allocated_cq = ctrl->cq_num;
 		dev->nr_user_allocated_sq = ctrl->ioq_num - ctrl->cq_num;
 		dev->use_user_allocated = 1;
+		dev->queue_on_host = ctrl->on_host;
 		if(pdev->vendor == 0x8086 && pdev->device==0x4140)
 			printk("this device is p5800x!\n");
 	}
@@ -3693,6 +3702,51 @@ static long snvm_dev_map_ioctl(struct file* file, unsigned int cmd, unsigned lon
 			}
 
 			map = map_device_memory(&device_list, ctrl, request.vaddr_start, request.n_pages, &ctrl_list);
+			if (!IS_ERR_OR_NULL(map))
+			{
+				if (copy_to_user((void __user*) request.ioaddrs, map->addrs, map->n_addrs * sizeof(uint64_t)))
+				{
+					return -EFAULT;
+				}
+				ret = 0;
+			}
+			else 
+			{
+				ret = PTR_ERR(map);
+			}
+			break;
+		}
+		case NVM_MAP_DEVICE_QUEUE_MEMORY: // 将用户态cuda malloc 分配的地址pin住并得到dma地址返回用户态
+		{
+			if (copy_from_user(&request, (void __user*) arg, sizeof(request)))
+			{
+				return -EFAULT;
+			}
+
+			map = map_device_ioqueue_memory(&device_queue_list, ctrl, request.vaddr_start, request.n_pages);
+			if(request.ioq_idx>=0)
+			{
+				ctrl->map_num +=1;
+				if(ctrl->map_num > ctrl->ioq_num)
+				{
+					printk("NVM_MAP_HOST_MEMORY ctrl->map_num is %d,ctrl->ioq_num is %d\n",ctrl->map_num, ctrl->ioq_num);
+					unmap_and_release(map);
+					return -EFAULT;
+				}
+				map->ioq_idx = request.ioq_idx;
+				map->is_cq = request.is_cq;
+				
+
+				if(map->is_cq)
+					ctrl->cq_num++;
+				// printk("map_userspace map map->ioq_idx is %d, map->is_cq is %d",map->ioq_idx,map->is_cq);
+			}
+			else
+			{
+
+				printk("map_device_ioqueue_memory ioq_idx not set yet\n");
+				return -EFAULT;
+			}
 
 			if (!IS_ERR_OR_NULL(map))
 			{
@@ -3743,6 +3797,24 @@ static long snvm_dev_map_ioctl(struct file* file, unsigned int cmd, unsigned lon
             map = map_find(&device_list, addr);
             if (map != NULL)
             {
+                unmap_and_release(map);
+				ret = 0;
+                break;
+            }
+            ret = -EINVAL;
+            printk(KERN_WARNING "Mapping for address %llx not found\n", addr);
+            break;
+		}
+        case NVM_UNMAP_DEVICE_QUEUE_MEMORY:
+		{
+            if (copy_from_user(&addr, (void __user*) arg, sizeof(u64)))
+            {
+                return -EFAULT;
+            }
+
+            map = map_find(&device_queue_list, addr);
+            if (map != NULL)
+            {
 				if(map->ioq_idx>=0)
 				{
 					// printk("unmap_userspace map map->ioq_idx is %d, map->is_cq is %d",map->ioq_idx,map->is_cq);
@@ -3781,6 +3853,7 @@ static long snvm_dev_map_ioctl(struct file* file, unsigned int cmd, unsigned lon
 
 
 			ctrl->ioq_num = request.ioq_idx;
+			ctrl->on_host = request.is_cq;
 			ret = 0;
 			break;
 		}
@@ -3884,7 +3957,7 @@ static int snvm_find_all_device(int max_devices, unsigned int class) {
 		}
 		count++;
 
-		ctrl = ctrl_get(&ctrl_list, dev_class, pdev, curr_ctrls+1);
+		ctrl = ctrl_get(&ctrl_list, dev_class, pdev, curr_ctrls);
 		if (IS_ERR(ctrl))
 		{
 			return PTR_ERR(ctrl);
@@ -4107,6 +4180,8 @@ static int __init nvme_init(void)
     list_init(&ctrl_list);
     list_init(&host_list);
     list_init(&device_list);
+	list_init(&device_queue_list);
+	
     // Set up character device creation
 
 
@@ -4125,11 +4200,20 @@ static void __exit nvme_exit(void)
 	int ret;
     unsigned long remaining = 0;
 
-    // remaining = clear_map_list(&device_list);
-    // if (remaining != 0)
-    // {
-    //     printk(KERN_NOTICE "%lu GPU memory mappings were still in use on unload\n", remaining);
-    // }
+
+	//clear device mem map
+    remaining = clear_map_list(&device_list);
+    if (remaining != 0)
+    {
+        printk(KERN_NOTICE "%lu GPU memory mappings were still in use on unload\n", remaining);
+    }
+	//clear device io queue map
+    remaining = clear_map_list(&device_queue_list);
+    if (remaining != 0)
+    {
+        printk(KERN_NOTICE "%lu GPU memory mappings were still in use on unload\n", remaining);
+    }
+
 	nvfs_nvidia_p2p_exit();
 
     remaining = clear_map_list(&host_list);

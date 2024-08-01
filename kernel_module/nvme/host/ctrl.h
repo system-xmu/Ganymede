@@ -23,6 +23,7 @@ struct ctrl
     struct device*      chrdev;     /* Character device handle */
     struct nvme_dev *dev;
     /*****info about user defined nvme io qp **** */
+    unsigned int        on_host;     /*1 on host, 0 on device*/
     unsigned int        ioq_num;    /*number of user defined nvme io queues*/
     unsigned int        cq_num;    /*number of user defined nvme io queues*/
     unsigned int        map_num;    /*number of user registered dma register*/

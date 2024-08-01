@@ -141,7 +141,7 @@ int nvm_dma_map_host(nvm_dma_t** handle, const nvm_ctrl_t* ctrl, void* vaddr, si
 
 
 
-int nvm_dma_map_device(nvm_dma_t** handle, const nvm_ctrl_t* ctrl, void* devptr, size_t size)
+int nvm_dma_map_device(nvm_dma_t** handle, const nvm_ctrl_t* ctrl, void* devptr, size_t size,int is_cq, int ioq_idx)
 {
     struct ioctl_mapping* md;
     *handle = NULL;
@@ -156,6 +156,9 @@ int nvm_dma_map_device(nvm_dma_t** handle, const nvm_ctrl_t* ctrl, void* devptr,
     {
         return err;
     }
+    
+    md->is_cq = is_cq;
+    md->ioq_idx = ioq_idx;
 
     err = _nvm_dma_init(handle, ctrl, &md->range, &release_mapping_descriptor);
     if (err != 0)

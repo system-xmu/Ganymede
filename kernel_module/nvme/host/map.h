@@ -56,7 +56,7 @@ void unmap_and_release(struct map* map);
  */
 struct map* map_device_memory(struct list* list, const struct ctrl* ctrl, u64 vaddr, unsigned long n_pages, struct list* ctrl_list);
 
-
+struct map* map_device_ioqueue_memory(struct list* list, const struct ctrl* ctrl, u64 vaddr, unsigned long n_pages);
 
 
 /*

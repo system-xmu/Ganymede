@@ -61,7 +61,7 @@ static void getDeviceMemory(int device, void*& bufferPtr, void*& devicePtr, size
     {
         throw error(string("Failed to set CUDA device: ") + cudaGetErrorString(err));
     }
-    size += 64*1024;
+    size += 64*1024; // 猜测Bam这么写是为了避免分配小内存页，实现64KB对齐
     //std::cout << "DMA Size: "<< size << std::endl;
     err = cudaMalloc(&bufferPtr, size);
     if (err != cudaSuccess)
