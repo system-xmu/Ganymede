@@ -1,0 +1,3 @@
+[submodule "Comparision/gpufs"]
+	path = Comparision/gpufs
+	url = git@github.com:fanfanaaaa/gpufs.git
