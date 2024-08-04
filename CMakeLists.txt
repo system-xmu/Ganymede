@@ -86,7 +86,7 @@ endif ()
 set (libnvm_root "${PROJECT_SOURCE_DIR}/src")
 file (GLOB libnvm_source "${libnvm_root}/*.cpp")
 file (GLOB libnvm_linux_source "${libnvm_root}/linux/*.cpp")
-file (GLOB libnvm_include "${PROJECT_BINARY_DIR}/include/*.h" "${PROJECT_SOURCE_DIR}/src/include/*.h")
+file (GLOB libnvm_include "${PROJECT_BINARY_DIR}/include/*.h"  "${libnvm_root}/include/*.h" )
 
 # # Module source files
 # set (module_root "${PROJECT_SOURCE_DIR}/module")
@@ -96,8 +96,8 @@ file (GLOB libnvm_include "${PROJECT_BINARY_DIR}/include/*.h" "${PROJECT_SOURCE_
 # set (fio_root "${PROJECT_SOURCE_DIR}/fio")
 # file (GLOB fio_source "${fio_root}/*.c")
 
-# # Benchmarks
-# set (benchmarks_root "${PROJECT_SOURCE_DIR}/benchmarks")
+# Benchmarks
+set (benchmarks_root "${PROJECT_SOURCE_DIR}/benchmarks")
 
 # # Samples shared files
 set (samples_root "${CMAKE_SOURCE_DIR}/tools/")
@@ -195,35 +195,44 @@ endmacro ()
 
 
 
-# # Make benchmark target
-# # We assume all benchmarks are CUDA programs
-# macro (make_benchmark target binary_name files)
-#     if (CUDA_FOUND AND NOT no_cuda)
-#         cuda_add_executable (${target} EXCLUDE_FROM_ALL ${files} OPTIONS ${GPU_ARCHS} -D__CUDA__) # Ugly bugly
-#         target_compile_definitions (${target} PRIVATE __CUDA__)
+# Make benchmark target
+# We assume all benchmarks are CUDA programs
+macro (make_benchmark target binary_name files)
+    if (CUDA_FOUND AND NOT no_cuda)
+        cuda_add_executable (${target} EXCLUDE_FROM_ALL ${files} OPTIONS ${GPU_ARCHS} -D__CUDA__) # Ugly bugly
+        target_compile_definitions (${target} PRIVATE __CUDA__)
 
-#         add_dependencies (${target} libnvm)
-#         target_link_libraries (${target} libnvm)
-#         target_link_libraries (${target} ${CUDA_LIBRARIES})
-#         set_target_properties (${target} PROPERTIES OUTPUT_NAME "nvm-${binary_name}")
+        add_dependencies (${target} libnvm)
+        target_link_libraries (${target} libnvm)
+        target_link_libraries (${target} ${CUDA_LIBRARIES})
+        set_target_properties (${target} PROPERTIES OUTPUT_NAME "nvm-${binary_name}")
 
-#         list (APPEND benchmark_targets "${target}")
-#         set (benchmark_targets "${benchmark_targets}" PARENT_SCOPE)
-#     endif ()
-# endmacro ()
-
-
+        list (APPEND benchmark_targets "${target}")
+        set (benchmark_targets "${benchmark_targets}" PARENT_SCOPE)
+    endif ()
+endmacro ()
 
 
 
 
 
 
+macro (make_samples_choice ctarget sisci_target other_target)
+    if (NOT no_smartio_samples AND sisci_include AND sisci_lib)
+        add_custom_target (${ctarget} DEPENDS ${sisci_target})
+        list (REMOVE_ITEM sample_targets "${other_target}")
+        set (sample_targets "${sample_targets}" PARENT_SCOPE)
+    else ()
+        add_custom_target (${ctarget} DEPENDS ${other_target})
+        list (REMOVE_ITEM sample_targets "${sisci_target}")
+        set (sample_targets "${sample_targets}" PARENT_SCOPE)
+    endif ()
+endmacro ()
 
 # Add individual samples
 # add_subdirectory ("${samples_root}/rpc")
 # add_subdirectory ("${samples_root}/read-blocks")
-add_subdirectory ("${samples_root}/identify")
+
 add_subdirectory ("${samples_root}/integrity")
 
 # Build all samples
@@ -233,8 +242,8 @@ add_custom_target (examples DEPENDS samples)
 
 
 # # Add individual benchmarks
-# if (CUDA_FOUND AND NOT no_cuda)
-#   add_subdirectory ("${benchmarks_root}/array")
+if (CUDA_FOUND AND NOT no_cuda)
+  add_subdirectory ("${benchmarks_root}/test")
 #   add_subdirectory ("${benchmarks_root}/iodepth-block")
 #   add_subdirectory ("${benchmarks_root}/block")
 #   add_subdirectory ("${benchmarks_root}/readwrite")
@@ -248,5 +257,5 @@ add_custom_target (examples DEPENDS samples)
 #   add_subdirectory ("${benchmarks_root}/vectoradd")
 #   #add_subdirectory ("${benchmarks_root}/scan")
 #   add_custom_target (benchmarks DEPENDS ${benchmark_targets})
-# endif ()
+endif ()
 

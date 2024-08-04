@@ -13,7 +13,7 @@
 #include "ctrl.h"
 #include <cuda_runtime.h>
 
-#include "../get-offset/get-offset.h"
+#include "get-offset/get-offset.h"
 #include "geminifs.h"
 
 #define snvme_helper_path "/dev/snvme_helper"

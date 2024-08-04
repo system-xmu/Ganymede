@@ -48,6 +48,7 @@ enum nvm_ioctl_type
 #define SNVM_REGISTER_DRIVER	_IO('N', 0x0)
 #define SNVM_UNREGISTER_DRIVER	_IO('N', 0x1)
 
+
 /* SNVME initiazation process*/
 /*
 1. Use NVM_SET_IOQ_NUM set IO queues num

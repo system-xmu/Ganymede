@@ -42,6 +42,11 @@ struct device_ops
      * Unmap an address range for the device.
      */
     void (*unmap_range)(const struct device* dev, const struct va_range* va);
+
+    /*
+     * Unmap an address range for the device.
+     */
+    void (*unmap_queue_range)(const struct device* dev, const struct va_range* va);
 };
 
 

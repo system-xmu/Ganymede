@@ -14,12 +14,17 @@
 #include "nvm_util.h"
 #include "nvm_error.h"
 #include "nvm_admin.h"
+#include "nvm_queue.h"
+#include "nvm_ctrl.h"
 #include <stdexcept>
 #include <string>
 #include <iostream>
 #include <cmath>
 #include "util.h"
-
+#include "../linux/ioctl.h"
+#include "../lib_ctrl.h"
+#include <sys/ioctl.h>
+#include <fcntl.h>
 using error = std::runtime_error;
 using std::string;
 
@@ -105,8 +110,8 @@ struct QueuePair
             ((((volatile uint16_t*) ctrl->mm_ptr)[0] + 1) );
         sq_size = std::min(queueDepth, sq_size);
         cq_size = std::min(queueDepth, cq_size);
-
-  //      printf("sq_size: %ld\tcq_size: %ld\n", sq_size, cq_size);
+ 
+        printf("sq_size: %ld\tcq_size: %ld\n", sq_size, cq_size);
         bool sq_need_prp = false;//(!cqr) || (sq_size > MAX_SQ_ENTRIES_64K);
         bool cq_need_prp = false;// (!cqr) || (cq_size > MAX_CQ_ENTRIES_64K);
 
@@ -119,62 +124,23 @@ struct QueuePair
         //size_t prp_mem_size = sq_size * (4096) * 2;
 //        std::cout << "Started creating DMA\n";
         // qmem->vaddr will be already a device pointer after the following call
-        this->sq_mem = createDma(ctrl, NVM_PAGE_ALIGN(sq_mem_size, 1UL << 16), cudaDevice);
+        this->sq_mem = create_queue_Dma(ctrl, NVM_PAGE_ALIGN(sq_mem_size, 1UL << 16), cudaDevice,0,qp_id);
  //       std::cout << "Finished creating sq dma vaddr: " << this->sq_mem.get()->vaddr << "\tioaddr: " << std::hex<< this->sq_mem.get()->ioaddrs[0] << std::dec << std::endl;
-        this->cq_mem = createDma(ctrl, NVM_PAGE_ALIGN(cq_mem_size, 1UL << 16), cudaDevice);
+        this->cq_mem = create_queue_Dma(ctrl, NVM_PAGE_ALIGN(cq_mem_size, 1UL << 16), cudaDevice,1,qp_id);
         //this->prp_mem = createDma(ctrl, NVM_PAGE_ALIGN(prp_mem_size, 1UL << 16), cudaDevice, adapter, segmentId);
  //       std::cout << "Finished creating cq dma vaddr: " << this->cq_mem.get()->vaddr << "\tioaddr: " << std::hex << this->cq_mem.get()->ioaddrs[0] << std::dec << std::endl;
 
         // Set members
-        this->pageSize = info.page_size;
-        this->block_size = ns.lba_data_size;
+        // this->pageSize = info.page_size;
+        // this->block_size = ns.lba_data_size;
+        // this->block_size_minus_1 = ns.lba_data_size-1;
+        // this->block_size_log = std::log2(ns.lba_data_size);
+        // this->nvmNamespace = ns.ns_id;
 
-        this->block_size_minus_1 = ns.lba_data_size-1;
-        this->block_size_log = std::log2(ns.lba_data_size);
-//        std::cout << "block size: " << this->block_size << "\tblock_size_log: " << this->block_size_log << std::endl ;
-        this->nvmNamespace = ns.ns_id;
-
-        //this->prpList = NVM_DMA_OFFSET(this->prp_mem, 0);
-        //this->prpListIoAddrs = this->prp_mem->ioaddrs;
         this->qp_id = qp_id;
 
-        if (cq_need_prp) {
-            size_t iters = (size_t)ceil(((float)cq_size*sizeof(nvm_cpl_t))/((float)ctrl->page_size));
-            uint64_t* cpu_vaddrs = (uint64_t*) malloc(64*1024);
-            memset((void*)cpu_vaddrs, 0, 64*1024);
-            for (size_t i = 0; i < iters; i++) {
-                size_t page_64  = i/(64*1024);
-                size_t page_4 = i%(64*1024/ctrl->page_size);
-                cpu_vaddrs[i] = this->cq_mem.get()->ioaddrs[1 + page_64] + (page_4 * ctrl->page_size);
-            }
 
-            if (this->cq_mem.get()->vaddr) {
-                cuda_err_chk(cudaMemcpy(this->cq_mem.get()->vaddr, cpu_vaddrs, 64*1024, cudaMemcpyHostToDevice));
-            }
 
-            this->cq_mem.get()->vaddr = (void*)((uint64_t)this->cq_mem.get()->vaddr + 64*1024);
-
-            free(cpu_vaddrs);
-        }
-
-        if (sq_need_prp) {
-            size_t iters = (size_t)ceil(((float)sq_size*sizeof(nvm_cpl_t))/((float)ctrl->page_size));
-            uint64_t* cpu_vaddrs = (uint64_t*) malloc(64*1024);
-            memset((void*)cpu_vaddrs, 0, 64*1024);
-            for (size_t i = 0; i < iters; i++) {
-                size_t page_64  = i/(64*1024);
-                size_t page_4 = i%(64*1024/ctrl->page_size);
-                cpu_vaddrs[i] = this->sq_mem.get()->ioaddrs[1 + page_64] + (page_4 * ctrl->page_size);
-            }
-
-            if (this->sq_mem.get()->vaddr) {
-                cuda_err_chk(cudaMemcpy(this->sq_mem.get()->vaddr, cpu_vaddrs, 64*1024, cudaMemcpyHostToDevice));
-            }
-
-            this->sq_mem.get()->vaddr = (void*)((uint64_t)this->sq_mem.get()->vaddr + 64*1024);
-
-            free(cpu_vaddrs);
-        }
       //  std::cout << "before nvm_admin_cq_create\n";
         // Create completion queue
         // (nvm_aq_ref ref, nvm_queue_t* cq, uint16_t id, const nvm_dma_t* dma, size_t offset, size_t qs, bool need_prp = false)
@@ -182,34 +148,10 @@ struct QueuePair
         // std::cout << "after nvm_admin_cq_create\n";
 
         // Get a valid device pointer for CQ doorbell
-        void* devicePtr = nullptr;
-        cudaError_t err = cudaHostGetDevicePointer(&devicePtr, (void*) this->cq.db, 0);
-        if (err != cudaSuccess)
-        {
-            throw error(string("Failed to get device pointer") + cudaGetErrorString(err));
-        }
-        this->cq.db = (volatile uint32_t*) devicePtr;
-
-        // Create submission queue
-        //  nvm_admin_sq_create(nvm_aq_ref ref, nvm_queue_t* sq, const nvm_queue_t* cq, uint16_t id, const nvm_dma_t* dma, size_t offset, size_t qs, bool need_prp = false)
-        status = nvm_admin_sq_create(aq_ref, &this->sq, &this->cq, qp_id, this->sq_mem.get(), 0, sq_size, sq_need_prp);
-        if (!nvm_ok(status))
-        {
-            throw error(string("Failed to create submission queue: ") + nvm_strerror(status));
-        }
-
-
-        // Get a valid device pointer for SQ doorbell
-        err = cudaHostGetDevicePointer(&devicePtr, (void*) this->sq.db, 0);
-        if (err != cudaSuccess)
-        {
-            throw error(string("Failed to get device pointer") + cudaGetErrorString(err));
-        }
-        this->sq.db = (volatile uint32_t*) devicePtr;
-//        std::cout << "Finish Making Queue\n";
-
+        sq.qs = sq_size;
+        cq.qs = cq_size;
         init_gpu_specific_struct(cudaDevice);
-       // std::cout << "in preparequeuepair: " << std::hex << this->sq.cid << std::endl;
+        std::cout << "in preparequeuepair: " << std::hex << this->sq.cid << std::endl;
         return;
 
 
@@ -217,4 +159,107 @@ struct QueuePair
     }
 
 };
+
+int ioctl_get_dev_info(nvm_ctrl_t* ctrl, struct disk* d)
+{
+    int err;
+    struct controller* container;
+    container  = ctrl_to_controller(ctrl);
+    if(container==NULL)
+    {
+        printf("container error!\n");
+        return -1;
+    }
+    struct nvm_ioctl_dev dev_info;
+    err = ioctl(container->device->fd_dev, NVM_GET_DEV_INFO, &dev_info);
+    if (err < 0)
+    {
+        printf("ioctl_get_dev_info err is %d\n",err);
+        return errno;
+    }
+    ctrl->start_cq_idx = dev_info.start_cq_idx;
+    ctrl->dstrd = dev_info.dstrd;
+    ctrl->nr_user_q = dev_info.nr_user_q;
+
+
+    d->max_data_size = dev_info.max_data_size *512; //get the ctrl->max_hw_sectors from kernel    
+    d->block_size = dev_info.block_size; // ns->lba_shift
+    return 0;
+}
+
+
+int init_userioq_device(nvm_ctrl_t* ctrl,  QueuePair** qps,struct disk* d)
+{
+    int err,i;
+
+    err = ioctl_get_dev_info(ctrl,d);
+    if(err)
+    {
+        return -1;
+    }
+    printf("idx start is %u, dbstrd is %u, nr user q is %u\n",ctrl->start_cq_idx,ctrl->dstrd,ctrl->nr_user_q);
+    if(ctrl->nr_user_q > ctrl->cq_num)
+    {
+        return -1;
+    }
+
+    for(i = 0; i < ctrl->nr_user_q; i++)
+    {
+        
+        qps[i]->pageSize = ctrl->page_size;
+        qps[i]->block_size = d->block_size;
+        qps[i]->block_size_minus_1 = d->block_size -1;
+        qps[i]->block_size_log = std::log2(d->block_size);
+        qps[i]->nvmNamespace = d->ns_id;
+
+        // printf("nvm_queue_clear, i is %d\n",i);
+        // clear cq
+        nvm_queue_clear(&qps[i]->cq,ctrl,true,i+ctrl->start_cq_idx,qps[i]->cq.qs,0,qps[i]->cq_mem.get()->vaddr,qps[i]->cq_mem.get()->ioaddrs[0]);
+        // clear sq
+        nvm_queue_clear(&qps[i]->sq,ctrl,false,i+ctrl->start_cq_idx,qps[i]->sq.qs,1,qps[i]->sq_mem.get()->vaddr,qps[i]->sq_mem.get()->ioaddrs[0]);
+    }
+    return 0;
+}
+
+int init_userioq(nvm_ctrl_t* ctrl, struct disk* d)
+{
+    int err,i,count;
+    err = ioctl_get_dev_info(ctrl,d);
+    if(err)
+    {
+        return -1;
+    }
+    printf("idx start is %u, dbstrd is %u, nr user q is %u\n",ctrl->start_cq_idx,ctrl->dstrd,ctrl->nr_user_q);
+    if(ctrl->nr_user_q > ctrl->cq_num)
+    {
+        return -1;
+    }
+    for(i = 0; i < ctrl->nr_user_q; i++)
+    {
+        
+        // printf("nvm_queue_clear, i is %d\n",i);
+        // clear cq
+        nvm_queue_clear(&ctrl->queues[i].queue,ctrl,true,i+ctrl->start_cq_idx,ctrl->qs,0,ctrl->queues[i].qmem.buffer,ctrl->queues[i].qmem.dma->ioaddrs[0]);
+    }
+    count = 0;
+    for(i = ctrl->cq_num; i < ctrl->cq_num + ctrl->nr_user_q; i++)
+    {
+        
+        // clear sq
+        nvm_queue_clear(&ctrl->queues[i].queue,ctrl,false,count+ctrl->start_cq_idx,ctrl->qs,0,ctrl->queues[i].qmem.buffer,ctrl->queues[i].qmem.dma->ioaddrs[0]);
+        count++;
+    }
+        
+
+    
+    // status = nvm_queue_clear(q, ctrl, is_cq, qno, qs,
+    //         q->qmem.dma->local, NVM_DMA_OFFSET(q->qmem.dma, 0), q->qmem.dma->ioaddrs[0]);
+    // if (err != 0)
+    // {
+    //     return status;
+    // }
+
+    return 0;
+}
+
 #endif

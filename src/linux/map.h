@@ -13,6 +13,7 @@ enum mapping_type
 {
     MAP_TYPE_CUDA   =   0x1,   // CUDA device memory
     MAP_TYPE_HOST   =   0x2,   // Host memory (RAM)
+    MAP_TYPE_CUDA_QUEUE   =   0x3,   // CUDA device memory for IO QUEUE
     MAP_TYPE_API    =   0x4    // Allocated by the API (RAM)
 };
 

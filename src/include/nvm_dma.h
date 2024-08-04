@@ -83,7 +83,7 @@ int nvm_dma_map_device(nvm_dma_t** map, const nvm_ctrl_t* ctrl, void* devptr, si
 
 //#endif /* __CUDA__ */
 
-
+int nvm_dma_map_queue_device(nvm_dma_t** map, const nvm_ctrl_t* ctrl, void* devptr, size_t size,unsigned int is_cq, uint16_t qno);
 
 
 

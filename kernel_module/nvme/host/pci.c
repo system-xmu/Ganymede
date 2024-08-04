@@ -3202,7 +3202,7 @@ static int nvme_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	ctrl = ctrl_find_by_pci_dev(&ctrl_list,pdev);
 	if(ctrl!=NULL)
 	{
-		printk("ctrl exist, ioq_num is %u, cq_num is %u, map num is %u\n",ctrl->ioq_num,ctrl->cq_num,ctrl->map_num);
+		printk("ctrl exist, ioq_num is %u, cq_num is %u, map num is %u\n",ctrl->ioq_num,ctrl->cq_num,ctrl->ioq_map_num);
 	}
 	node = dev_to_node(&pdev->dev);
 	if (node == NUMA_NO_NODE)
@@ -3214,7 +3214,7 @@ static int nvme_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
 	/*if the map is equal to the pre-set queue num, and set use sreg, reg the user defined io queues*/
 
-	if(ctrl->ioq_num==ctrl->map_num && ctrl->use_sreg)
+	if(ctrl->ioq_num==ctrl->ioq_map_num && ctrl->use_sreg)
 	{
 		dev->nr_user_allocated_queues = ctrl->ioq_num;
 		dev->nr_user_allocated_cq = ctrl->cq_num;
@@ -3647,7 +3647,7 @@ static long snvm_dev_map_ioctl(struct file* file, unsigned int cmd, unsigned lon
     ctrl = ctrl_find_by_inode(&ctrl_list, file->f_inode);
     if (ctrl == NULL)
     {
-        printk(KERN_CRIT "Unknown controller reference\n");
+        printk(KERN_CRIT "Unknown controller reference snvm_dev_map_ioctl\n");
         return -EBADF;
     }
     switch (cmd)
@@ -3663,10 +3663,10 @@ static long snvm_dev_map_ioctl(struct file* file, unsigned int cmd, unsigned lon
 
 			if(request.ioq_idx>=0)
 			{
-				ctrl->map_num +=1;
-				if(ctrl->map_num > ctrl->ioq_num)
+				ctrl->ioq_map_num +=1;
+				if(ctrl->ioq_map_num > ctrl->ioq_num)
 				{
-					printk("NVM_MAP_HOST_MEMORY ctrl->map_num is %d,ctrl->ioq_num is %d\n",ctrl->map_num, ctrl->ioq_num);
+					printk("NVM_MAP_HOST_MEMORY ctrl->ioq_map_num is %d,ctrl->ioq_num is %d\n",ctrl->ioq_map_num, ctrl->ioq_num);
 					unmap_and_release(map);
 					return -EFAULT;
 				}
@@ -3726,10 +3726,10 @@ static long snvm_dev_map_ioctl(struct file* file, unsigned int cmd, unsigned lon
 			map = map_device_ioqueue_memory(&device_queue_list, ctrl, request.vaddr_start, request.n_pages);
 			if(request.ioq_idx>=0)
 			{
-				ctrl->map_num +=1;
-				if(ctrl->map_num > ctrl->ioq_num)
+				ctrl->ioq_map_num +=1;
+				if(ctrl->ioq_map_num > ctrl->ioq_num)
 				{
-					printk("NVM_MAP_HOST_MEMORY ctrl->map_num is %d,ctrl->ioq_num is %d\n",ctrl->map_num, ctrl->ioq_num);
+					printk("NVM_MAP_HOST_MEMORY ctrl->ioq_map_num is %d,ctrl->ioq_num is %d\n",ctrl->ioq_map_num, ctrl->ioq_num);
 					unmap_and_release(map);
 					return -EFAULT;
 				}
@@ -3778,7 +3778,7 @@ static long snvm_dev_map_ioctl(struct file* file, unsigned int cmd, unsigned lon
 					if(map->is_cq)
 						ctrl->cq_num--;
 
-					ctrl->map_num--;
+					ctrl->ioq_map_num--;
 				}
                 unmap_and_release(map);
                 break;
@@ -3821,7 +3821,7 @@ static long snvm_dev_map_ioctl(struct file* file, unsigned int cmd, unsigned lon
 					if(map->is_cq)
 						ctrl->cq_num--;
 
-					ctrl->map_num--;
+					ctrl->ioq_map_num--;
 				}
                 unmap_and_release(map);
 				ret = 0;
@@ -3914,7 +3914,7 @@ static int svm_mmap_registers(struct file* file, struct vm_area_struct* vma)
     ctrl = ctrl_find_by_inode(&ctrl_list, file->f_inode);
     if (ctrl == NULL && ctrl->pdev == NULL)
     {
-        printk(KERN_CRIT "Unknown controller reference\n");
+        printk(KERN_CRIT "Unknown controller reference svm_mmap_registers\n");
         return -EBADF;
     }
 
@@ -3957,7 +3957,7 @@ static int snvm_find_all_device(int max_devices, unsigned int class) {
 		}
 		count++;
 
-		ctrl = ctrl_get(&ctrl_list, dev_class, pdev, curr_ctrls);
+		ctrl = ctrl_get(&ctrl_list, dev_class, pdev, curr_ctrls+1);
 		if (IS_ERR(ctrl))
 		{
 			return PTR_ERR(ctrl);
@@ -4056,7 +4056,8 @@ static long snvm_ioctl(struct file *file, unsigned int cmd,
 {
 	int ret;
 	void __user *argp = (void __user *)arg;
-	printk("snvme_helper_ioctl 1\n");
+	
+	struct ctrl* ctrl = NULL;
 	switch (cmd)
 	{
         case SNVM_REGISTER_DRIVER:
@@ -4080,6 +4081,30 @@ static long snvm_ioctl(struct file *file, unsigned int cmd,
         }
         case SNVM_UNREGISTER_DRIVER:
         {
+			unsigned long remaining = 0;
+
+
+			//clear device mem map
+			remaining = clear_map_list(&device_list);
+			if (remaining != 0)
+			{
+				printk(KERN_NOTICE "%lu GPU memory mappings were still in use on unload\n", remaining);
+			}
+			//clear device io queue map
+			remaining = clear_map_list(&device_queue_list);
+			if (remaining != 0)
+			{
+				printk(KERN_NOTICE "%lu GPU memory mappings were still in use on unload\n", remaining);
+			}
+
+			
+
+			remaining = clear_map_list(&host_list);
+			if (remaining != 0)
+			{
+				printk(KERN_NOTICE "%lu host memory mappings were still in use on unload\n", remaining);
+			}
+
             mutex_lock(&snvm_control_lock);
             if(!snvm_registered)
             {
@@ -4214,13 +4239,14 @@ static void __exit nvme_exit(void)
         printk(KERN_NOTICE "%lu GPU memory mappings were still in use on unload\n", remaining);
     }
 
-	nvfs_nvidia_p2p_exit();
+	
 
     remaining = clear_map_list(&host_list);
     if (remaining != 0)
     {
         printk(KERN_NOTICE "%lu host memory mappings were still in use on unload\n", remaining);
     }
+	nvfs_nvidia_p2p_exit();
 	ret = clear_ctrl_list(&ctrl_list);
 	if(ret!=curr_ctrls)
 		printk("release ctrl error!, cur is %d, release %d",curr_ctrls,ret);

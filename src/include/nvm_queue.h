@@ -36,8 +36,6 @@ int nvm_queue_clear(nvm_queue_t* q,            // NVM queue descriptor
                     volatile void* vaddr,      // Virtual address to queue memory
                     uint64_t ioaddr);          // Bus address to queue memory (as seen from the controller)
 
-
-
 /*
  * Reset queue descriptor and set all members to initial state.
  *

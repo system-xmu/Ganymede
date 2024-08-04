@@ -29,6 +29,7 @@ struct map
     int                 ioq_idx;
     va_range_free_t     release;// Callback for releasing address range
     va_unmap_t          unmap;// Callback for unmapping address range
+    unsigned int        on_host;
 };
 
 
@@ -97,6 +98,7 @@ static int create_map(struct map** md, const nvm_ctrl_t* ctrl, struct va_range* 
     m->unmap = NULL;
     m->is_cq = -1;
     m->ioq_idx = -1;
+    m->on_host = ctrl->on_host;
     *md = m;
     return 0;
 }
@@ -172,8 +174,17 @@ static int dma_map(struct container* container)
         free(ioaddrs);
         return err;
     }
-    md->unmap = md->ctrl->ops.unmap_range;
-
+    if(md->is_cq>=0 && md->ioq_idx >= 0)
+    {
+        if(md->on_host)
+            md->unmap = md->ctrl->ops.unmap_range;
+        else
+            md->unmap = md->ctrl->ops.unmap_queue_range;
+    } else
+    {
+        md->unmap = md->ctrl->ops.unmap_range;
+    }
+        
     populate_handle(&container->handle, md->va, &md->ctrl->handle, ioaddrs);
     free(ioaddrs);
 

@@ -58,7 +58,7 @@ case "$1" in
         load_modified_modules_pci_only $path
     ;;  
     *)  
-        echo "Invalid parameter. Usage: $0 <origin|share>"  
+        echo "Invalid parameter. Usage: $0 <origin|share|reload|reloadp>"  
         exit 1  
         ;;  
 esac

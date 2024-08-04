@@ -219,6 +219,43 @@ inline DmaPtr createDma(const nvm_ctrl_t* ctrl, size_t size, int cudaDevice)
     });
 }
 
+inline DmaPtr create_queue_Dma(const nvm_ctrl_t* ctrl, size_t size, int cudaDevice, unsigned int is_cq, uint16_t qno)
+{
+    if (cudaDevice < 0)
+    {
+        return createDma(ctrl, size);
+    }
+
+    nvm_dma_t* dma = nullptr;
+    void* bufferPtr = nullptr;
+    void* devicePtr = nullptr;
+    void* origPtr = nullptr;
+
+    getDeviceMemory(cudaDevice, bufferPtr, devicePtr, size, origPtr);
+
+    //std::cout << "Got Device mem\n";
+    int status = nvm_dma_map_queue_device(&dma, ctrl, bufferPtr, size,is_cq,qno);
+    //std::cout << "Got dma_map_devce\n";
+    if (!nvm_ok(status))
+    {
+        //std::cout << "Got dma_map_devce failed\n";
+        //cudaFree(bufferPtr);
+        throw error(string("Failed to map device memory: ") + nvm_strerror(status));
+    }
+    cudaError_t err = cudaMemset(bufferPtr, 0, size);
+    if (err != cudaSuccess)
+    {
+        cudaFree(bufferPtr);
+        throw error(string("Failed to clear device memory: ") + cudaGetErrorString(err));
+    }
+    dma->vaddr = bufferPtr;
+
+    return DmaPtr(dma, [bufferPtr, origPtr](nvm_dma_t* dma) {
+        nvm_dma_unmap(dma);
+        cudaFree(origPtr);
+        //std::cout << "Deleting DMA\n";
+    });
+}
 
 
 inline BufferPtr createBuffer(size_t size)

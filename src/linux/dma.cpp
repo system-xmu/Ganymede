@@ -141,7 +141,7 @@ int nvm_dma_map_host(nvm_dma_t** handle, const nvm_ctrl_t* ctrl, void* vaddr, si
 
 
 
-int nvm_dma_map_device(nvm_dma_t** handle, const nvm_ctrl_t* ctrl, void* devptr, size_t size,int is_cq, int ioq_idx)
+int nvm_dma_map_device(nvm_dma_t** handle, const nvm_ctrl_t* ctrl, void* devptr, size_t size)
 {
     struct ioctl_mapping* md;
     *handle = NULL;
@@ -156,9 +156,7 @@ int nvm_dma_map_device(nvm_dma_t** handle, const nvm_ctrl_t* ctrl, void* devptr,
     {
         return err;
     }
-    
-    md->is_cq = is_cq;
-    md->ioq_idx = ioq_idx;
+
 
     err = _nvm_dma_init(handle, ctrl, &md->range, &release_mapping_descriptor);
     if (err != 0)
@@ -170,3 +168,31 @@ int nvm_dma_map_device(nvm_dma_t** handle, const nvm_ctrl_t* ctrl, void* devptr,
     return 0;
 }
 
+int nvm_dma_map_queue_device(nvm_dma_t** handle, const nvm_ctrl_t* ctrl, void* devptr, size_t size,unsigned int is_cq, uint16_t qno)
+{
+    struct ioctl_mapping* md;
+    *handle = NULL;
+
+    if (_nvm_ctrl_type(ctrl) != DEVICE_TYPE_IOCTL)
+    {
+        return EBADF;
+    }
+
+    int err = create_mapping_descriptor(&md, 1ULL << 16, MAP_TYPE_CUDA_QUEUE, devptr, size);
+    if (err != 0)
+    {
+        return err;
+    }
+
+    md->is_cq = is_cq;
+    md->ioq_idx = qno;
+
+    err = _nvm_dma_init(handle, ctrl, &md->range, &release_mapping_descriptor);
+    if (err != 0)
+    {
+        remove_mapping_descriptor(md);
+        return err;
+    }
+
+    return 0;
+}

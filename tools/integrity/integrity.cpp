@@ -223,7 +223,7 @@ static int request_queues(nvm_ctrl_t* ctrl, struct queue** queues)
     *queues = NULL;
     uint16_t i;
     int status;
-
+    ctrl->on_host = 1;
     status = ioctl_set_qnum(ctrl, ctrl->cq_num+ctrl->sq_num);
     if (status != 0)
     {
@@ -340,7 +340,7 @@ int main(int argc, char** argv)
     status =  ioctl_reg_nvme(ctrl,1);
     if (status != 0)
     {
-        goto out;
+        goto unreg;
     }
 
     disk.page_size = ctrl->page_size;
@@ -373,28 +373,25 @@ int main(int argc, char** argv)
     }  
 
     sleep(5);
-    status =  ioctl_reg_nvme(ctrl,0);
-    if (status != 0)
-    {
-        goto out;
-    }
-    printf("Using %u submission queues:\n", ctrl->cq_num+ctrl->sq_num);
-    
 
-   
     
     // else
     // {
     //     status = disk_write(&disk, &buffer, queues, ioq_num, fp, file_size);
     // }
-    goto out;
 
-unreg:
+
+
     sleep(5);
+    
+
+    
+unreg:
     ioctl_reg_nvme(ctrl,0);
-out:
-    remove_queues(ctrl->queues, ctrl->cq_num+ctrl->sq_num);
+    remove_queues(ctrl->queues, ctrl->cq_num+ctrl->sq_num);   
+    
     //remove_buffer(&buffer);
+out:
     nvm_ctrl_free(ctrl);
     exit(status);
 }

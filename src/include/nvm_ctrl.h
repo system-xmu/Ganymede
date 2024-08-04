@@ -18,7 +18,7 @@
  */
 #define NVM_CTRL_MEM_MINSIZE                        0x2000
 
-#define NVM_CTRL_IOQ_MINNUM                        64
+
 
 #if defined (__unix__)
 /*
@@ -53,6 +53,7 @@ int ioctl_set_qnum(nvm_ctrl_t* ctrl, int ioq_num);
 int ioctl_use_userioq(nvm_ctrl_t* ctrl, int use);
 int ioctl_reg_nvme(nvm_ctrl_t* ctrl, int reg);
 int init_userioq(nvm_ctrl_t* ctrl, struct disk* d);
+
 /*
  * Release controller handle.
  */

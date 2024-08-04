@@ -9,6 +9,7 @@
 #include <simt/atomic>
 
 
+
 int nvm_queue_clear(nvm_queue_t* queue, const nvm_ctrl_t* ctrl, bool cq, uint16_t no, uint32_t qs, 
         bool local, volatile void* vaddr, uint64_t ioaddr)
 {

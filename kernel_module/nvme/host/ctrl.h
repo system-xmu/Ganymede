@@ -26,7 +26,7 @@ struct ctrl
     unsigned int        on_host;     /*1 on host, 0 on device*/
     unsigned int        ioq_num;    /*number of user defined nvme io queues*/
     unsigned int        cq_num;    /*number of user defined nvme io queues*/
-    unsigned int        map_num;    /*number of user registered dma register*/
+    unsigned int        ioq_map_num;    /*number of user registered dma register*/
     unsigned int        use_sreg;   /*flag to indicated the map num has statifed nvme regiester requirements, when map_num==ioq_num, this flag is 1.need set by user*/
 };
 

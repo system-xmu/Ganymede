@@ -15,6 +15,15 @@
 
 
 
+/*
+ * Device descriptor
+ */
+struct device
+{
+    int fd_control; /* ioctl file descriptor for snvme_control*/
+    int fd_dev; /* ioctl file descriptor for snvme*/
+    
+};
 
 
 
@@ -271,8 +280,9 @@ typedef struct
     uint32_t                cq_num;         // Num of cq queues
     uint32_t                sq_num;         // Num of sq queues, the cq_idx is  sq_num/cq_num
     uint32_t                qs;             // queue size, number of entries in a queue
-    uint32_t    nr_user_q;
-    uint32_t   start_cq_idx;    
+    uint32_t                nr_user_q;
+    uint32_t                start_cq_idx;    
+    uint32_t                on_host;        // 1 indicate qmem created on cpu, otherwise on GPU
     struct queue*           queues;   
   
 } nvm_ctrl_t;

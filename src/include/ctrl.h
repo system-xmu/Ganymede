@@ -32,24 +32,25 @@
 
 #include "queue.h"
 
-
 #define MAX_QUEUES 1024
-
+#define NVM_CTRL_IOQ_MINNUM    64
 
 struct Controller
 {
     simt::atomic<uint64_t, simt::thread_scope_device> access_counter;
     nvm_ctrl_t*             ctrl;
-    nvm_aq_ref              aq_ref;
-    DmaPtr                  aq_mem;
     struct nvm_ctrl_info    info;
     struct nvm_ns_info      ns;
+    struct disk             disk;
     uint16_t                n_sqs;
     uint16_t                n_cqs;
     uint16_t                n_qps;
+    uint16_t                n_user_qps;
+
     uint32_t                deviceId;
     QueuePair**             h_qps;
     QueuePair*              d_qps;
+
 
     simt::atomic<uint64_t, simt::thread_scope_device> queue_counter;
 
@@ -61,13 +62,9 @@ struct Controller
     void* d_ctrl_ptr;
     BufferPtr d_ctrl_buff;
 
-    Controller(const char* path, uint32_t nvmNamespace, uint32_t cudaDevice, uint64_t queueDepth, uint64_t numQueues);
+    // Controller(const char* path, uint32_t nvmNamespace, uint32_t cudaDevice, uint64_t queueDepth, uint64_t numQueues);
+    Controller(const char* snvme_control_path, const char* snvme_path, uint32_t ns_id, uint32_t cudaDevice, uint64_t queueDepth, uint64_t numQueues);
 
-    void reserveQueues();
-
-    void reserveQueues(uint16_t numSubmissionQueues);
-
-    void reserveQueues(uint16_t numSubmissionQueues, uint16_t numCompletionQueues);
 
     void print_reset_stats(void);
 
@@ -88,43 +85,12 @@ inline void Controller::print_reset_stats(void) {
     cuda_err_chk(cudaMemset(d_ctrl_ptr, 0, sizeof(simt::atomic<uint64_t, simt::thread_scope_device>)));
 }
 
-static void initializeController(struct Controller& ctrl, uint32_t ns_id)
-{
-    // Create admin queue reference
-    int status = nvm_aq_create(&ctrl.aq_ref, ctrl.ctrl, ctrl.aq_mem.get());
-    if (!nvm_ok(status))
-    {
-        throw error(string("Failed to reset controller: ") + nvm_strerror(status));
-    }
-
-    // Identify controller
-    status = nvm_admin_ctrl_info(ctrl.aq_ref, &ctrl.info, NVM_DMA_OFFSET(ctrl.aq_mem, 2), ctrl.aq_mem->ioaddrs[2]);
-    if (!nvm_ok(status))
-    {
-        throw error(nvm_strerror(status));
-    }
-
-    // Identify namespace
-    status = nvm_admin_ns_info(ctrl.aq_ref, &ctrl.ns, ns_id, NVM_DMA_OFFSET(ctrl.aq_mem, 2), ctrl.aq_mem->ioaddrs[2]);
-    if (!nvm_ok(status))
-    {
-        throw error(nvm_strerror(status));
-    }
-
-    // Get number of queues
-    status = nvm_admin_get_num_queues(ctrl.aq_ref, &ctrl.n_cqs, &ctrl.n_sqs);
-    if (!nvm_ok(status))
-    {
-        throw error(nvm_strerror(status));
-    }
-}
 
 
 
 
 inline Controller::Controller(const char* snvme_control_path, const char* snvme_path, uint32_t ns_id, uint32_t cudaDevice, uint64_t queueDepth, uint64_t numQueues)
     : ctrl(nullptr)
-    , aq_ref(nullptr)
     , deviceId(cudaDevice)
 {
     int status;
@@ -138,12 +104,18 @@ inline Controller::Controller(const char* snvme_control_path, const char* snvme_
     {
         throw error(string("Failed to open descriptor: ") + strerror(errno));
     }
+    /************Step 1 mmap pci bar 0 and prepare user defined queue***************/
     // Get controller reference
     status = nvm_ctrl_init(&ctrl, snvme_c_fd,snvme_d_fd);
     if (!nvm_ok(status))
     {
         throw error(string("Failed to get controller reference: ") + nvm_strerror(status));
     }
+
+    close(snvme_c_fd);
+    close(snvme_d_fd);
+
+    ctrl->on_host = 0;
 
     // initializeController(*this, ns_id);
     cudaError_t err = cudaHostRegister((void*) ctrl->mm_ptr, NVM_CTRL_MEM_MINSIZE, cudaHostRegisterIoMemory); //UVM
@@ -158,12 +130,15 @@ inline Controller::Controller(const char* snvme_control_path, const char* snvme_
    
     // n_qps = std::min(n_sqs, n_cqs);
     // n_qps = std::min(n_qps, (uint16_t)numQueues);
-
-    n_qps = std::min(NVM_CTRL_IOQ_MINNUM, (uint16_t)numQueues);
+    uint16_t max_queue = 64;
+    n_qps = std::min(max_queue, (uint16_t)numQueues);
     n_sqs = n_qps;
-    n_qps = n_qps;
+    n_cqs = n_qps;
     printf("SQs: %d\tCQs: %d\tn_qps: %d\n", n_sqs, n_cqs, n_qps);
+    ctrl->cq_num = n_cqs;
+    ctrl->sq_num = n_cqs;
 
+    // set the user defined io queues num, and located on device
     status = ioctl_set_qnum(ctrl, n_sqs+n_qps);
     if (status!=0)
     {
@@ -175,14 +150,41 @@ inline Controller::Controller(const char* snvme_control_path, const char* snvme_
 
     for (size_t i = 0; i < n_qps; i++) {
         //printf("started creating qp\n");
-        h_qps[i] = new QueuePair(ctrl, cudaDevice, ns, info, i+1, queueDepth);
+        h_qps[i] = new QueuePair(ctrl, cudaDevice, ns, info, i, queueDepth);
         //printf("finished creating qp\n");
-        cuda_err_chk(cudaMemcpy(d_qps+i, h_qps[i], sizeof(QueuePair), cudaMemcpyHostToDevice));
+        // cuda_err_chk(cudaMemcpy(d_qps+i, h_qps[i], sizeof(QueuePair), cudaMemcpyHostToDevice));
     }
     //printf("finished creating all qps\n");
 
 
-    close(fd);
+    
+    /************Step 2 Reg the SNVMe using prepared the user Queue***************/
+    status =  ioctl_use_userioq(ctrl,1);
+    if (status != 0)
+    {
+        throw error(string("Failed to set ioctl_use_userioq : ") + nvm_strerror(status));
+    }
+
+    status =  ioctl_reg_nvme(ctrl,1);
+    if (status != 0)
+    {
+        throw error(string("Failed to set ioctl reg snvme : ") + nvm_strerror(status));
+    }
+    sleep(10);
+     /************Step 3 init the user defined queue Queue***************/
+    
+    //user queue init
+    disk.ns_id = ns_id; // default each disk allocate one namespace
+    status =  init_userioq_device(ctrl,h_qps,&disk);
+    if (status != 0)
+    {
+        throw error(string("Failed to set ioctl reg snvme : ") + nvm_strerror(status));
+    }
+
+    for (size_t i = 0; i < ctrl->nr_user_q; i++) {
+        cuda_err_chk(cudaMemcpy(d_qps+i, h_qps[i], sizeof(QueuePair), cudaMemcpyHostToDevice));
+    }
+
 
     d_ctrl_buff = createBuffer(sizeof(Controller), cudaDevice);
     d_ctrl_ptr = d_ctrl_buff.get();
@@ -193,44 +195,18 @@ inline Controller::Controller(const char* snvme_control_path, const char* snvme_
 
 inline Controller::~Controller()
 {
+    ioctl_reg_nvme(ctrl,0);
     cudaFree(d_qps);
     for (size_t i = 0; i < n_qps; i++) {
         delete h_qps[i];
     }
     free(h_qps);
-    nvm_aq_destroy(aq_ref);
     nvm_ctrl_free(ctrl);
 
 }
 
 
 
-inline void Controller::reserveQueues()
-{
-    reserveQueues(n_sqs, n_cqs);
-}
-
-
-
-inline void Controller::reserveQueues(uint16_t numSubmissionQueues)
-{
-    reserveQueues(numSubmissionQueues, n_cqs);
-}
-
-
-
-inline void Controller::reserveQueues(uint16_t numSubs, uint16_t numCpls)
-{
-    int status = nvm_admin_request_num_queues(aq_ref, &numSubs, &numCpls);
-    if (!nvm_ok(status))
-    {
-        throw error(string("Failed to reserve queues: ") + nvm_strerror(status));
-    }
-
-    n_sqs = numSubs;
-    n_cqs = numCpls;
-
-}
 
 
 

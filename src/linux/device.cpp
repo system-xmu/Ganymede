@@ -23,15 +23,6 @@
 #include <nvm_queue.h>
 
 
-/*
- * Device descriptor
- */
-struct device
-{
-    int fd_control; /* ioctl file descriptor for snvme_control*/
-    int fd_dev; /* ioctl file descriptor for snvme*/
-    
-};
 
 
 
@@ -64,6 +55,9 @@ static int ioctl_map(const struct device* dev, const struct va_range* va, uint64
             break;
         case MAP_TYPE_CUDA:
             type = NVM_MAP_DEVICE_MEMORY;
+            break;
+        case MAP_TYPE_CUDA_QUEUE:
+            type = NVM_MAP_DEVICE_QUEUE_MEMORY;
             break;
         default:
             dprintf("Unknown memory type in map for device");
@@ -110,6 +104,7 @@ int ioctl_set_qnum(nvm_ctrl_t* ctrl, int ioq_num)
 
     struct nvm_ioctl_map request = {
         .ioq_idx = ioq_num,
+        .is_cq   = ctrl->on_host,
     };
     int err = ioctl(container->device->fd_dev, NVM_SET_IOQ_NUM, &request);
     if (err < 0)
@@ -144,73 +139,11 @@ int ioctl_use_userioq(nvm_ctrl_t* ctrl, int use)
     return 0;
 }
 
-int ioctl_get_dev_info(nvm_ctrl_t* ctrl, struct disk* d)
-{
-    int err;
-    struct controller* container;
-    container  = ctrl_to_controller(ctrl);
-    if(container==NULL)
-    {
-        printf("container error!\n");
-        return -1;
-    }
-    struct nvm_ioctl_dev dev_info;
-    err = ioctl(container->device->fd_dev, NVM_GET_DEV_INFO, &dev_info);
-    if (err < 0)
-    {
-        printf("ioctl_get_dev_info err is %d\n",err);
-        return errno;
-    }
-    ctrl->start_cq_idx = dev_info.start_cq_idx;
-    ctrl->dstrd = dev_info.dstrd;
-    ctrl->nr_user_q = dev_info.nr_user_q;
 
 
-    d->max_data_size = dev_info.max_data_size *512; //get the ctrl->max_hw_sectors from kernel    
-    d->block_size = dev_info.block_size; // ns->lba_shift
-    return 0;
-}
 
-int init_userioq(nvm_ctrl_t* ctrl, struct disk* d)
-{
-    int err,i,count;
-    err = ioctl_get_dev_info(ctrl,d);
-    if(err)
-    {
-        return -1;
-    }
-    printf("idx start is %u, dbstrd is %u, nr user q is %u\n",ctrl->start_cq_idx,ctrl->dstrd,ctrl->nr_user_q);
-    if(ctrl->nr_user_q > ctrl->cq_num)
-    {
-        return -1;
-    }
-    for(i = 0; i < ctrl->nr_user_q; i++)
-    {
-        
-        // printf("nvm_queue_clear, i is %d\n",i);
-        // clear cq
-        nvm_queue_clear(&ctrl->queues[i].queue,ctrl,true,i+ctrl->start_cq_idx,ctrl->qs,0,ctrl->queues[i].qmem.buffer,ctrl->queues[i].qmem.dma->ioaddrs[0]);
-    }
-    count = 0;
-    for(i = ctrl->cq_num; i < ctrl->cq_num + ctrl->nr_user_q; i++)
-    {
-        
-        // clear sq
-        nvm_queue_clear(&ctrl->queues[i].queue,ctrl,false,count+ctrl->start_cq_idx,ctrl->qs,0,ctrl->queues[i].qmem.buffer,ctrl->queues[i].qmem.dma->ioaddrs[0]);
-        count++;
-    }
-        
 
-    
-    // status = nvm_queue_clear(q, ctrl, is_cq, qno, qs,
-    //         q->qmem.dma->local, NVM_DMA_OFFSET(q->qmem.dma, 0), q->qmem.dma->ioaddrs[0]);
-    // if (err != 0)
-    // {
-    //     return status;
-    // }
 
-    return 0;
-}
 
 int ioctl_reg_nvme(nvm_ctrl_t* ctrl, int reg)
 {
@@ -229,7 +162,7 @@ int ioctl_reg_nvme(nvm_ctrl_t* ctrl, int reg)
         err = ioctl(container->device->fd_control, SNVM_UNREGISTER_DRIVER, NULL);
     if (err < 0)
     {
-        printf("ioctl_req_nvme err is %d\n",err);
+        printf("ioctl_req_nvme err is %d , reg is %d\n",err,reg);
         return errno;
     }
     
@@ -244,9 +177,29 @@ static void ioctl_unmap(const struct device* dev, const struct va_range* va)
 {
     const struct ioctl_mapping* m = _nvm_container_of(va, struct ioctl_mapping, range);
     uint64_t addr = (uintptr_t) m->buffer;
+    unsigned int unmap_type;
+    if(m->type == MAP_TYPE_HOST)
+        unmap_type = NVM_UNMAP_HOST_MEMORY;
+    else if(m->type == MAP_TYPE_CUDA)
+        unmap_type = NVM_UNMAP_DEVICE_MEMORY;
+    else
+    {
+        printf("Page unmapping kernel type error,type is %lu\n",m->type);
+        return;
+    }
+    int err = ioctl(dev->fd_dev, unmap_type, &addr);
+    if (err < 0)
+    {
+        dprintf("Page unmapping kernel request failed: %s\n", strerror(errno));
+    }
+}
+static void ioctl_queue_unmap(const struct device* dev, const struct va_range* va)
+{
+    const struct ioctl_mapping* m = _nvm_container_of(va, struct ioctl_mapping, range);
+    uint64_t addr = (uintptr_t) m->buffer;
     
 
-    int err = ioctl(dev->fd_dev, NVM_UNMAP_MEMORY, &addr);
+    int err = ioctl(dev->fd_dev, NVM_UNMAP_DEVICE_QUEUE_MEMORY, &addr);
     if (err < 0)
     {
         dprintf("Page unmapping kernel request failed: %s\n", strerror(errno));
@@ -254,18 +207,21 @@ static void ioctl_unmap(const struct device* dev, const struct va_range* va)
 }
 
 
-
 int nvm_ctrl_init(nvm_ctrl_t** ctrl, int snvme_c_fd, int snvme_d_fd)
 {
     int err;
     struct device* dev;
+
+
     const struct device_ops ops = {
         .release_device = &release_device,
         .map_range = &ioctl_map,
         .unmap_range = &ioctl_unmap,
+        .unmap_queue_range = &ioctl_queue_unmap,
     };
 
     *ctrl = NULL;
+
     dev = (struct device*) malloc(sizeof(struct device));
     if (dev == NULL)
     {
@@ -320,13 +276,13 @@ int nvm_ctrl_init(nvm_ctrl_t** ctrl, int snvme_c_fd, int snvme_d_fd)
         return err;
     }    
     printf("mmap is %lx\n",mm_ptr);
+
     err = _nvm_ctrl_init(ctrl, dev, &ops, DEVICE_TYPE_IOCTL,mm_ptr,NVM_CTRL_MEM_MINSIZE);
     if (err != 0)
     {
         release_device(dev);
         return err;
     }
-
     return 0;
 }
 
