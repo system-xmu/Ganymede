@@ -29,7 +29,7 @@
 #include <cstdlib>
 #include <algorithm>
 #include <simt/atomic>
-
+#include "../file.h"
 #include "queue.h"
 
 #define MAX_QUEUES 1024
@@ -57,13 +57,14 @@ struct Controller
     uint32_t page_size;
     uint32_t blk_size;
     uint32_t blk_size_log;
-
+    char* dev_path;
+    char* dev_mount_path;
 
     void* d_ctrl_ptr;
     BufferPtr d_ctrl_buff;
 
     // Controller(const char* path, uint32_t nvmNamespace, uint32_t cudaDevice, uint64_t queueDepth, uint64_t numQueues);
-    Controller(const char* snvme_control_path, const char* snvme_path, uint32_t ns_id, uint32_t cudaDevice, uint64_t queueDepth, uint64_t numQueues);
+    Controller::Controller(const char* snvme_control_path, const char* snvme_path, char* nvme_dev_path,char* mount_path, uint32_t ns_id, uint32_t cudaDevice, uint64_t queueDepth, uint64_t numQueues);
 
 
     void print_reset_stats(void);
@@ -89,7 +90,7 @@ inline void Controller::print_reset_stats(void) {
 
 
 
-inline Controller::Controller(const char* snvme_control_path, const char* snvme_path, uint32_t ns_id, uint32_t cudaDevice, uint64_t queueDepth, uint64_t numQueues)
+inline Controller::Controller(const char* snvme_control_path, const char* snvme_path, char* nvme_dev_path,char* mount_path, uint32_t ns_id, uint32_t cudaDevice, uint64_t queueDepth, uint64_t numQueues)
     : ctrl(nullptr)
     , deviceId(cudaDevice)
 {
@@ -150,8 +151,8 @@ inline Controller::Controller(const char* snvme_control_path, const char* snvme_
 
     for (size_t i = 0; i < n_qps; i++) {
         //printf("started creating qp\n");
-        h_qps[i] = new QueuePair(ctrl, cudaDevice, ns, info, i, queueDepth);
-        //printf("finished creating qp\n");
+        h_qps[i] = new QueuePair(ctrl, cudaDevice,i, queueDepth);
+        
         // cuda_err_chk(cudaMemcpy(d_qps+i, h_qps[i], sizeof(QueuePair), cudaMemcpyHostToDevice));
     }
     //printf("finished creating all qps\n");
@@ -170,7 +171,7 @@ inline Controller::Controller(const char* snvme_control_path, const char* snvme_
     {
         throw error(string("Failed to set ioctl reg snvme : ") + nvm_strerror(status));
     }
-    sleep(10);
+    sleep(5);
      /************Step 3 init the user defined queue Queue***************/
     
     //user queue init
@@ -181,26 +182,56 @@ inline Controller::Controller(const char* snvme_control_path, const char* snvme_
         throw error(string("Failed to set ioctl reg snvme : ") + nvm_strerror(status));
     }
 
-    for (size_t i = 0; i < ctrl->nr_user_q; i++) {
-        cuda_err_chk(cudaMemcpy(d_qps+i, h_qps[i], sizeof(QueuePair), cudaMemcpyHostToDevice));
-    }
+    for (size_t i = 0; i < n_qps; i++) {
+        
+        void* devicePtr = nullptr;
+        cudaError_t err = cudaHostGetDevicePointer(&devicePtr, (void*) h_qps[i]->cq.db, 0);
+        if (err != cudaSuccess)
+        {
+            throw error(string("Failed to get device pointer") + cudaGetErrorString(err));
+        }
+        h_qps[i]->cq.db = (volatile uint32_t*) devicePtr;
 
+        // Get a valid device pointer for SQ doorbell
+        err = cudaHostGetDevicePointer(&devicePtr, (void*) h_qps[i]->sq.db, 0);
+        if (err != cudaSuccess)
+        {
+            throw error(string("Failed to get device pointer") + cudaGetErrorString(err));
+        }
+        h_qps[i]->sq.db = (volatile uint32_t*) devicePtr;
+        
+        cuda_err_chk(cudaMemcpy(d_qps+i, h_qps[i], sizeof(QueuePair), cudaMemcpyHostToDevice));
+        // printf("finished creating qp, addr is %lx , cuda addr is %lx\n",h_qps[i],d_qps+i);
+    }
+    
+    page_size = ctrl->page_size;
+    blk_size = disk.block_size;
+    blk_size_log = std::log2(blk_size);
+
+    dev_path = nvme_dev_path;
+    dev_mount_path = mount_path;
 
     d_ctrl_buff = createBuffer(sizeof(Controller), cudaDevice);
     d_ctrl_ptr = d_ctrl_buff.get();
     cuda_err_chk(cudaMemcpy(d_ctrl_ptr, this, sizeof(Controller), cudaMemcpyHostToDevice));
+
+    Host_file_system_int(dev_path,dev_mount_path);
 }
 
 
 
 inline Controller::~Controller()
 {
-    ioctl_reg_nvme(ctrl,0);
+    
     cudaFree(d_qps);
     for (size_t i = 0; i < n_qps; i++) {
         delete h_qps[i];
     }
+    
     free(h_qps);
+    int ret = Host_file_system_exit(dev_path);
+    if(ret < 0)
+        exit(-1);
     nvm_ctrl_free(ctrl);
 
 }

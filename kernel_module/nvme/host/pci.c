@@ -1252,7 +1252,7 @@ static int adapter_alloc_cq_user(struct nvme_dev *dev, struct map* q_map,int qid
 	c.create_cq.qsize = cpu_to_le16(dev->q_depth - 1);
 	c.create_cq.cq_flags = cpu_to_le16(flags);
 	c.create_cq.irq_vector = 0;
-	printk("adapter_alloc_cq_user qid is %u, addr is %lx,q depth is %d\n",qid,q_map->addrs[0],dev->q_depth - 1);
+	// printk("adapter_alloc_cq_user qid is %u, addr is %lx,q depth is %d\n",qid,q_map->addrs[0],dev->q_depth - 1);
 	return nvme_submit_sync_cmd(dev->ctrl.admin_q, &c, NULL, 0);
 }
 
@@ -1278,7 +1278,7 @@ static int adapter_alloc_sq_user(struct nvme_dev *dev, struct map* q_map,int qid
 	c.create_sq.qsize = cpu_to_le16(dev->q_depth - 1);
 	c.create_sq.sq_flags = cpu_to_le16(flags);
 	c.create_sq.cqid = cpu_to_le16(qid);
-	printk("adapter_alloc_sq_user qid is %u, addr is %lx,q depth is %d\n",qid,q_map->addrs[0],dev->q_depth - 1);
+	// printk("adapter_alloc_sq_user qid is %u, addr is %lx,q depth is %d\n",qid,q_map->addrs[0],dev->q_depth - 1);
 	return nvme_submit_sync_cmd(dev->ctrl.admin_q, &c, NULL, 0);
 }
 
@@ -1653,7 +1653,7 @@ static void nvme_init_queue(struct nvme_queue *nvmeq, u16 qid)
 	nvmeq->cq_head = 0;
 	nvmeq->cq_phase = 1;
 	nvmeq->q_db = &dev->dbs[qid * 2 * dev->db_stride];
-	printk("q id is %u, ab addr is %lx",qid,nvmeq->q_db);
+	// printk("q id is %u, ab addr is %lx",qid,nvmeq->q_db);
 	memset((void *)nvmeq->cqes, 0, CQ_SIZE(nvmeq));
 	nvme_dbbuf_init(dev, nvmeq, qid);
 	dev->online_queues++;
@@ -3784,7 +3784,7 @@ static long snvm_dev_map_ioctl(struct file* file, unsigned int cmd, unsigned lon
                 break;
             }
             ret = -EINVAL;
-            printk(KERN_WARNING "Mapping for address %llx not found\n", addr);
+            printk(KERN_WARNING "NVM_UNMAP_HOST_MEMORY Mapping for address %llx not found\n", addr);
             break;
 		}
         case NVM_UNMAP_DEVICE_MEMORY:
@@ -3802,7 +3802,7 @@ static long snvm_dev_map_ioctl(struct file* file, unsigned int cmd, unsigned lon
                 break;
             }
             ret = -EINVAL;
-            printk(KERN_WARNING "Mapping for address %llx not found\n", addr);
+            printk(KERN_WARNING "NVM_UNMAP_DEVICE_MEMORY Mapping for address %llx not found\n", addr);
             break;
 		}
         case NVM_UNMAP_DEVICE_QUEUE_MEMORY:
@@ -3828,7 +3828,7 @@ static long snvm_dev_map_ioctl(struct file* file, unsigned int cmd, unsigned lon
                 break;
             }
             ret = -EINVAL;
-            printk(KERN_WARNING "Mapping for address %llx not found\n", addr);
+            printk(KERN_WARNING "NVM_UNMAP_DEVICE_QUEUE_MEMORY Mapping for address %llx not found\n", addr);
             break;
 		}
 		case NVM_SET_IOQ_NUM:
@@ -3897,6 +3897,13 @@ static long snvm_dev_map_ioctl(struct file* file, unsigned int cmd, unsigned lon
 			}
 			
 			ret = 0;
+			break;
+		}
+		case NVM_CLEAR_IOQ_NUM:
+		{
+			ctrl->ioq_map_num = 0;
+			ctrl->cq_num      = 0;
+			printk("NVM_CLEAR_IOQ_NUM \n");
 			break;
 		}
         default:
@@ -4057,7 +4064,7 @@ static long snvm_ioctl(struct file *file, unsigned int cmd,
 	int ret;
 	void __user *argp = (void __user *)arg;
 	
-	struct ctrl* ctrl = NULL;
+
 	switch (cmd)
 	{
         case SNVM_REGISTER_DRIVER:

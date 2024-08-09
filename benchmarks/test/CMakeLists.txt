@@ -8,6 +8,6 @@ find_package (CUDA 8.0 REQUIRED)
 
 
 
-make_benchmark (block-benchmark-module test "main.cu;")
+make_benchmark (bench_test test "main.cu;")
 
 

@@ -76,7 +76,7 @@ static void remove_handle(struct controller* handle)
         status = _nvm_mutex_free(&handle->lock);
     }
     while (status == EBUSY);
-
+    
     free(handle);
 }
 
@@ -192,6 +192,8 @@ void nvm_ctrl_free(nvm_ctrl_t* ctrl)
 {
     if (ctrl != NULL)
     {
+        ioctl_clear_qnum(ctrl);
+        ioctl_reg_nvme(ctrl,0);
         struct controller* container = _nvm_container_of(ctrl, struct controller, handle);
         _nvm_ctrl_put(container);
     }

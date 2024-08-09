@@ -12,7 +12,7 @@
 #include "dma.h"
 #include "mutex.h"
 #include "dprintf.h"
-
+#include "../linux/map.h"
 
 typedef void (*va_unmap_t)(const struct device*, const struct va_range*);
 
@@ -174,12 +174,19 @@ static int dma_map(struct container* container)
         free(ioaddrs);
         return err;
     }
+    // printf("dma_map is_cq is %d, idx is %d, on host is %u\n",md->is_cq,md->ioq_idx,md->on_host);
     if(md->is_cq>=0 && md->ioq_idx >= 0)
     {
         if(md->on_host)
+        {
+            
             md->unmap = md->ctrl->ops.unmap_range;
+        }
         else
+        {
             md->unmap = md->ctrl->ops.unmap_queue_range;
+        }
+            
     } else
     {
         md->unmap = md->ctrl->ops.unmap_range;
@@ -312,7 +319,7 @@ int _nvm_dma_init(nvm_dma_t** handle, const nvm_ctrl_t* ctrl, struct va_range* v
     *handle = NULL;
     struct map* map;
     struct container* container;
-
+    struct ioctl_mapping* m = _nvm_container_of(va, struct ioctl_mapping, range);
     if (release == NULL)
     {
         return EINVAL;
@@ -334,6 +341,8 @@ int _nvm_dma_init(nvm_dma_t** handle, const nvm_ctrl_t* ctrl, struct va_range* v
     }
 
     // Map controller for device and populate handle
+    map->is_cq = m->is_cq;
+    map->ioq_idx = m->ioq_idx;
     err = dma_map(container);
     if (err != 0)
     {

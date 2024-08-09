@@ -141,7 +141,7 @@ void ctrl_chrdev_remove(struct ctrl* ctrl)
 {
     if (ctrl->chrdev != NULL)
     {
-        pci_dev_put(ctrl->pdev);
+        // pci_dev_put(ctrl->pdev);
         printk("ctrl_chrdev_remove pci_dev_put\n");
         device_destroy(ctrl->cls, ctrl->rdev);
         cdev_del(&ctrl->cdev);

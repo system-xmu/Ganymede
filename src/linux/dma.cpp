@@ -55,6 +55,7 @@ static int create_mapping_descriptor(struct ioctl_mapping** handle, size_t page_
     md->range.vaddr = (volatile void*) buffer;
     md->range.page_size = page_size;
     md->range.n_pages = n_pages;
+    // printf("create_mapping_descriptor page size is %u, page num is %u,size is %d\n",page_size,n_pages,size);
     md->is_cq = -1;
     md->ioq_idx = -1;
     *handle = md;
@@ -184,9 +185,9 @@ int nvm_dma_map_queue_device(nvm_dma_t** handle, const nvm_ctrl_t* ctrl, void* d
         return err;
     }
 
-    md->is_cq = is_cq;
-    md->ioq_idx = qno;
-
+    md->is_cq = (int)is_cq;
+    md->ioq_idx = (int)qno;
+    // printf("nvm_dma_map_queue_device cq is %d, idx is %d, cq is %u, qno is %u\n",md->is_cq,md->ioq_idx,is_cq,qno);
     err = _nvm_dma_init(handle, ctrl, &md->range, &release_mapping_descriptor);
     if (err != 0)
     {

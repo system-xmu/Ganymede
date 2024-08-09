@@ -233,7 +233,7 @@ inline DmaPtr create_queue_Dma(const nvm_ctrl_t* ctrl, size_t size, int cudaDevi
 
     getDeviceMemory(cudaDevice, bufferPtr, devicePtr, size, origPtr);
 
-    //std::cout << "Got Device mem\n";
+    // std::cout << "Got Device mem\n";
     int status = nvm_dma_map_queue_device(&dma, ctrl, bufferPtr, size,is_cq,qno);
     //std::cout << "Got dma_map_devce\n";
     if (!nvm_ok(status))

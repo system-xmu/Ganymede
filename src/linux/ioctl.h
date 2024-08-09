@@ -42,6 +42,7 @@ enum nvm_ioctl_type
     NVM_SET_IOQ_NUM            = _IOW(NVM_IOCTL_TYPE, 7, uint64_t),
     NVM_SET_SHARE_REG            = _IOW(NVM_IOCTL_TYPE, 8, uint64_t),
     NVM_GET_DEV_INFO             = _IOR(NVM_IOCTL_TYPE, 9, struct nvm_ioctl_dev),   
+    NVM_CLEAR_IOQ_NUM            = _IOW(NVM_IOCTL_TYPE, 10, uint64_t),
 };
 
 // snvm_ctrl_ioctl_type

@@ -76,7 +76,7 @@ static size_t rw_bytes(const struct disk* disk, struct queue_pair* qp, const nvm
     nvm_queue_t* sq;
     cq = &qp->cq->queue;
     sq = &qp->sq->queue;
-
+    
     while (page < chunk_pages)
     {
         num_pages = MIN(buffer->n_ioaddrs - page, num_pages);
@@ -91,8 +91,9 @@ static size_t rw_bytes(const struct disk* disk, struct queue_pair* qp, const nvm
 
         uint16_t prp_list = num_cmds % sq->qs;
         size_t num_blocks = NVM_PAGE_TO_BLOCK(disk->page_size, disk->block_size, num_pages);
+        printf("rw_bytes page_size is %u, block_size is %u,num_pages is %u\n",disk->page_size,disk->block_size,num_pages);
         size_t start_block = offset + NVM_PAGE_TO_BLOCK(disk->page_size, disk->block_size, page);
-
+        printf("rw_bytes start_block is %lx, num_blocks num is %u\n",start_block,num_blocks);
         nvm_cmd_header(cmd, NVM_DEFAULT_CID(sq), op, disk->ns_id);
         
         list = NVM_PRP_LIST(qp->sq->qmem.dma, NVM_SQ_PAGES(qp->sq->qmem.dma, sq->qs) + prp_list);
@@ -132,9 +133,9 @@ int read_and_dump(const struct disk* disk, struct queue_pair* qp, const nvm_dma_
     printf("read_and_dump sq_pages is %d, qs is %u\n",sq_pages,qp->sq->queue.qs);
 
     size_t num_cmds = 0;
-    uint64_t start_block = args->offset;
+    uint64_t start_block = args->offset ;
     size_t size_remaining = args->num_blocks * disk->block_size;
-
+    printf("start_block is %lx, size_remaining num is %u\n",start_block,size_remaining);
     while (size_remaining != 0)
     {
         fprintf(stderr, "Reading %zu bytes [%zu MB] (total=%zu)\n", 

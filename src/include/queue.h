@@ -52,6 +52,7 @@ struct QueuePair
     BufferPtr           cq_head_mark;
     //BufferPtr           cq_tail_mark;
     BufferPtr           cq_pos_locks;
+    BufferPtr             prp_list;
     //BufferPtr           cq_clean_cid;
 
 
@@ -66,6 +67,7 @@ struct QueuePair
         this->sq_tail_mark = createBuffer(this->sq.qs * sizeof(padded_struct), cudaDevice);
         this->sq_cid = createBuffer(65536 * sizeof(padded_struct), cudaDevice);
         this->sq.tickets = (padded_struct*) this->sq_tickets.get();
+
         //this->sq.head_mark = (padded_struct*) this->sq_head_mark.get();
         this->sq.tail_mark = (padded_struct*) this->sq_tail_mark.get();
         this->sq.cid = (padded_struct*) this->sq_cid.get();
@@ -91,7 +93,7 @@ struct QueuePair
 
 
 
-    inline QueuePair( const nvm_ctrl_t* ctrl, const uint32_t cudaDevice, const struct nvm_ns_info ns, const struct nvm_ctrl_info info, const uint16_t qp_id, const uint64_t queueDepth)
+    inline QueuePair( const nvm_ctrl_t* ctrl, const uint32_t cudaDevice, const uint16_t qp_id, const uint64_t queueDepth)
     {
         //this->this = (QueuePairThis*) malloc(sizeof(QueuePairThis));
 
@@ -111,7 +113,7 @@ struct QueuePair
         sq_size = std::min(queueDepth, sq_size);
         cq_size = std::min(queueDepth, cq_size);
  
-        printf("sq_size: %ld\tcq_size: %ld\n", sq_size, cq_size);
+        // printf("sq_size: %ld\tcq_size: %ld\n", sq_size, cq_size);
         bool sq_need_prp = false;//(!cqr) || (sq_size > MAX_SQ_ENTRIES_64K);
         bool cq_need_prp = false;// (!cqr) || (cq_size > MAX_CQ_ENTRIES_64K);
 
@@ -150,8 +152,10 @@ struct QueuePair
         // Get a valid device pointer for CQ doorbell
         sq.qs = sq_size;
         cq.qs = cq_size;
+        // printf("sq_size: %ld\tcq_size: %ld\n", sq.qs, cq.qs);
+         // std::cout << "in preparequeuepair: " << std::hex << this->sq.cid << std::endl;
         init_gpu_specific_struct(cudaDevice);
-        std::cout << "in preparequeuepair: " << std::hex << this->sq.cid << std::endl;
+        // std::cout << "in preparequeuepair: " << std::hex << this->sq.cid << std::endl;
         return;
 
 
@@ -212,54 +216,18 @@ int init_userioq_device(nvm_ctrl_t* ctrl,  QueuePair** qps,struct disk* d)
         qps[i]->block_size_log = std::log2(d->block_size);
         qps[i]->nvmNamespace = d->ns_id;
 
-        // printf("nvm_queue_clear, i is %d\n",i);
+
         // clear cq
         nvm_queue_clear(&qps[i]->cq,ctrl,true,i+ctrl->start_cq_idx,qps[i]->cq.qs,0,qps[i]->cq_mem.get()->vaddr,qps[i]->cq_mem.get()->ioaddrs[0]);
+    
+
         // clear sq
         nvm_queue_clear(&qps[i]->sq,ctrl,false,i+ctrl->start_cq_idx,qps[i]->sq.qs,1,qps[i]->sq_mem.get()->vaddr,qps[i]->sq_mem.get()->ioaddrs[0]);
+
     }
     return 0;
 }
 
-int init_userioq(nvm_ctrl_t* ctrl, struct disk* d)
-{
-    int err,i,count;
-    err = ioctl_get_dev_info(ctrl,d);
-    if(err)
-    {
-        return -1;
-    }
-    printf("idx start is %u, dbstrd is %u, nr user q is %u\n",ctrl->start_cq_idx,ctrl->dstrd,ctrl->nr_user_q);
-    if(ctrl->nr_user_q > ctrl->cq_num)
-    {
-        return -1;
-    }
-    for(i = 0; i < ctrl->nr_user_q; i++)
-    {
-        
-        // printf("nvm_queue_clear, i is %d\n",i);
-        // clear cq
-        nvm_queue_clear(&ctrl->queues[i].queue,ctrl,true,i+ctrl->start_cq_idx,ctrl->qs,0,ctrl->queues[i].qmem.buffer,ctrl->queues[i].qmem.dma->ioaddrs[0]);
-    }
-    count = 0;
-    for(i = ctrl->cq_num; i < ctrl->cq_num + ctrl->nr_user_q; i++)
-    {
-        
-        // clear sq
-        nvm_queue_clear(&ctrl->queues[i].queue,ctrl,false,count+ctrl->start_cq_idx,ctrl->qs,0,ctrl->queues[i].qmem.buffer,ctrl->queues[i].qmem.dma->ioaddrs[0]);
-        count++;
-    }
-        
 
-    
-    // status = nvm_queue_clear(q, ctrl, is_cq, qno, qs,
-    //         q->qmem.dma->local, NVM_DMA_OFFSET(q->qmem.dma, 0), q->qmem.dma->ioaddrs[0]);
-    // if (err != 0)
-    // {
-    //     return status;
-    // }
-
-    return 0;
-}
 
 #endif

@@ -17,13 +17,16 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-
+#include "get-offset/get-offset.h"
 #include "integrity.h"
 #include "read.h"
+#include "../../src/file.h"
+
 #define snvme_control_path "/dev/snvm_control"
 #define snvme_path "/dev/snvme2"
-
-
+#define nvme_dev_path "/dev/nvme1n1"
+#define snvme_helper_path "/dev/snvme_helper"
+#define nvme_mount_path "/home/qs/nvm_mount"
 struct arguments
 {
     uint64_t        device_id;
@@ -272,21 +275,29 @@ int main(int argc, char** argv)
 
     
     nvm_ctrl_t* ctrl;
-    int status;
+    int status,ret;
     nvm_dma_t* aq_dma;
     struct disk disk;
     struct queue* queues = NULL;
     struct buffer buffer;
     int snvme_c_fd,snvme_d_fd;
     // Parse command line arguments
-    unsigned char *buffer2;
+    int *buffer2;
     int ioq_num;
     int read_bytes;
     ioq_num = 1;
-    read_bytes = 1024*1024*1;
-    snvme_c_fd = open(snvme_control_path, O_RDWR | O_NONBLOCK);
+    read_bytes = 1024*64;
+    void *buf__host = NULL;
+    int *buf__host_int = NULL;
+    const char *filename = "/home/qs/nvm_mount/test.data";
+    int fd;
     struct queue_pair qp;
     struct file_info read_info;
+    int snvme_helper_fd;
+    struct nds_mapping mapping;
+    uint64_t nvme_ofst;
+    snvme_c_fd = open(snvme_control_path, O_RDWR | O_NONBLOCK);
+
     if (snvme_c_fd < 0)
     {
 
@@ -331,7 +342,7 @@ int main(int argc, char** argv)
     }
     /*Prepare Buffer for read/write, need convert vaddt to io addr*/
 
-    status = create_buffer(&buffer, ctrl, read_bytes,0,-1);
+    status = create_buffer(&buffer, ctrl, 4096,0,-1);
     if (status != 0)
     {
         goto out;
@@ -340,7 +351,7 @@ int main(int argc, char** argv)
     status =  ioctl_reg_nvme(ctrl,1);
     if (status != 0)
     {
-        goto unreg;
+        goto out;
     }
 
     disk.page_size = ctrl->page_size;
@@ -350,22 +361,54 @@ int main(int argc, char** argv)
     status =  init_userioq(ctrl,&disk);
     if (status != 0)
     {
-        goto unreg;
+        goto out;
     }
     printf("disk block size is %u, max data size is %u\n",disk.block_size,disk.max_data_size);
+    Host_file_system_int(nvme_dev_path,nvme_mount_path);
+ 
+    
+    fd = open(filename, O_RDWR| O_CREAT | O_DIRECT , S_IRUSR | S_IWUSR);
+    ret = posix_memalign(&buf__host, 4096, read_bytes);
+    assert(ret==0);
+    assert(0 == ftruncate(fd, read_bytes*16));
+    buf__host_int = (int*)buf__host;
+    for (size_t i = 0; i < read_bytes / sizeof(int); i++)
+        buf__host_int[i] = i;
+    snvme_helper_fd = open(snvme_helper_path, O_RDWR);
+    if (snvme_helper_fd < 0) {
+        perror("Failed to open snvme_helper_fd");
+        assert(0);
+    }
+    assert(read_bytes == pwrite(fd, buf__host_int, read_bytes,read_bytes));
+    fsync(fd);   
+
+    mapping.file_fd = fd;
+    mapping.offset = read_bytes;
+    mapping.len = read_bytes;
+    if (ioctl(snvme_helper_fd, SNVME_HELP_GET_NVME_OFFSET, &mapping) < 0) {
+        perror("ioctl failed");
+        assert(0);
+    }
+    nvme_ofst = mapping.address;
+    close(snvme_helper_fd);
+    close(fd);
+    printf("nvme_ofst is %lx,block size is %u\n",nvme_ofst,read_bytes);
+
+
+
     qp.cq = &ctrl->queues[0];
     qp.sq = &ctrl->queues[ctrl->cq_num];
     qp.stop = false;
     qp.num_cpls = 0;
     printf("using cq is %u, sq is %u\n",qp.cq->queue.no,qp.sq->queue.no);
-    read_info.offset = 0x1000000;
-    read_info.num_blocks = 2048;
-
+    read_info.offset = nvme_ofst >> 9 ;
+    read_info.num_blocks = 4096 >> 9;
+    printf("offset is %lx, block num is %u\n",read_info.offset,read_info.num_blocks);
     status = read_and_dump(&disk,&qp,buffer.dma,&read_info);
     //status = disk_read(&disk, &buffer, 1, read_bytes,ctrl);
     printf("disk_read ret is %d\n",status);
-    buffer2 = (unsigned char *)buffer.buffer;
-    for (int i = 0; i < 128; i++) {  
+    buffer2 = (int *)buffer.buffer;
+    for (int i = 0; i < 256; i++) {  
         printf("%02X ", buffer2[i]); // 以十六进制形式打印  
         if ((i + 1) % 16 == 0) {  
             printf("\n"); // 每16个字节换行，方便查看  
@@ -374,24 +417,10 @@ int main(int argc, char** argv)
 
     sleep(5);
 
-    
-    // else
-    // {
-    //     status = disk_write(&disk, &buffer, queues, ioq_num, fp, file_size);
-    // }
-
-
-
-    sleep(5);
-    
-
-    
-unreg:
-    ioctl_reg_nvme(ctrl,0);
-    remove_queues(ctrl->queues, ctrl->cq_num+ctrl->sq_num);   
-    
-    //remove_buffer(&buffer);
 out:
+    ret = Host_file_system_exit(nvme_mount_path);
+    if(ret < 0)
+        exit(-1);
     nvm_ctrl_free(ctrl);
     exit(status);
 }

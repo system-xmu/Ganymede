@@ -46,7 +46,6 @@ uint16_t get_cid(nvm_queue_t* sq) {
         //       printf("still looking\n");
     } while (not_found);
 
-
     return id;
 
 }
