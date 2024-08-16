@@ -1,4 +1,9 @@
 #ifndef GEMINIFS_H
+#define GEMINIFS_H
+
+#ifdef __cplusplus
+extern "C"{
+#endif
 
 #include <stdint.h>
 
@@ -23,11 +28,14 @@ extern union geminiFS_magic {
 
 typedef int fd_t;
 typedef struct geminiFS_hdr *host_fd_t;
-typedef struct {
-  nvme_ofst_t *l1__dev;
-  int block_bit;
-  uint64_t nr_l1;
-} dev_fd_t;
+
+//using dev_fd_t = Class PageCache *;
+typedef void *dev_fd_t;
+//typedef struct {
+//  nvme_ofst_t *l1__dev;
+//  int block_bit;
+//  uint64_t nr_l1;
+//} dev_fd_t;
 
 //-----------------host only------------------
 extern host_fd_t
@@ -53,10 +61,16 @@ host_close_geminifs_file(host_fd_t fd);
 
 //-----------------host for device------------------
 extern dev_fd_t
-host_open_geminifs_file_for_device(host_fd_t);
+host_open_geminifs_file_for_device(host_fd_t, uint64_t pagecache_capacity);
+
+extern dev_fd_t
+host_open_geminifs_file_for_device_without_backing_file(int page_size, uint64_t pagecache_capacity);
 
 extern nvme_ofst_t
 host_convert_va__using_device(dev_fd_t, vaddr_t);
 
-#define GEMINIFS_H
+#ifdef __cplusplus
+}
+#endif
+
 #endif
