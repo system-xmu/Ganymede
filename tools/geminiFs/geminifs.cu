@@ -178,11 +178,9 @@ public:
 
 class CachePage_Allocated: public CachePage {
 public:
-    __device__ CachePage_Allocated(int page_size) {
-        cdpErrchk(cudaMalloc(&(this->buf), page_size));
-    }
-    __device__ ~CachePage_Allocated() {
-        cdpErrchk(cudaFree(this->buf));
+    __device__
+    CachePage_Allocated(void *buf_) {
+        this->buf = buf_;
     }
     __device__ nvme_ofst_t get_nvmeofst(FilePageId filepage_id) {return -1;}
     __device__ void nvme_write(void *nvme_controller, nvme_ofst_t nvme_ofst) { }
@@ -214,61 +212,80 @@ public:
     int nr_waiting;
 };
 
-template <typename MapRef1, typename MapRef2, typename MapRef3>
+template <typename Map1_Ref, typename Map2_Ref, typename Map3_Ref>
 class PageCacheImpl: public PageCache {
 public:
     __device__ PageCacheImpl(uint64_t pagecache_capacity,
-            int page_size,
-            bool no_backing_file,
-            uint64_t size_of_virtual_space,
-            MapRef1 map_ref1,
-            MapRef2 map_ref2,
-            MapRef3 map_ref3):
-        filepages__waiting_for_evicting(map_ref1),
+                             int page_size,
+                             bool no_backing_file,
+                             uint64_t size_of_virtual_space,
+                             Map1_Ref map1_ref,
+                             Map2_Ref map2_ref,
+                             Map3_Ref map3_ref,
+                             void *used_for_pages,
+                             void *used_for_pages_ref,
+                             void *used_for_cachepage_structure,
+                             void *used_for_raw_page_space):
+        filepages__waiting_for_evicting__ref(map1_ref),
         nr_waiting(0),
-        filepage__to__cachepage(map_ref2),
-        zero_reffed_filepages(map_ref3) {
+        filepage__to__cachepage__ref(map2_ref),
+        zero_reffed_filepages__ref(map3_ref) {
             if (no_backing_file)
                 assert(size_of_virtual_space == pagecache_capacity);
+
+            this->pagecache_lock.release();
 
             uint64_t nr_page = pagecache_capacity / page_size;
 
             this->page_size = page_size;
             this->nr_page = nr_page;
 
-            this->pages = new CachePage * [nr_page];
-            this->pages_ref = new uint64_t[nr_page];
+            this->pages = (CachePage **)used_for_pages;
+            this->pages_ref = (uint64_t *)used_for_pages_ref;
 
 
             if (no_backing_file) {
+                auto *cachepage_structures = (CachePage_Allocated *)used_for_cachepage_structure;
+                uint8_t *raw_cachepages = (uint8_t *)used_for_raw_page_space;
                 for (CachePageId cachepage_id = 0; cachepage_id < nr_page; cachepage_id++) {
                     FilePageId filepage_id = cachepage_id;
+                    auto *page = new (cachepage_structures + cachepage_id) CachePage_Allocated(raw_cachepages + cachepage_id * page_size);
+                    page->cachepage_id = cachepage_id;
+                    page->content_of = filepage_id;
+                    page->assigned_to = filepage_id;
+                    page->state = CACHEPAGE_CLEAN;
+                    page->lock.release();
 
-                    this->pages[cachepage_id] = new CachePage_Allocated(page_size);
-                    this->pages[cachepage_id]->cachepage_id = cachepage_id;
-                    this->pages[cachepage_id]->content_of = filepage_id;
-                    this->pages[cachepage_id]->assigned_to = filepage_id;
+                    this->pages[cachepage_id] = page;
                     this->pages_ref[cachepage_id] = 1; // the Ref Count is at lease 1, thus the page won't be evicted.
                     this->__insert__filepage__mapping_to__cachepage(filepage_id, cachepage_id);
-                    this->pages[cachepage_id]->state = CACHEPAGE_CLEAN;
-
-                    printf("%llx\n", filepage_id);
+                    printf("%llx\n", cachepage_id);
                 }
+                
+                    printf("OK. Let's try to find a 0th page, %llx\n", this->__get__cachepage_id(0));
+                    printf("OK. Let's try to find a 0th page, %llx\n", this->__get__cachepage_id(0));
+                    printf("OK. Let's try to find a 0th page, %llx\n", this->__get__cachepage_id(0));
+                    printf("OK. Let's try to find a 0th page, %llx\n", this->__get__cachepage_id(0));
+                    printf("OK. Let's try to find a 0th page, %llx\n", this->__get__cachepage_id(0));
+                    printf("OK. Let's try to find a 0th page, %llx\n", this->__get__cachepage_id(0));
+                    this->magic = 0xdeadbeef;
             } else {
                 for (CachePageId cachepage_id = 0; cachepage_id < nr_page; cachepage_id++) {
-                    FilePageId filepage_id = cachepage_id;
+                    assert(0);
+                    //FilePageId filepage_id = cachepage_id;
+                    //auto *page = new CachePage_Allocated(page_size);
+                    //assert(page);
 
-                    this->pages[cachepage_id] = new CachePage_Allocated(page_size);
-                    this->pages[cachepage_id]->cachepage_id = cachepage_id;
-                    this->pages[cachepage_id]->content_of = filepage_id;
-                    this->pages[cachepage_id]->assigned_to = filepage_id;
-                    this->__insert__filepage__mapping_to__cachepage(filepage_id, cachepage_id);
-                    this->pages_ref[cachepage_id] = 0;
-                    this->__insert__zero_reffed_filepage(filepage_id);
+                    //page->cachepage_id = cachepage_id;
+                    //page->content_of = filepage_id;
+                    //page->assigned_to = filepage_id;
+                    //page->state = CACHEPAGE_INVALID;
 
-                    this->pages[cachepage_id]->state = CACHEPAGE_INVALID;
+                    //this->pages[cachepage_id] = page;
+                    //this->pages_ref[cachepage_id] = 0;
 
-                    printf("%llx\n", filepage_id);
+                    //this->__insert__filepage__mapping_to__cachepage(filepage_id, cachepage_id);
+                    //this->__insert__zero_reffed_filepage(filepage_id);
                 }
             }
         }
@@ -284,7 +301,7 @@ public:
         delete this->pages;
     }
 
-    __forceinline__ __device__ CachePageId
+    __device__ CachePageId
     acquire_page(FilePageId filepage_id) {
         CachePageId cachepage_id;
 
@@ -293,13 +310,17 @@ public:
         mask = __match_any_sync(mask, filepage_id);
         uint32_t warp_leader = __ffs(mask) - 1;
         int lane = lane_id();
-        if (lane == warp_leader)
+        if (lane == warp_leader) {
+            printf("magic, %llx\n", this->magic);
+            printf("acquire_page %llx\n", filepage_id);
+            printf("OK. Let's try to find a 0th page, %llx\n", this->__get__cachepage_id(0));
             cachepage_id = this->__acquire_page_for_warp_leader(filepage_id);
+        }
         cachepage_id = __shfl_sync(mask, cachepage_id, warp_leader);
         return cachepage_id;
     }
 
-    __forceinline__ __device__ void
+    __device__ void
     set_page_dirty(CachePageId cachepage_id) {
         uint32_t mask = __activemask();
         mask = __match_any_sync(mask, (uint64_t)this);
@@ -310,7 +331,7 @@ public:
             this->pages[cachepage_id]->set_dirty();
     }
 
-    __forceinline__ __device__ void
+    __device__ void
     release_page(FilePageId filepage_id) {
         uint32_t mask = __activemask();
         mask = __match_any_sync(mask, (uint64_t)this);
@@ -337,9 +358,11 @@ private:
 
         this->pagecache_lock.acquire();
 
+        printf("I'm in. I want %llx!!\n", filepage_id);
         ret = this->__get__cachepage_id(filepage_id);
         if (ret != -1) {
             // Page Hit!
+        printf("Hit!!\n");
             size_t cur_ref = (++(this->pages_ref[ret]));
             if (cur_ref == 1)
                 this->__erase__zero_reffed_filepage(filepage_id);
@@ -347,10 +370,12 @@ private:
             __threadfence();
             this->pagecache_lock.release();
 
+        printf("I release the lock\n");
             this->pages[ret]->lock.acquire();
             this->pages[ret]->read_in__no_lock(this->nvme_controller);
             this->pages[ret]->lock.release();
 
+        printf("I leave~\n");
             return ret;
         }
 
@@ -392,6 +417,7 @@ private:
 
         if (leaders_waiting_for_evicting == nullptr && has_quota_to_wait) {
             leaders_waiting_for_evicting = new PageCacheImpl__info1();
+            assert(leaders_waiting_for_evicting);
             leaders_waiting_for_evicting->filepage_id = filepage_id;
             leaders_waiting_for_evicting->nr_waiting = 0;
             this->__insert__filepage_waiting_for_evicting(filepage_id,
@@ -462,10 +488,8 @@ private:
 //----------------------------------------------------------
     __forceinline__ __device__ PageCacheImpl__info1 *
     __is_filepage_waiting_for_evicting(FilePageId filepage_id) {
-        constexpr auto cg_size = this->filepages__waiting_for_evicting.cg_size;
-        auto tile = cooperative_groups::tiled_partition<cg_size>(cooperative_groups::this_thread_block());
-        auto found = this->filepages__waiting_for_evicting.find(tile, filepage_id);
-        if (found != this->filepages__waiting_for_evicting.end()) {
+        auto found = this->filepages__waiting_for_evicting__ref.find(filepage_id);
+        if (found != this->filepages__waiting_for_evicting__ref.end()) {
             auto *n = static_cast<MyLinklistNodeD<PageCacheImpl__info1 *> *>(found->second);
             return n->v;
         } else
@@ -474,20 +498,19 @@ private:
 
     __forceinline__ __device__ bool
     __has_quota_to_wait_for_evicting() {
-        return this->nr_waiting < this->filepages__waiting_for_evicting.capacity();
+        return this->nr_waiting < this->filepages__waiting_for_evicting__ref.capacity() / 2;
     }
 
     __forceinline__ __device__ void
     __insert__filepage_waiting_for_evicting(FilePageId filepage_id,
                                              PageCacheImpl__info1 *p) {
         auto *n = new MyLinklistNodeD<PageCacheImpl__info1 *>();
+        assert(n);
         n->v = p;
         this->filepages__waiting_for_evicting__list.enqueue(n);
         this->nr_waiting++;
 
-        constexpr auto cg_size = this->filepages__waiting_for_evicting.cg_size;
-        auto tile = cooperative_groups::tiled_partition<cg_size>(cooperative_groups::this_thread_block());
-        assert(this->filepages__waiting_for_evicting.insert(tile, cuco::pair{filepage_id, n}));
+        assert(this->filepages__waiting_for_evicting__ref.insert(cuco::pair{filepage_id, n}));
     }
 
     __forceinline__ __device__ PageCacheImpl__info1 *
@@ -497,9 +520,7 @@ private:
         auto ret = n->v;
         this->nr_waiting--;
 
-        constexpr auto cg_size = this->filepages__waiting_for_evicting.cg_size;
-        auto tile = cooperative_groups::tiled_partition<cg_size>(cooperative_groups::this_thread_block());
-        assert(this->filepages__waiting_for_evicting.erase(tile, ret->filepage_id));
+        assert(this->filepages__waiting_for_evicting__ref.erase(ret->filepage_id));
 
         return ret;
     }
@@ -507,24 +528,20 @@ private:
     __forceinline__ __device__ void
     __insert__filepage__mapping_to__cachepage(FilePageId filepage_id,
                                               CachePageId cachepage_id) {
-        constexpr auto cg_size = this->filepage__to__cachepage.cg_size;
-        auto tile = cooperative_groups::tiled_partition<cg_size>(cooperative_groups::this_thread_block());
-        assert(this->filepage__to__cachepage.insert(tile, cuco::pair{filepage_id, cachepage_id}));
+        assert(this->filepage__to__cachepage__ref.insert(cuco::pair{filepage_id, cachepage_id}));
     }
 
     __forceinline__ __device__ void
     __erase__filepage__mapping(FilePageId filepage_id) {
-        constexpr auto cg_size = this->filepage__to__cachepage.cg_size;
-        auto tile = cooperative_groups::tiled_partition<cg_size>(cooperative_groups::this_thread_block());
-        assert(this->filepage__to__cachepage.erase(tile, filepage_id));
+        assert(this->filepage__to__cachepage__ref.erase(filepage_id));
     }
 
     __forceinline__ __device__ CachePageId
     __get__cachepage_id(FilePageId filepage_id) {
-        constexpr auto cg_size = this->filepage__to__cachepage.cg_size;
-        auto tile = cooperative_groups::tiled_partition<cg_size>(cooperative_groups::this_thread_block());
-        auto found = this->filepage__to__cachepage.find(tile, filepage_id);
-        if (found != this->filepage__to__cachepage.end())
+        printf("Let's find a filepage~\n");
+        auto found = this->filepage__to__cachepage__ref.find(filepage_id);
+        printf("Gotcha!\n");
+        if (found != this->filepage__to__cachepage__ref.end())
             return found->second;
         else
             return -1;
@@ -533,28 +550,23 @@ private:
     __forceinline__ __device__ void
     __insert__zero_reffed_filepage(FilePageId filepage_id) {
         auto *n = new MyLinklistNodeD<FilePageId>();
+        assert(n);
         n->v = filepage_id;
         this->zero_reffed_filepages__list.enqueue(n);
 
-        constexpr auto cg_size = this->zero_reffed_filepages.cg_size;
-        auto tile = cooperative_groups::tiled_partition<cg_size>(cooperative_groups::this_thread_block());
-
-        assert(this->zero_reffed_filepages.insert(tile, cuco::pair{filepage_id, n}));
+        assert(this->zero_reffed_filepages__ref.insert(cuco::pair{filepage_id, n}));
     }
 
     __forceinline__ __device__ void
     __erase__zero_reffed_filepage(FilePageId filepage_id) {
-        constexpr auto cg_size = this->zero_reffed_filepages.cg_size;
-        auto tile = cooperative_groups::tiled_partition<cg_size>(cooperative_groups::this_thread_block());
-
         MyLinklistNodeD<FilePageId> *n = nullptr;
-        auto found = this->zero_reffed_filepages.find(tile, filepage_id);
-        if (found != this->zero_reffed_filepages.end())
+        auto found = this->zero_reffed_filepages__ref.find(filepage_id);
+        if (found != this->zero_reffed_filepages__ref.end())
             n = static_cast<MyLinklistNodeD<FilePageId> *>(found->second);
 
         assert(n);
 
-        assert(this->zero_reffed_filepages.erase(tile, filepage_id));
+        assert(this->zero_reffed_filepages__ref.erase(filepage_id));
         this->zero_reffed_filepages__list.detach_node(n);
         delete n;
     }
@@ -566,13 +578,13 @@ private:
         auto filepage_id = n->v;
         delete n;
 
-        constexpr auto cg_size = this->zero_reffed_filepages.cg_size;
-        auto tile = cooperative_groups::tiled_partition<cg_size>(cooperative_groups::this_thread_block());
-        assert(this->zero_reffed_filepages.erase(tile, filepage_id));
+        assert(this->zero_reffed_filepages__ref.erase(filepage_id));
 
         return filepage_id;
     }
 //-----------------------------------------------------------
+
+    uint64_t magic;
 
     cuda::binary_semaphore<cuda::thread_scope_device> pagecache_lock;
 
@@ -586,36 +598,46 @@ private:
     uint64_t *pages_ref;
 
     size_t nr_waiting;
-    MapRef1 filepages__waiting_for_evicting;
+    Map1_Ref filepages__waiting_for_evicting__ref;
     MyLinklist filepages__waiting_for_evicting__list;
 
-    MapRef2 filepage__to__cachepage;
+    Map2_Ref filepage__to__cachepage__ref;
 
-    MapRef3 zero_reffed_filepages;
+    Map3_Ref zero_reffed_filepages__ref;
     MyLinklist zero_reffed_filepages__list;
 };
 
-template <typename MapRef1, typename MapRef2, typename MapRef3>
+template <typename Map1_Ref, typename Map2_Ref, typename Map3_Ref>
 static __global__ void
 host_open_geminifs_file_for_device_2(PageCache **pagecache_dev,
         uint64_t pagecache_capacity,
         int page_size,
         bool no_backing_file,
         uint64_t size_of_virtual_space,
-        MapRef1 map_ref1,
-        MapRef2 map_ref2,
-        MapRef3 map_ref3) {
+        Map1_Ref map1_ref,
+        Map2_Ref map2_ref,
+        Map3_Ref map3_ref,
+        void *used_for_pages,
+        void *used_for_pages_ref,
+        void *used_for_cachepage_structure,
+        void *used_for_raw_page_space) {
     auto tid = threadIdx.x + blockIdx.x * blockDim.x;
     if (tid != 0)
         return;
 
-    auto *pagecache = new PageCacheImpl<MapRef1, MapRef2, MapRef3>(pagecache_capacity,
-            page_size,
-            no_backing_file,
-            size_of_virtual_space,
-            map_ref1,
-            map_ref2,
-            map_ref3);
+    auto *pagecache = new PageCacheImpl<Map1_Ref, Map2_Ref, Map3_Ref>
+        (pagecache_capacity,
+         page_size,
+         no_backing_file,
+         size_of_virtual_space,
+         map1_ref,
+         map2_ref,
+         map3_ref,
+         used_for_pages,
+         used_for_pages_ref,
+         used_for_cachepage_structure,
+         used_for_raw_page_space);
+    assert(pagecache);
     *pagecache_dev = pagecache;
 }
 
@@ -634,33 +656,71 @@ host_open_geminifs_file_for_device_1(uint64_t pagecache_capacity,
     CachePageId constexpr empty_CachePageId_sentinel = -1;
     MyLinklistNode constexpr *sentinel = nullptr;
 
-    auto *filepages__waiting_for_evicting = new cuco::static_map{nr_page,
-        cuco::empty_key{empty_FilePageId_sentinel},
-        cuco::empty_value{sentinel}};
-    auto filepages__waiting_for_evicting__ref =
-        filepages__waiting_for_evicting->ref(cuco::insert, cuco::find, cuco::erase);
+    auto *filepages__waiting_for_evicting =
+        new cuco::static_map
+        <FilePageId,
+        MyLinklistNode *,
+        cuco::extent<std::size_t>,
+        cuda::thread_scope_device,
+        thrust::equal_to<FilePageId>,
+        cuco::linear_probing<1, cuco::default_hash_function<FilePageId>>>
+            (2 * nr_page,
+             cuco::empty_key{empty_FilePageId_sentinel},
+             cuco::empty_value{sentinel});
+    auto map1_ref = filepages__waiting_for_evicting->ref(cuco::insert, cuco::find, cuco::erase);
 
-    auto *filepage__to__cachepage = new cuco::static_map{nr_page,
-        cuco::empty_key{empty_FilePageId_sentinel},
-        cuco::empty_value{empty_CachePageId_sentinel}};
-    auto filepage__to__cachepage__ref =
-        filepage__to__cachepage->ref(cuco::insert, cuco::find, cuco::erase);
+    auto *filepage__to__cachepage =
+        new cuco::static_map
+        <FilePageId,
+        CachePageId,
+        cuco::extent<std::size_t>,
+        cuda::thread_scope_device,
+        thrust::equal_to<FilePageId>,
+        cuco::linear_probing<1, cuco::default_hash_function<FilePageId>>>
+            (2 * nr_page,
+             cuco::empty_key{empty_FilePageId_sentinel},
+             cuco::empty_value{empty_CachePageId_sentinel});
+    auto map2_ref = filepage__to__cachepage->ref(cuco::insert, cuco::find, cuco::erase);
 
-    auto *zero_reffed_filepages = new cuco::static_map{nr_page,
-        cuco::empty_key{empty_FilePageId_sentinel},
-        cuco::empty_value{sentinel}};
-    auto zero_reffed_filepages__ref =
-        zero_reffed_filepages->ref(cuco::insert, cuco::find, cuco::erase);
+    auto *zero_reffed_filepages =
+        new cuco::static_map
+        <FilePageId,
+        MyLinklistNode *,
+        cuco::extent<std::size_t>,
+        cuda::thread_scope_device,
+        thrust::equal_to<FilePageId>,
+        cuco::linear_probing<1, cuco::default_hash_function<FilePageId>>>
+            (2 * nr_page,
+             cuco::empty_key{empty_FilePageId_sentinel},
+             cuco::empty_value{sentinel});
+    auto map3_ref = zero_reffed_filepages->ref(cuco::insert, cuco::find, cuco::erase);
 
+    void *used_for_pages;
+    void *used_for_pages_ref;
+    void *used_for_cachepage_structure;
+    void *used_for_raw_page_space;
+    gpuErrchk(cudaMalloc(&used_for_pages, sizeof(CachePage *) * nr_page));
+    gpuErrchk(cudaMalloc(&used_for_pages_ref, sizeof(uint64_t) * nr_page));
+    if (no_backing_file) {
+        gpuErrchk(cudaMalloc(&used_for_cachepage_structure, sizeof(CachePage_Allocated) * nr_page));
+        gpuErrchk(cudaMalloc(&used_for_raw_page_space, page_size * nr_page));
+    } else
+        assert(0);
 
-    //host_open_geminifs_file_for_device_2<<<1, 1>>>(pagecache_ptr_dev,
-    //        pagecache_capacity,
-    //        page_size,
-    //        no_backing_file,
-    //        size_of_virtual_space,
-    //        filepages__waiting_for_evicting__ref,
-    //        filepage__to__cachepage__ref,
-    //        zero_reffed_filepages__ref);
+    host_open_geminifs_file_for_device_2<<<1, 1>>>(pagecache_ptr_dev,
+            pagecache_capacity,
+            page_size,
+            no_backing_file,
+            size_of_virtual_space,
+            map1_ref,
+            map2_ref,
+            map3_ref,
+            used_for_pages,
+            used_for_pages_ref,
+            used_for_cachepage_structure,
+            used_for_raw_page_space);
+
+    cudaDeviceSynchronize();
 
     PageCache *pagecache_dev;
     gpuErrchk(cudaMemcpy(&pagecache_dev, pagecache_ptr_dev, sizeof(pagecache_dev),
@@ -843,12 +903,20 @@ device_xfer_geminifs_file(dev_fd_t fd,
     participating_mask = __match_any_sync(participating_mask, begin__warp);
     int page_size = PAGE_SIZE(page_bit_num);
 
+
+    size_t warp_id__overview = warp_id__in_block + nr_warp__per_block * block_id;
+    printf("I'm warp %llx, I account for [%llx, %llx)\n",
+            warp_id__overview, begin__warp, exclusive_end__warp);
+
+
     buf_dev = buf_dev + PAGE_BASE__BY_ID(begin__warp - begin, page_bit_num);
     for (FilePageId filepage_id = begin__warp;
             filepage_id < exclusive_end__warp;
             filepage_id++) {
-        CachePageId cachepage_id = pagecache->acquire_page(inclusive_end);
+        CachePageId cachepage_id = pagecache->acquire_page(filepage_id);
         uint8_t *cachepage_base = pagecache->get_raw_page_buf(cachepage_id);
+        printf("I'm warp %llx, I get filepage %llx\n\n",
+                warp_id__overview, filepage_id);
         if (is_read) {
             uint8_t *raw_page = cachepage_base;
             uint8_t *buf_dev_1 = buf_dev;
@@ -867,7 +935,7 @@ device_xfer_geminifs_file(dev_fd_t fd,
             }
             pagecache->set_page_dirty(cachepage_id);
         }
-        pagecache->release_page(inclusive_end);
+        pagecache->release_page(filepage_id);
         buf_dev += PAGE_SIZE(page_bit_num);
     }
 }
@@ -875,12 +943,18 @@ device_xfer_geminifs_file(dev_fd_t fd,
 int
 main() {
   int block_size = 1ull << 12; /* 4096 */
-  size_t capacity = 2 * (1ull << 30); /* 2G */
+  size_t capacity = 512 * (1ull << 20); /* 512G */
+
+  gpuErrchk(cudaSetDevice(1));
+
+  size_t heapsz = 1 * (1ull << 30);
+  gpuErrchk(cudaDeviceSetLimit(cudaLimitMallocHeapSize, heapsz));
+
   dev_fd_t dev_fd =
       host_open_geminifs_file_for_device_without_backing_file(block_size, capacity);
 
 
-  size_t buf_size = 512 * (1ull << 20); /* 512M */
+  size_t buf_size = 128 * (1ull << 20); /* 128M */
 
   uint32_t *host_buf = (uint32_t *)malloc(buf_size);
   uint32_t *dev_buf1;
@@ -895,10 +969,12 @@ main() {
 
   for (vaddr_t va = 0; va < capacity; va += buf_size) {
       device_xfer_geminifs_file<<<108, 32>>>(dev_fd, va, dev_buf1, buf_size, 0);
+      cudaDeviceSynchronize();
   }
 
   for (vaddr_t va = 0; va < capacity; va += buf_size) {
       device_xfer_geminifs_file<<<108, 32>>>(dev_fd, va, dev_buf2, buf_size, 1);
+      cudaDeviceSynchronize();
   }
 
   gpuErrchk(cudaMemcpy(host_buf, dev_buf2, buf_size, cudaMemcpyDeviceToHost));

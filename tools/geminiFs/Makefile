@@ -1,4 +1,4 @@
-NVCCFLAGS=-arch=sm_80 -I./cuCollections/include -Icccl/thrust -Icccl/libcudacxx/include -Icccl/cub --expt-relaxed-constexpr --expt-extended-lambda -g -G -rdc=true -diag-suppress=68
+NVCCFLAGS=-arch=sm_80 -I./cuCollections/include -Icccl/thrust -Icccl/libcudacxx/include -Icccl/cub --expt-relaxed-constexpr --expt-extended-lambda -rdc=true -diag-suppress=68  -O3 #-g -G
 
 #example:
 #	nvcc $(NVCCFLAGS) example_for_nvme_raw_access.cu
