@@ -8,7 +8,7 @@ libgeminiFs.a: geminifs.cuda.o geminifs_nvme.cuda.o geminifs.o
 	ar rcs libgeminiFs.a geminifs.cuda.o geminifs_nvme.cuda.o geminifs.o
 
 TestForNvmeBacking.exe: TestForNvmeBacking.cu libgeminiFs.a
-	nvcc $(LDFLAGS) TestForNvmeBacking.cu -o TestForNoBackingPagecache.exe
+	nvcc $(LDFLAGS) TestForNvmeBacking.cu -o TestForNvmeBacking.exe
 
 TestForNoBackingPagecache.exe: TestForNoBackingPagecache.cu libgeminiFs.a
 	nvcc $(LDFLAGS) TestForNoBackingPagecache.cu -o TestForNoBackingPagecache.exe
