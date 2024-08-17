@@ -14,6 +14,22 @@
 #include "geminifs_api.cuh"
 #include "geminifs_internal.cuh"
 
+#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
+static inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true) {
+   if (code != cudaSuccess) {
+      fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
+      if (abort) exit(code);
+   }
+}
+
+#define cdpErrchk(ans) { cdpAssert((ans), __FILE__, __LINE__); }
+static __device__ void cdpAssert(cudaError_t code, const char *file, int line, bool abort=true) {
+   if (code != cudaSuccess) {
+      printf("GPU kernel assert: %s %s %d\n", cudaGetErrorString(code), file, line);
+      if (abort) assert(0);
+   }
+}
+
 struct MyLinklistNode {
     MyLinklistNode *pre, *suc;
 };
@@ -67,8 +83,8 @@ public:
     __device__
     CachePage_WithoutBacking(void * const buf_): CachePage(buf_, 1) { }
 private:
-    __device__ void __write_back(void *nvme_controller, FilePageId filepage_id) { }
-    __device__ void __read_in(void *nvme_controller, FilePageId filepage_id) { }
+    __device__ void __write_back(FilePageId filepage_id, void *info1, void *info2) { }
+    __device__ void __read_in(FilePageId filepage_id, void *info1, void *info2) { }
 };
 
 
@@ -88,6 +104,7 @@ public:
             int page_size,
             uint64_t size_of_virtual_space,
             CachePage *pages[],
+            void *info1, void *info2,
             Map1_Ptr map1, Map1_DevRef map1_ref,
             Map2_Ptr map2, Map2_DevRef map2_ref,
             Map3_Ptr map3, Map3_DevRef map3_ref):
@@ -98,6 +115,9 @@ public:
         filepage__to__cachepage__ref(map2_ref),
         zero_reffed_filepages(map3),
         zero_reffed_filepages__ref(map3_ref) {
+
+        this->info1 = info1;
+        this->info2 = info2;
 
         this->pagecache_lock.release();
 
@@ -148,7 +168,7 @@ public:
         mask = __match_any_sync(mask, (uint64_t)this);
         mask = __match_any_sync(mask, filepage_id);
         uint32_t warp_leader = __ffs(mask) - 1;
-        int lane = lane_id();
+        int lane = my_lane_id();
         if (lane == warp_leader) {
             printf("acquire_page %llx\n", filepage_id);
             cachepage_id = this->__acquire_page_for_warp_leader(filepage_id);
@@ -163,7 +183,7 @@ public:
         mask = __match_any_sync(mask, (uint64_t)this);
         mask = __match_any_sync(mask, cachepage_id);
         uint32_t warp_leader = __ffs(mask) - 1;
-        int lane = lane_id();
+        int lane = my_lane_id();
         if (lane == warp_leader)
             this->pages[cachepage_id]->set_dirty();
     }
@@ -174,7 +194,7 @@ public:
         mask = __match_any_sync(mask, (uint64_t)this);
         mask = __match_any_sync(mask, filepage_id);
         uint32_t warp_leader = __ffs(mask) - 1;
-        int lane = lane_id();
+        int lane = my_lane_id();
         if (lane == warp_leader)
             this->__release_page_for_warp_leader(filepage_id);
     }
@@ -209,7 +229,7 @@ private:
 
         printf("I release the lock\n");
             this->pages[ret]->lock.acquire();
-            this->pages[ret]->read_in__no_lock(this->nvme_controller);
+            this->pages[ret]->read_in__no_lock(this->info1, this->info2);
             this->pages[ret]->lock.release();
 
         //printf("I leave~\n");
@@ -237,7 +257,7 @@ private:
             this->pagecache_lock.release();
 
             this->pages[ret]->lock.acquire();
-            this->pages[ret]->read_in__no_lock(this->nvme_controller);
+            this->pages[ret]->read_in__no_lock(this->info1, this->info2);
             this->pages[ret]->lock.release();
             return ret;
         }
@@ -285,7 +305,7 @@ private:
         __threadfence();
         this->pagecache_lock.release();
         this->pages[ret]->lock.acquire();
-        this->pages[ret]->read_in__no_lock(this->nvme_controller);
+        this->pages[ret]->read_in__no_lock(this->info1, this->info2);
         this->pages[ret]->lock.release();
         return ret;
     }
@@ -293,7 +313,7 @@ private:
     __forceinline__ __device__ void
     __release_page_for_warp_leader(FilePageId filepage_id) {
         this->pagecache_lock.acquire();
-        printf("I'm %llx, I want to release the page %llx\n", (uint64_t)lane_id(), filepage_id);
+        printf("I'm %llx, I want to release the page %llx\n", (uint64_t)my_lane_id(), filepage_id);
         CachePageId cachepage_id = this->__get__cachepage_id(filepage_id);
         if ((--(this->pages_ref[cachepage_id])) == 0) {
             // The last one reffing the cachepage exits.
@@ -312,7 +332,7 @@ private:
                 this->pagecache_lock.release();
 
                 this->pages[cachepage_id]->lock.acquire();
-                this->pages[cachepage_id]->write_back__no_lock(this->nvme_controller);
+                this->pages[cachepage_id]->write_back__no_lock(this->info1, this->info2);
                 this->pages[cachepage_id]->lock.release();
 
                 for (size_t i = 0; i < nr_waiting; i++)
@@ -424,6 +444,8 @@ private:
     }
 //-----------------------------------------------------------
 
+    void *info1, *info2;
+
     cuda::binary_semaphore<cuda::thread_scope_device> pagecache_lock;
 
     void *nvme_controller;
@@ -453,7 +475,8 @@ __internal__get_pagecache(
         uint64_t pagecache_capacity,
         int page_size,
         uint64_t size_of_virtual_space,
-        CachePage *pages[]) {
+        CachePage *pages[],
+        void *info1, void *info2) {
     uint64_t nr_page = pagecache_capacity / page_size;
 
     // Initial host part of containers
@@ -514,47 +537,12 @@ __internal__get_pagecache(
                 page_size,
                 size_of_virtual_space,
                 pages,
+                info1, info2,
                 filepages__waiting_for_evicting, map1_ref,
                 filepage__to__cachepage, map2_ref,
                 zero_reffed_filepages, map3_ref);
     });
     return pagecache;
-}
-
-dev_fd_t
-host_open_geminifs_file_for_device(host_fd_t host_fd, uint64_t pagecache_capacity) {
-    struct geminiFS_hdr *hdr = host_fd;
-
-    nvme_ofst_t *l1__dev;
-    gpuErrchk(cudaMalloc(&l1__dev, hdr->first_block_base));
-
-    struct geminiFS_hdr *hdr__file = (struct geminiFS_hdr *)malloc(hdr->first_block_base);
-
-    assert((off_t)(-1) !=
-            lseek(hdr->fd, 0, SEEK_SET)
-          );
-    assert(hdr->first_block_base ==
-            read(hdr->fd, hdr__file, hdr->first_block_base)
-          );
-    gpuErrchk(cudaMemcpy(
-                l1__dev,
-                hdr__file->l1,
-                hdr__file->first_block_base - sizeof(*hdr),
-                cudaMemcpyHostToDevice));
-
-    free(hdr__file);
-
-    //dev_fd_t ret;
-    //ret.l1__dev = l1__dev;
-    //ret.block_bit = hdr->block_bit;
-    //ret.nr_l1 = hdr->nr_l1;
-
-    PageCache *pagecache_dev;
-    //= __internal__get_pagecache(pagecache_capacity,
-    //        1 << hdr->block_bit,
-    //        false,
-    //        hdr->virtual_space_size);
-    return pagecache_dev;
 }
 
 dev_fd_t
@@ -580,7 +568,8 @@ host_open_geminifs_file_for_device_without_backing_file(int page_size, uint64_t 
     PageCache *pagecache_dev = __internal__get_pagecache(pagecache_capacity,
             page_size,
             pagecache_capacity,
-            pages);
+            pages,
+            nullptr, nullptr);
     return pagecache_dev;
 }
 
@@ -722,7 +711,7 @@ device_xfer_geminifs_file(dev_fd_t fd,
 
 
     size_t warp_id__overview = warp_id__in_block + nr_warp__per_block * block_id;
-    if (0 == lane_id()) {
+    if (0 == my_lane_id()) {
     printf("I'm warp %llx (in-block id %llx) threadIdx.x %llx, I account for [%llx, %llx)\n",
             warp_id__overview, warp_id__in_block, threadIdx.x, begin__warp, exclusive_end__warp);
     }
@@ -757,47 +746,3 @@ device_xfer_geminifs_file(dev_fd_t fd,
     }
 }
 
-
-//__device__ static nvme_ofst_t
-//device__convert_va__to(dev_fd_t dev_fd,
-//                       vaddr_t va) {
-//  auto nr_l1 = dev_fd.nr_l1;
-//  auto block_bit = dev_fd.block_bit;
-//
-//  uint64_t l1_idx = va >> block_bit;
-//
-//  if (l1_idx < nr_l1)
-//    return dev_fd.l1__dev[l1_idx];
-//
-//  return 0;
-//}
-//
-//__global__ void
-//device_convert_va(dev_fd_t dev_fd,
-//                  vaddr_t va,
-//                  nvme_ofst_t *ret__dev) {
-//  *ret__dev = device__convert_va__to(dev_fd, va);
-//}
-//  
-//nvme_ofst_t
-//host_convert_va__using_device(dev_fd_t dev_fd,
-//        vaddr_t va) {
-//  nvme_ofst_t *ret__dev;
-//  assert(cudaSuccess ==
-//    cudaMalloc(&ret__dev, sizeof(nvme_ofst_t))
-//  );
-//
-//  device_convert_va<<<1, 1>>>(dev_fd, va, ret__dev);
-//
-//  nvme_ofst_t ret;
-//  assert(cudaSuccess ==
-//    cudaMemcpy(
-//      &ret,
-//      ret__dev,
-//      sizeof(nvme_ofst_t),
-//      cudaMemcpyDeviceToHost)
-//  );
-//
-//  assert(cudaSuccess == cudaFree(ret__dev));
-//  return ret;
-//}

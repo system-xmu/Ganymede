@@ -2,32 +2,12 @@
 #define GEMINIFS_INTERNAL_H
 #include "geminifs_api.cuh"
 
-#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
-inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true) {
-   if (code != cudaSuccess) {
-      fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
-      if (abort) exit(code);
-   }
-}
-
-#define cdpErrchk(ans) { cdpAssert((ans), __FILE__, __LINE__); }
-__device__ void cdpAssert(cudaError_t code, const char *file, int line, bool abort=true) {
-   if (code != cudaSuccess) {
-      printf("GPU kernel assert: %s %s %d\n", cudaGetErrorString(code), file, line);
-      if (abort) assert(0);
-   }
-}
-
-
-__forceinline__ __device__ uint32_t
-get_smid() {
-     uint32_t ret;
-     asm  ("mov.u32 %0, %smid;" : "=r"(ret) );
-     return ret;
-}
+#include <cassert>
+#include <iostream>
+#include <cuda/semaphore>
 
 __forceinline__ __device__ int
-lane_id() {
+my_lane_id() {
     int lane_id = threadIdx.x & 0x1f;
     return lane_id;
 }
@@ -37,7 +17,7 @@ void warp_memcpy_4kB(void *dest_, const void *src_, uint32_t participating_mask)
     uint64_t *dest = (uint64_t *)dest_;
     const uint64_t *src = (const uint64_t *)src_;
     int nr_participant = __popc(participating_mask);
-    int lane = lane_id();
+    int lane = my_lane_id();
     int participant_id = __popc(participating_mask >> (32 - lane));
     for (size_t i = participant_id;
             i < 256;
@@ -80,21 +60,21 @@ public:
     ~CachePage() { }
 
     __forceinline__ __device__ void
-    write_back__no_lock(void *nvme_controller) {
+    write_back__no_lock(void *info1, void *info2) {
         if (this->state == CACHEPAGE_DIRTY) {
-            this->__write_back(nvme_controller, this->content_of);
+            this->__write_back(this->content_of, info1, info2);
             this->state = CACHEPAGE_CLEAN;
             __threadfence();
         }
     }
     __forceinline__ __device__ void
-    read_in__no_lock(void *nvme_controller) {
+    read_in__no_lock(void *info1, void *info2) {
         if ((this->content_of != this->assigned_to) || this->state == CACHEPAGE_INVALID) {
-            this->write_back__no_lock(nvme_controller);
+            this->write_back__no_lock(info1, info2);
 
             // Here, the state is INVALID or CLEAN
 
-            this->__read_in(nvme_controller, this->assigned_to);
+            this->__read_in(this->assigned_to, info1, info2);
             this->content_of = this->assigned_to;
             this->state = CACHEPAGE_CLEAN;
             __threadfence();
@@ -102,9 +82,9 @@ public:
     }
 
     __forceinline__ __device__ void
-    sync(void *nvme_controller) {
+    sync(void *info1, void *info2) {
         this->lock.acquire();
-        this->write_back__no_lock(nvme_controller);
+        this->write_back__no_lock(info1, info2);
         this->lock.release();
     }
 
@@ -121,11 +101,11 @@ public:
     enum CachePage_State state;
     cuda::binary_semaphore<cuda::thread_scope_device> lock;
 
-    void * const buf;
+    void * buf;
     const int never_evicted;
 private:
-    virtual __device__ void __write_back(void *nvme_controller, FilePageId filepage_id) = 0;
-    virtual __device__ void __read_in(void *nvme_controller, FilePageId filepage_id) = 0;
+    virtual __device__ void __write_back(FilePageId filepage_id, void *info1, void *info2) = 0;
+    virtual __device__ void __read_in(FilePageId filepage_id, void *info1, void *info2) = 0;
 };
 
 class PageCache {
@@ -153,14 +133,15 @@ public:
 };
 
 
-extern __host__ PageCache *
+extern PageCache *
 __internal__get_pagecache(
         uint64_t pagecache_capacity,
         int page_size,
         uint64_t size_of_virtual_space,
-        CachePage *pages[]);
+        CachePage *pages[],
+        void *info1, void *info2);
 
-extern __host__ void
+extern void
 __internal__drop_pagecache(PageCache *);
 
 template <typename T>

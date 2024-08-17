@@ -61,7 +61,13 @@ host_close_geminifs_file(host_fd_t fd);
 
 //-----------------host for device------------------
 extern dev_fd_t
-host_open_geminifs_file_for_device(host_fd_t, uint64_t pagecache_capacity);
+host_open_geminifs_file_for_device(
+        host_fd_t host_fd,
+        uint64_t pagecache_capacity,
+        const char *snvme_control_path,
+        const char *snvme_path,
+        const char *nvme_dev_path,
+        const char *mount_path);
 
 extern dev_fd_t
 host_open_geminifs_file_for_device_without_backing_file(int page_size, uint64_t pagecache_capacity);
