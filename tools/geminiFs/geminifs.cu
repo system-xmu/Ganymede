@@ -110,42 +110,23 @@ public:
         this->pages_ref = (uint64_t *)malloc(sizeof(uint64_t) * this->nr_page);
 
         for (CachePageId cachepage_id = 0; cachepage_id < nr_page; cachepage_id++) {
+            FilePageId filepage_id = cachepage_id;
             auto *page = this->pages[cachepage_id];
+            page->cachepage_id = cachepage_id;
+            page->content_of = filepage_id;
+            page->assigned_to = filepage_id;
+            page->lock.release();
+            this->__insert__filepage__mapping_to__cachepage(filepage_id, cachepage_id);
+            printf("%llx\n", cachepage_id);
             if (page->never_evicted) {
-                FilePageId filepage_id = cachepage_id;
-                page->cachepage_id = cachepage_id;
-                page->content_of = filepage_id;
-                page->assigned_to = filepage_id;
                 page->state = CACHEPAGE_CLEAN;
-                page->lock.release();
-
                 this->pages_ref[cachepage_id] = 1; // the Ref Count is at lease 1, thus the page won't be evicted.
-
-                this->__insert__filepage__mapping_to__cachepage(filepage_id, cachepage_id);
-                printf("%llx\n", cachepage_id);
             } else {
-                assert(0);
-                //FilePageId filepage_id = cachepage_id;
-                //auto *page = new CachePage_Allocated(page_size);
-                //assert(page);
-
-                //page->cachepage_id = cachepage_id;
-                //page->content_of = filepage_id;
-                //page->assigned_to = filepage_id;
-                //page->state = CACHEPAGE_INVALID;
-
-                //this->pages[cachepage_id] = page;
-                //this->pages_ref[cachepage_id] = 0;
-
-                //this->__insert__filepage__mapping_to__cachepage(filepage_id, cachepage_id);
-                //this->__insert__zero_reffed_filepage(filepage_id);
+                page->state = CACHEPAGE_INVALID;
+                this->pages_ref[cachepage_id] = 0;
+                this->__insert__zero_reffed_filepage(filepage_id);
             }
         }
-    }
-
-    __device__ void
-    __destructor__dev_part() {
-        assert(0);
     }
 
     __device__ ~PageCacheImpl() {
@@ -774,51 +755,6 @@ device_xfer_geminifs_file(dev_fd_t fd,
         pagecache->release_page(filepage_id, participating_mask);
         buf_dev += PAGE_SIZE(page_bit_num);
     }
-}
-
-int
-main() {
-  int block_size = 1ull << 12; /* 4096 */
-  size_t capacity = 128 * (1ull << 20); /* 1M */
-
-  gpuErrchk(cudaSetDevice(1));
-
-
-  size_t heapsz = 1 * (1ull << 30);
-  gpuErrchk(cudaDeviceSetLimit(cudaLimitMallocHeapSize, heapsz));
-
-  dev_fd_t dev_fd =
-      host_open_geminifs_file_for_device_without_backing_file(block_size, capacity);
-
-  size_t buf_size = 128 * (1ull << 10); /* 128k */
-
-  uint64_t *whole_host_buf = (uint64_t *)malloc(capacity);
-  uint64_t *another_whole_host_buf = (uint64_t *)malloc(capacity);
-
-  uint64_t *dev_buf1;
-  uint64_t *dev_buf2;
-  gpuErrchk(cudaMalloc(&dev_buf1, buf_size));
-  gpuErrchk(cudaMalloc(&dev_buf2, buf_size));
-
-  for (size_t i = 0; i < capacity / sizeof(uint64_t); i++)
-    whole_host_buf[i] = i + 2;
-
-  for (vaddr_t va = 0; va < capacity; va += buf_size) {
-      gpuErrchk(cudaMemcpy(dev_buf1, (uint8_t *)whole_host_buf + va, buf_size, cudaMemcpyHostToDevice));
-      cudaDeviceSynchronize();
-      device_xfer_geminifs_file<<<54, 32>>>(dev_fd, va, dev_buf1, buf_size, 0);
-      cudaDeviceSynchronize();
-      device_xfer_geminifs_file<<<54, 32>>>(dev_fd, va, dev_buf2, buf_size, 1);
-      cudaDeviceSynchronize();
-      gpuErrchk(cudaMemcpy((uint8_t *)another_whole_host_buf + va, dev_buf2, buf_size, cudaMemcpyDeviceToHost));
-  }
-
-  for (size_t i = 0; i < capacity / sizeof(uint64_t); i++) {
-      //std::cout << whole_host_buf[i] << " ";
-      assert(another_whole_host_buf[i] == i + 2);
-  }
-
-  return 0;
 }
 
 
