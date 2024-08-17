@@ -10,7 +10,7 @@
 #include <cuda_runtime.h>
 
 #include "geminifs_api.h"
-#include "../get-offset/get-offset.h"
+#include "get-offset/get-offset.h"
 
 union geminiFS_magic
 the_geminiFS_magic = {

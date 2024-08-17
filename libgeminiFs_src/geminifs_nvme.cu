@@ -8,7 +8,7 @@
 #include <nvm_types.h>
 #include <nvm_util.h>
 #include <nvm_cmd.h>
-#include "../get-offset/get-offset.h"
+#include "get-offset/get-offset.h"
 
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 
