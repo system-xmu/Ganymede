@@ -44,9 +44,13 @@ main() {
       cudaDeviceSynchronize();
       device_xfer_geminifs_file<<<54, 32>>>(dev_fd, va, dev_buf1, buf_size, 0);
       cudaDeviceSynchronize();
+  }
+
+  for (vaddr_t va = 0; va < capacity; va += buf_size) {
       device_xfer_geminifs_file<<<54, 32>>>(dev_fd, va, dev_buf2, buf_size, 1);
       cudaDeviceSynchronize();
       gpuErrchk(cudaMemcpy((uint8_t *)another_whole_host_buf + va, dev_buf2, buf_size, cudaMemcpyDeviceToHost));
+      cudaDeviceSynchronize();
   }
 
   for (size_t i = 0; i < capacity / sizeof(uint64_t); i++) {
