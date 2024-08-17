@@ -46,12 +46,11 @@ void warp_memcpy_4kB(void *dest_, const void *src_, uint32_t participating_mask)
     uint64_t *dest = (uint64_t *)dest_;
     const uint64_t *src = (const uint64_t *)src_;
     int nr_participant = __popc(participating_mask);
-    uint32_t lane = lane_id();
-    uint32_t participant_id = __popc(participating_mask >> (32 - lane));
-
+    int lane = lane_id();
+    int participant_id = __popc(participating_mask >> (32 - lane));
     for (size_t i = participant_id;
-            i < 32 / nr_participant;
-            i += 16 * nr_participant) {
+            i < 256;
+            i += nr_participant * 16) {
         dest[i] = src[i];
         dest[i + nr_participant * 1] = src[i + nr_participant * 1];
         dest[i + nr_participant * 2] = src[i + nr_participant * 2];
@@ -190,13 +189,13 @@ public:
 class PageCache {
 public:
     virtual __device__ CachePageId
-    acquire_page(FilePageId filepage_id) = 0;
+    acquire_page(FilePageId filepage_id, uint32_t participating_mask) = 0;
 
     virtual __device__ void
     set_page_dirty(CachePageId cachepage_id) = 0;
 
     virtual __device__ void
-    release_page(FilePageId filepage_id) = 0;
+    release_page(FilePageId filepage_id, uint32_t participating_mask) = 0;
 
     virtual __device__ uint8_t *
     get_raw_page_buf(CachePageId cachepage_id) = 0;
@@ -262,13 +261,6 @@ public:
                     printf("%llx\n", cachepage_id);
                 }
                 
-                    printf("OK. Let's try to find a 0th page, %llx\n", this->__get__cachepage_id(0));
-                    printf("OK. Let's try to find a 0th page, %llx\n", this->__get__cachepage_id(0));
-                    printf("OK. Let's try to find a 0th page, %llx\n", this->__get__cachepage_id(0));
-                    printf("OK. Let's try to find a 0th page, %llx\n", this->__get__cachepage_id(0));
-                    printf("OK. Let's try to find a 0th page, %llx\n", this->__get__cachepage_id(0));
-                    printf("OK. Let's try to find a 0th page, %llx\n", this->__get__cachepage_id(0));
-                    this->magic = 0xdeadbeef;
             } else {
                 for (CachePageId cachepage_id = 0; cachepage_id < nr_page; cachepage_id++) {
                     assert(0);
@@ -302,18 +294,16 @@ public:
     }
 
     __device__ CachePageId
-    acquire_page(FilePageId filepage_id) {
+    acquire_page(FilePageId filepage_id, uint32_t participating_mask) {
         CachePageId cachepage_id;
 
-        uint32_t mask = __activemask();
+        uint32_t mask = participating_mask;
         mask = __match_any_sync(mask, (uint64_t)this);
         mask = __match_any_sync(mask, filepage_id);
         uint32_t warp_leader = __ffs(mask) - 1;
         int lane = lane_id();
         if (lane == warp_leader) {
-            printf("magic, %llx\n", this->magic);
             printf("acquire_page %llx\n", filepage_id);
-            printf("OK. Let's try to find a 0th page, %llx\n", this->__get__cachepage_id(0));
             cachepage_id = this->__acquire_page_for_warp_leader(filepage_id);
         }
         cachepage_id = __shfl_sync(mask, cachepage_id, warp_leader);
@@ -332,8 +322,8 @@ public:
     }
 
     __device__ void
-    release_page(FilePageId filepage_id) {
-        uint32_t mask = __activemask();
+    release_page(FilePageId filepage_id, uint32_t participating_mask) {
+        uint32_t mask = participating_mask;
         mask = __match_any_sync(mask, (uint64_t)this);
         mask = __match_any_sync(mask, filepage_id);
         uint32_t warp_leader = __ffs(mask) - 1;
@@ -358,11 +348,11 @@ private:
 
         this->pagecache_lock.acquire();
 
-        printf("I'm in. I want %llx!!\n", filepage_id);
+        //printf("I'm in. I want %llx!!\n", filepage_id);
         ret = this->__get__cachepage_id(filepage_id);
         if (ret != -1) {
             // Page Hit!
-        printf("Hit!!\n");
+        //printf("Hit!!\n");
             size_t cur_ref = (++(this->pages_ref[ret]));
             if (cur_ref == 1)
                 this->__erase__zero_reffed_filepage(filepage_id);
@@ -370,14 +360,17 @@ private:
             __threadfence();
             this->pagecache_lock.release();
 
-        printf("I release the lock\n");
+        //printf("I release the lock\n");
             this->pages[ret]->lock.acquire();
             this->pages[ret]->read_in__no_lock(this->nvme_controller);
             this->pages[ret]->lock.release();
 
-        printf("I leave~\n");
+        //printf("I leave~\n");
             return ret;
         }
+
+        assert(0);
+        printf("Miss!!\n");
 
         // Miss
         // ret == -1
@@ -453,9 +446,11 @@ private:
     __forceinline__ __device__ void
     __release_page_for_warp_leader(FilePageId filepage_id) {
         this->pagecache_lock.acquire();
+        printf("I'm %llx, I want to release the page %llx\n", (uint64_t)lane_id(), filepage_id);
         CachePageId cachepage_id = this->__get__cachepage_id(filepage_id);
         if ((--(this->pages_ref[cachepage_id])) == 0) {
             // The last one reffing the cachepage exits.
+
             PageCacheImpl__info1 *p = this->__pop__filepage_waiting_for_evicting();
             if (p) {
                 // There is someone waiting for evicting
@@ -538,9 +533,7 @@ private:
 
     __forceinline__ __device__ CachePageId
     __get__cachepage_id(FilePageId filepage_id) {
-        printf("Let's find a filepage~\n");
         auto found = this->filepage__to__cachepage__ref.find(filepage_id);
-        printf("Gotcha!\n");
         if (found != this->filepage__to__cachepage__ref.end())
             return found->second;
         else
@@ -583,8 +576,6 @@ private:
         return filepage_id;
     }
 //-----------------------------------------------------------
-
-    uint64_t magic;
 
     cuda::binary_semaphore<cuda::thread_scope_device> pagecache_lock;
 
@@ -798,7 +789,8 @@ device_xfer_geminifs_file(dev_fd_t fd,
     if (begin == inclusive_end) {
         // not across the boundary of pages and in one page copy
         if (tid == 0) {
-            CachePageId cachepage_id = pagecache->acquire_page(begin);
+            uint32_t participating_mask = __activemask();
+            CachePageId cachepage_id = pagecache->acquire_page(begin, participating_mask);
             uint8_t *cachepage_base = pagecache->get_raw_page_buf(cachepage_id);
             if (is_read) {
                 memcpy(buf_dev, cachepage_base + PAGE_OFST(va, page_bit_num), nbyte);
@@ -806,7 +798,7 @@ device_xfer_geminifs_file(dev_fd_t fd,
                 memcpy(cachepage_base + PAGE_OFST(va, page_bit_num), buf_dev, nbyte);
                 pagecache->set_page_dirty(cachepage_id);
             }
-            pagecache->release_page(begin);
+            pagecache->release_page(begin, participating_mask);
         }
         return;
     } else {
@@ -815,7 +807,8 @@ device_xfer_geminifs_file(dev_fd_t fd,
             // the first non-full page
             size_t n = PAGE_BASE__BY_ID(PAGE_ID(va, page_bit_num) + 1, page_bit_num) - va;
             if (tid == 0) {
-                CachePageId cachepage_id = pagecache->acquire_page(begin);
+                uint32_t participating_mask = __activemask();
+                CachePageId cachepage_id = pagecache->acquire_page(begin, participating_mask);
                 uint8_t *cachepage_base = pagecache->get_raw_page_buf(cachepage_id);
                 if (is_read) {
                     memcpy(buf_dev, cachepage_base + PAGE_OFST(va, page_bit_num), n);
@@ -823,7 +816,7 @@ device_xfer_geminifs_file(dev_fd_t fd,
                     memcpy(cachepage_base + PAGE_OFST(va, page_bit_num), buf_dev, n);
                     pagecache->set_page_dirty(cachepage_id);
                 }
-                pagecache->release_page(begin);
+                pagecache->release_page(begin, participating_mask);
             }
             va += n;
             buf_dev += n;
@@ -834,7 +827,8 @@ device_xfer_geminifs_file(dev_fd_t fd,
             // the last non-full page
             size_t n = (va + nbyte) - PAGE_BASE(va + nbyte, page_bit_num);
             if (tid == 0) {
-                CachePageId cachepage_id = pagecache->acquire_page(inclusive_end);
+                uint32_t participating_mask = __activemask();
+                CachePageId cachepage_id = pagecache->acquire_page(inclusive_end, participating_mask);
                 uint8_t *cachepage_base = pagecache->get_raw_page_buf(cachepage_id);
                 uint8_t *dist_start = buf_dev + (nbyte - n);
                 if (is_read) {
@@ -843,7 +837,7 @@ device_xfer_geminifs_file(dev_fd_t fd,
                     memcpy(cachepage_base, dist_start, n);
                     pagecache->set_page_dirty(cachepage_id);
                 }
-                pagecache->release_page(inclusive_end);
+                pagecache->release_page(inclusive_end, participating_mask);
             }
             nbyte -= n;
         }
@@ -878,7 +872,7 @@ device_xfer_geminifs_file(dev_fd_t fd,
     if (nr_page % nr_block != 0)
         nr_page__per_block++;
 
-    FilePageId begin__block = block_id * nr_page__per_block;
+    FilePageId begin__block = begin + block_id * nr_page__per_block;
     FilePageId exclusive_end__block = begin__block + nr_page__per_block;
     if (exclusive_end <= begin__block)
         return;
@@ -891,7 +885,7 @@ device_xfer_geminifs_file(dev_fd_t fd,
     if (nr_page__block % nr_warp__per_block != 0)
         nr_page__per_warp++;
 
-    FilePageId begin__warp = warp_id__in_block * nr_page__per_warp;
+    FilePageId begin__warp = begin__block + warp_id__in_block * nr_page__per_warp;
     FilePageId exclusive_end__warp = begin__warp + nr_page__per_warp;
     if (exclusive_end__block <= begin__warp)
         return;
@@ -899,24 +893,25 @@ device_xfer_geminifs_file(dev_fd_t fd,
     if (exclusive_end__block < exclusive_end__warp)
         exclusive_end__warp = exclusive_end__block;
 
+    __syncwarp();
     uint32_t participating_mask = __activemask();
     participating_mask = __match_any_sync(participating_mask, begin__warp);
     int page_size = PAGE_SIZE(page_bit_num);
 
 
     size_t warp_id__overview = warp_id__in_block + nr_warp__per_block * block_id;
-    printf("I'm warp %llx, I account for [%llx, %llx)\n",
-            warp_id__overview, begin__warp, exclusive_end__warp);
-
+    printf("I'm warp %llx (in-block id %llx) threadIdx.x %llx, I account for [%llx, %llx)\n",
+            warp_id__overview, warp_id__in_block, threadIdx.x, begin__warp, exclusive_end__warp);
 
     buf_dev = buf_dev + PAGE_BASE__BY_ID(begin__warp - begin, page_bit_num);
     for (FilePageId filepage_id = begin__warp;
             filepage_id < exclusive_end__warp;
             filepage_id++) {
-        CachePageId cachepage_id = pagecache->acquire_page(filepage_id);
+        CachePageId cachepage_id = pagecache->acquire_page(filepage_id, participating_mask);
         uint8_t *cachepage_base = pagecache->get_raw_page_buf(cachepage_id);
-        printf("I'm warp %llx, I get filepage %llx\n\n",
-                warp_id__overview, filepage_id);
+       // printf("I'm warp %llx, I get filepage %llx\n\n",
+       //         warp_id__overview, filepage_id);
+        __syncwarp(participating_mask);
         if (is_read) {
             uint8_t *raw_page = cachepage_base;
             uint8_t *buf_dev_1 = buf_dev;
@@ -935,17 +930,19 @@ device_xfer_geminifs_file(dev_fd_t fd,
             }
             pagecache->set_page_dirty(cachepage_id);
         }
-        pagecache->release_page(filepage_id);
+        pagecache->release_page(filepage_id, participating_mask);
+        __syncwarp(participating_mask);
         buf_dev += PAGE_SIZE(page_bit_num);
     }
 }
 
 int
 main() {
-  int block_size = 1ull << 12; /* 4096 */
-  size_t capacity = 512 * (1ull << 20); /* 512G */
+  int block_size = 1ull << 15; /* 8096 */
+  size_t capacity = 3 * (1ull << 30); /* 3G */
 
   gpuErrchk(cudaSetDevice(1));
+
 
   size_t heapsz = 1 * (1ull << 30);
   gpuErrchk(cudaDeviceSetLimit(cudaLimitMallocHeapSize, heapsz));
@@ -956,31 +953,32 @@ main() {
 
   size_t buf_size = 128 * (1ull << 20); /* 128M */
 
-  uint32_t *host_buf = (uint32_t *)malloc(buf_size);
-  uint32_t *dev_buf1;
-  uint32_t *dev_buf2;
+  uint64_t *whole_host_buf = (uint64_t *)malloc(capacity);
+  uint64_t *another_whole_host_buf = (uint64_t *)malloc(capacity);
+
+  uint64_t *dev_buf1;
+  uint64_t *dev_buf2;
   gpuErrchk(cudaMalloc(&dev_buf1, buf_size));
   gpuErrchk(cudaMalloc(&dev_buf2, buf_size));
 
-  for (size_t i = 0; i < buf_size / sizeof(uint32_t); i++)
-    host_buf[i] = i + 2;
-
-  gpuErrchk(cudaMemcpy(dev_buf1, host_buf, buf_size, cudaMemcpyHostToDevice));
+  for (size_t i = 0; i < capacity / sizeof(uint64_t); i++)
+    whole_host_buf[i] = i + 2;
 
   for (vaddr_t va = 0; va < capacity; va += buf_size) {
-      device_xfer_geminifs_file<<<108, 32>>>(dev_fd, va, dev_buf1, buf_size, 0);
+      gpuErrchk(cudaMemcpy(dev_buf1, (uint8_t *)whole_host_buf + va, buf_size, cudaMemcpyHostToDevice));
+      cudaDeviceSynchronize();
+      device_xfer_geminifs_file<<<54, 32>>>(dev_fd, va, dev_buf1, buf_size, 0);
+      cudaDeviceSynchronize();
+      device_xfer_geminifs_file<<<54, 32>>>(dev_fd, va, dev_buf2, buf_size, 1);
+      cudaDeviceSynchronize();
+      gpuErrchk(cudaMemcpy((uint8_t *)another_whole_host_buf + va, dev_buf2, buf_size, cudaMemcpyDeviceToHost));
       cudaDeviceSynchronize();
   }
 
-  for (vaddr_t va = 0; va < capacity; va += buf_size) {
-      device_xfer_geminifs_file<<<108, 32>>>(dev_fd, va, dev_buf2, buf_size, 1);
-      cudaDeviceSynchronize();
+  for (size_t i = 0; i < capacity / sizeof(uint64_t); i++) {
+      //std::cout << whole_host_buf[i] << " ";
+      assert(another_whole_host_buf[i] == i + 2);
   }
-
-  gpuErrchk(cudaMemcpy(host_buf, dev_buf2, buf_size, cudaMemcpyDeviceToHost));
-
-  for (size_t i = 0; i < buf_size / sizeof(uint32_t); i++)
-    assert(host_buf[i] == i + 2);
 
   return 0;
 }
