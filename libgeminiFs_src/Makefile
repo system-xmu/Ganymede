@@ -2,8 +2,13 @@ CCFLAGS=-O3 -I/usr/local/cuda/include -L/usr/local/cuda/targets/x86_64-linux/lib
 NVCCFLAGS=-arch=sm_80 -IcuCollections/include -Icccl/thrust -Icccl/libcudacxx/include -Icccl/cub  -I../src/include  -I../src/freestanding/include --expt-relaxed-constexpr --expt-extended-lambda -rdc=true
 LDFLAGS=-L. -L../build/lib -Xlinker -rpath=../build/lib -lgeminiFs -lnvm
 
+all: libgeminiFs.a TestForNoBackingPagecache.exe TestForNvmeBacking.exe
+
 libgeminiFs.a: geminifs.cuda.o geminifs_nvme.cuda.o geminifs.o
 	ar rcs libgeminiFs.a geminifs.cuda.o geminifs_nvme.cuda.o geminifs.o
+
+TestForNvmeBacking.exe: TestForNvmeBacking.cu libgeminiFs.a
+	nvcc $(LDFLAGS) TestForNvmeBacking.cu -o TestForNoBackingPagecache.exe
 
 TestForNoBackingPagecache.exe: TestForNoBackingPagecache.cu libgeminiFs.a
 	nvcc $(LDFLAGS) TestForNoBackingPagecache.cu -o TestForNoBackingPagecache.exe

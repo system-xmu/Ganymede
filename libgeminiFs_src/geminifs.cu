@@ -81,12 +81,20 @@ private:
 class CachePage_WithoutBacking: public CachePage {
 public:
     __device__
-    CachePage_WithoutBacking(void * const buf_): CachePage(buf_, 1) { }
+    CachePage_WithoutBacking(int page_size, void * const buf_): CachePage(page_size, buf_, 1) { }
 private:
     __device__ void __write_back(FilePageId filepage_id, void *info1, void *info2) { }
     __device__ void __read_in(FilePageId filepage_id, void *info1, void *info2) { }
 };
 
+
+
+
+template <typename T>
+static __global__ void
+__sync__helper(T *pagecache) {
+    pagecache->__sync__for_block();
+}
 
 class PageCacheImpl__info1 {
 public:
@@ -104,6 +112,7 @@ public:
             int page_size,
             uint64_t size_of_virtual_space,
             CachePage *pages[],
+            int sync_parallelism,
             void *info1, void *info2,
             Map1_Ptr map1, Map1_DevRef map1_ref,
             Map2_Ptr map2, Map2_DevRef map2_ref,
@@ -116,6 +125,7 @@ public:
         zero_reffed_filepages(map3),
         zero_reffed_filepages__ref(map3_ref) {
 
+        this->sync_parallelism = sync_parallelism;
         this->info1 = info1;
         this->info2 = info2;
 
@@ -163,7 +173,6 @@ public:
     __device__ CachePageId
     acquire_page(FilePageId filepage_id, uint32_t participating_mask) {
         CachePageId cachepage_id;
-
         uint32_t mask = participating_mask;
         mask = __match_any_sync(mask, (uint64_t)this);
         mask = __match_any_sync(mask, filepage_id);
@@ -197,6 +206,44 @@ public:
         int lane = my_lane_id();
         if (lane == warp_leader)
             this->__release_page_for_warp_leader(filepage_id);
+    }
+
+    __device__ void
+    sync() {
+        __syncwarp();
+        uint32_t mask = __activemask();
+        mask = __match_any_sync(mask, (uint64_t)this);
+        uint32_t warp_leader = __ffs(mask) - 1;
+        int lane = my_lane_id();
+        if (lane == warp_leader) {
+            this->pagecache_lock.acquire();
+            __sync__helper<<<this->sync_parallelism, 1>>>(this);
+        }
+    }
+
+    __device__ void
+    __sync__for_block() {
+        if (threadIdx.x != 0)
+            return;
+        auto grid = cooperative_groups::this_grid();
+
+        size_t nr_page__per_block = this->nr_page / blockDim.x;
+        if (this->nr_page % blockDim.x != 0)
+            nr_page__per_block++;
+
+        size_t start_page_idx = blockIdx.x * nr_page__per_block;
+        size_t end_page_idx_exclusive = start_page_idx + nr_page__per_block;
+        if (this->nr_page <= start_page_idx)
+            return;
+        if (this->nr_page < end_page_idx_exclusive)
+            end_page_idx_exclusive = this->nr_page;
+
+        for (size_t i = start_page_idx; i < end_page_idx_exclusive; i++)
+            this->pages[i]->sync(this->info1, this->info2);
+
+        grid.sync();
+        if (blockIdx.x == 0)
+            this->pagecache_lock.release();
     }
 
     __forceinline__ __device__ uint8_t *
@@ -444,6 +491,7 @@ private:
     }
 //-----------------------------------------------------------
 
+    int sync_parallelism;
     void *info1, *info2;
 
     cuda::binary_semaphore<cuda::thread_scope_device> pagecache_lock;
@@ -476,6 +524,7 @@ __internal__get_pagecache(
         int page_size,
         uint64_t size_of_virtual_space,
         CachePage *pages[],
+        int sync_parallelism,
         void *info1, void *info2) {
     uint64_t nr_page = pagecache_capacity / page_size;
 
@@ -537,6 +586,7 @@ __internal__get_pagecache(
                 page_size,
                 size_of_virtual_space,
                 pages,
+                sync_parallelism,
                 info1, info2,
                 filepages__waiting_for_evicting, map1_ref,
                 filepage__to__cachepage, map2_ref,
@@ -561,7 +611,7 @@ host_open_geminifs_file_for_device_without_backing_file(int page_size, uint64_t 
     RUN_ON_DEVICE({
         for (size_t i = 0; i < nr_page; i++) {
             auto *cachepage = cachepage_structures + i;
-            pages[i] = new (cachepage) CachePage_WithoutBacking(all_raw_pages + i * page_size);
+            pages[i] = new (cachepage) CachePage_WithoutBacking(page_size, all_raw_pages + i * page_size);
         }
     });
 
@@ -569,6 +619,7 @@ host_open_geminifs_file_for_device_without_backing_file(int page_size, uint64_t 
             page_size,
             pagecache_capacity,
             pages,
+            1,
             nullptr, nullptr);
     return pagecache_dev;
 }
@@ -746,3 +797,11 @@ device_xfer_geminifs_file(dev_fd_t fd,
     }
 }
 
+__global__ void
+device_sync(dev_fd_t dev_fd) {
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    PageCache *pagecache = (PageCache *)dev_fd;
+    if (tid != 0)
+        return;
+    pagecache->sync();
+}
