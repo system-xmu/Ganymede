@@ -418,7 +418,7 @@ int main(int argc, char** argv)
     sleep(5);
 
 out:
-    ret = Host_file_system_exit(nvme_mount_path);
+    ret = Host_file_system_exit(nvme_dev_path);
     if(ret < 0)
         exit(-1);
     nvm_ctrl_free(ctrl);

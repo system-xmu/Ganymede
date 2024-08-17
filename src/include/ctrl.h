@@ -140,7 +140,7 @@ inline Controller::Controller(const char* snvme_control_path, const char* snvme_
     ctrl->sq_num = n_cqs;
 
     // set the user defined io queues num, and located on device
-    status = ioctl_set_qnum(ctrl, n_sqs+n_qps);
+    status = ioctl_set_qnum(ctrl, n_sqs+n_cqs);
     if (status!=0)
     {
         throw error(string("Failed to set user io queue num: ") + nvm_strerror(status));

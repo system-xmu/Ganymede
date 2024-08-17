@@ -27,7 +27,7 @@
 #define nvme_mount_path "/home/qs/nvm_mount"
 #define nvme_dev_path "/dev/nvme1n1"
  __device__ void
-read_from_nvme(QueuePair* qp,uint64_t start_block, uint64_t *dev_buf, uint64_t blk_num) {
+read_from_nvme(QueuePair* qp,uint64_t start_block, uint64_t dev_buf[], uint64_t blk_num) {
 
     // int *buf = (int *)dev_buf[0];
     // for (size_t i = 0; i < 256; i++)
@@ -35,14 +35,14 @@ read_from_nvme(QueuePair* qp,uint64_t start_block, uint64_t *dev_buf, uint64_t b
     
     nvm_cmd_t cmd;
     
-    uint16_t cid = get_cid(&(qp->sq));
+    uint16_t cid = get_cid(&(qp->sq)); 
 
     nvm_cmd_header(&cmd, cid, NVM_IO_READ, qp->nvmNamespace);
 
     uint64_t prp1 = dev_buf[0];
     uint64_t prp2 = 0;
     nvm_cmd_data_ptr(&cmd, prp1, prp2);
-    nvm_cmd_rw_blks(&cmd, start_block, blk_num);
+    nvm_cmd_rw_blks(&cmd, start_block, blk_num); // 128KB
     uint16_t sq_pos = sq_enqueue(&qp->sq, &cmd);
     uint32_t head, head_;
     // uint64_t pc_pos;
@@ -60,11 +60,11 @@ read_from_nvme(QueuePair* qp,uint64_t start_block, uint64_t *dev_buf, uint64_t b
 
 }
 
-inline __device__ void
+__device__ void
 write_to_nvme(QueuePair* qp,uint64_t start_block, void *dev_buf, uint64_t blk_num, int queue) {
 }
 
-inline __device__ void
+__device__ void
 sync_nvme(nvme_ofst_t nvme_ofst) {
 }
 

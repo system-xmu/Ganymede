@@ -181,43 +181,43 @@ raw_file_size(int fd) {
   return lseek(fd, 0, SEEK_END);
 }
 
-dev_fd_t
-host_open_geminifs_file_for_device(host_fd_t host_fd) {
-  dev_fd_t ret;
-  struct geminiFS_hdr *hdr = host_fd;
-
-  nvme_ofst_t *l1__dev;
-  assert(cudaSuccess ==
-    cudaMalloc(&l1__dev, hdr->first_block_base));
-
-  struct geminiFS_hdr *hdr__file = malloc(hdr->first_block_base);
-
-  assert((off_t)(-1) !=
-    lseek(hdr->fd, 0, SEEK_SET)
-  );
-  assert(hdr->first_block_base ==
-    read(hdr->fd, hdr__file, hdr->first_block_base)
-  );
-  assert(cudaSuccess ==
-    cudaMemcpy(
-      l1__dev,
-      hdr__file->l1,
-      hdr__file->first_block_base - sizeof(*hdr),
-      cudaMemcpyHostToDevice)
-  );
-
-  free(hdr__file);
-
-  ret.l1__dev = l1__dev;
-  ret.block_bit = hdr->block_bit;
-  ret.nr_l1 = hdr->nr_l1;
-  return ret;
-}
-
-void
-host_close_geminifs_file_for_device(dev_fd_t dev_fd) {
-  assert(cudaSuccess == cudaFree(dev_fd.l1__dev));
-}
+//dev_fd_t
+//host_open_geminifs_file_for_device(host_fd_t host_fd) {
+//  dev_fd_t ret;
+//  struct geminiFS_hdr *hdr = host_fd;
+//
+//  nvme_ofst_t *l1__dev;
+//  assert(cudaSuccess ==
+//    cudaMalloc(&l1__dev, hdr->first_block_base));
+//
+//  struct geminiFS_hdr *hdr__file = malloc(hdr->first_block_base);
+//
+//  assert((off_t)(-1) !=
+//    lseek(hdr->fd, 0, SEEK_SET)
+//  );
+//  assert(hdr->first_block_base ==
+//    read(hdr->fd, hdr__file, hdr->first_block_base)
+//  );
+//  assert(cudaSuccess ==
+//    cudaMemcpy(
+//      l1__dev,
+//      hdr__file->l1,
+//      hdr__file->first_block_base - sizeof(*hdr),
+//      cudaMemcpyHostToDevice)
+//  );
+//
+//  free(hdr__file);
+//
+//  ret.l1__dev = l1__dev;
+//  ret.block_bit = hdr->block_bit;
+//  ret.nr_l1 = hdr->nr_l1;
+//  return ret;
+//}
+//
+//void
+//host_close_geminifs_file_for_device(dev_fd_t dev_fd) {
+//  assert(cudaSuccess == cudaFree(dev_fd.l1__dev));
+//}
 
 static void
 test_host(host_fd_t host_fd) {
@@ -250,61 +250,62 @@ test_host(host_fd_t host_fd) {
   free(buf2);
 }
 
-static void
-test_device_va_convert(host_fd_t host_fd,
-                       dev_fd_t dev_fd) {
-  struct geminiFS_hdr *hdr = host_fd;
-  int block_size = 1 << hdr->block_bit;
+//static void
+//test_device_va_convert(host_fd_t host_fd,
+//                       dev_fd_t dev_fd) {
+//  struct geminiFS_hdr *hdr = host_fd;
+//  int block_size = 1 << hdr->block_bit;
+//
+//  int snvme_helper_fd = open(snvme_helper_path, O_RDWR);
+//  if (snvme_helper_fd < 0) {
+//      perror("Failed to open snvme_helper_fd");
+//      assert(0);
+//  }
+//
+//  for (vaddr_t va = 0;
+//       va < hdr->virtual_space_size;
+//       va += block_size) {
+//    nvme_ofst_t t1 = host_convert_va__using_device(dev_fd, va);
+//
+//    rawfile_ofst_t rawfile_ofst = host__convert_va__to(host_fd, va);
+//    struct nds_mapping mapping;
+//    mapping.file_fd = hdr->fd;
+//    mapping.offset = rawfile_ofst;
+//    mapping.len = block_size;
+//    if (ioctl(snvme_helper_fd, SNVME_HELP_GET_NVME_OFFSET, &mapping) < 0) {
+//        perror("ioctl failed");
+//        assert(0);
+//    } 
+//    nvme_ofst_t t2 = mapping.address;
+//
+//    assert(t1 == t2);
+//  }
+//
+//  close(snvme_helper_fd);
+//}
 
-  int snvme_helper_fd = open(snvme_helper_path, O_RDWR);
-  if (snvme_helper_fd < 0) {
-      perror("Failed to open snvme_helper_fd");
-      assert(0);
-  }
-
-  for (vaddr_t va = 0;
-       va < hdr->virtual_space_size;
-       va += block_size) {
-    nvme_ofst_t t1 = host_convert_va__using_device(dev_fd, va);
-
-    rawfile_ofst_t rawfile_ofst = host__convert_va__to(host_fd, va);
-    struct nds_mapping mapping;
-    mapping.file_fd = hdr->fd;
-    mapping.offset = rawfile_ofst;
-    mapping.len = block_size;
-    if (ioctl(snvme_helper_fd, SNVME_HELP_GET_NVME_OFFSET, &mapping) < 0) {
-        perror("ioctl failed");
-        assert(0);
-    } 
-    nvme_ofst_t t2 = mapping.address;
-
-    assert(t1 == t2);
-  }
-
-  close(snvme_helper_fd);
-}
 
 
-
-int
-main() {
-  size_t virtual_space_size = (uint64_t)20 * (1 << 30)/*GB*/;
-  //size_t virtual_space_size = 4096;
-  host_fd_t host_fd = host_create_geminifs_file("checkpoint.geminifs", 4096, virtual_space_size);
-
-  test_host(host_fd);
-
-  host_close_geminifs_file(host_fd);
-
-  host_fd = host_open_geminifs_file("checkpoint.geminifs");
-  test_host(host_fd);
-
-  host_refine_nvmeofst(host_fd);
-
-  dev_fd_t dev_fd = host_open_geminifs_file_for_device(host_fd);
-  test_device_va_convert(host_fd, dev_fd);
-  host_close_geminifs_file_for_device(dev_fd);
-
-  host_close_geminifs_file(host_fd);
-  return 0;
-}
+//int
+//main() {
+//  dev_fd_t dev_fd = host_open_geminifs_file_for_device_without_backing_file(4096, 1 << 20);
+//  ////size_t virtual_space_size = (uint64_t)20 * (1 << 30)/*GB*/;
+//  //size_t virtual_space_size = 4096;
+//  //host_fd_t host_fd = host_create_geminifs_file("checkpoint.geminifs", 4096, virtual_space_size);
+//
+//  //test_host(host_fd);
+//
+//  //host_close_geminifs_file(host_fd);
+//
+//  //host_fd = host_open_geminifs_file("checkpoint.geminifs");
+//  //test_host(host_fd);
+//
+//  //host_refine_nvmeofst(host_fd);
+//
+//  ////dev_fd_t dev_fd = host_open_geminifs_file_for_device(host_fd);
+//  ////test_device_va_convert(host_fd, dev_fd);
+//  ////host_close_geminifs_file_for_device(dev_fd);
+//
+//  //host_close_geminifs_file(host_fd);
+//  return 0;
+//}
