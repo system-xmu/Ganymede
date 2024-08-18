@@ -18,7 +18,7 @@ main() {
   int block_size = 1ull << 12; /* 4096 */
   size_t capacity = 128 * (1ull << 20); /* 128M */
 
-  gpuErrchk(cudaSetDevice(1));
+  gpuErrchk(cudaSetDevice(0));
 
   size_t heapsz = 1 * (1ull << 30);
   gpuErrchk(cudaDeviceSetLimit(cudaLimitMallocHeapSize, heapsz));
@@ -44,6 +44,7 @@ main() {
       cudaDeviceSynchronize();
       device_xfer_geminifs_file<<<54, 32>>>(dev_fd, va, dev_buf1, buf_size, 0);
       cudaDeviceSynchronize();
+      exit(0);
   }
 
   for (vaddr_t va = 0; va < capacity; va += buf_size) {
