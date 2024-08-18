@@ -36,18 +36,53 @@ private:
         this->__xfer(filepage_id, ctrl, hdr, 1);
     }
 
-
     __device__ void
     __read_in(FilePageId filepage_id, void *ctrl, void *hdr) {
         this->__xfer(filepage_id, ctrl, hdr, 0);
     }
-
 
     __device__ __forceinline__ void
     __xfer(FilePageId filepage_id, void *ctrl_, void *hdr_, int is_read) {
         auto *ctrl = (Controller *)ctrl_;
         auto *hdr = (struct geminiFS_hdr *)hdr_;
 
+
+        int page_size = this->page_size;
+        int page_bit = __popc(page_size - 1);
+        int file_block_size = 1 << hdr->block_bit;
+
+
+
+        if (file_block_size < (128 * (1ull << 10))) {
+            vaddr_t file_va = filepage_id << page_bit;
+            nvme_ofst_t nvme_ofst = this->__get_nvmeofst(hdr, file_va);
+
+            int queue = 0;
+            QueuePair* qp = &ctrl->d_qps[queue];
+
+            size_t start_hqps_block = nvme_ofst >> this->hqps_block_size_log;
+            int nr_hqps_blocks = file_block_size >> this->hqps_block_size_log;
+            nvm_cmd_t cmd;
+            uint16_t cid = get_cid(&(qp->sq));
+            nvm_cmd_header(&cmd, cid, NVM_IO_READ, qp->nvmNamespace);
+            
+            assert(this->n_ioaddrs == 1);
+            uint64_t prp1 = this->ioaddrs[0];
+            uint64_t prp2 = 0;
+            nvm_cmd_data_ptr(&cmd, prp1, prp2);
+            nvm_cmd_rw_blks(&cmd, start_hqps_block, nr_hqps_blocks);
+            uint16_t sq_pos = sq_enqueue(&qp->sq, &cmd);
+            uint32_t head, head_;
+
+            uint32_t cq_pos = cq_poll(&qp->cq, cid, &head, &head_);
+
+            qp->cq.tail.fetch_add(1, simt::memory_order_acq_rel);
+
+            cq_dequeue(&qp->cq, cq_pos, &qp->sq, head, head_);
+
+            put_cid(&qp->sq, cid);
+        } else {
+            assert(0);
 // page_size
 // |--------------------------------------------------|
 
@@ -57,53 +92,51 @@ private:
 // n_ioaddrs (here is 16)
 // |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 
+            int nr_file_blocks__in_page = page_size / file_block_size;
+            int nr_hqps_blocks = file_block_size >> this->hqps_block_size_log;
 
-        int page_size = this->page_size;
-        int page_bit = __popc(page_size - 1);
-        int file_block_size = 1 << hdr->block_bit;
-        int nr_file_blocks__in_page = page_size / file_block_size;
-        int nr_hqps_blocks = file_block_size >> this->hqps_block_size_log;
+            int nvme_block_size = file_block_size;
+            int nr_ioaddrs__per_nvme_block = this->n_ioaddrs / nr_file_blocks__in_page;
 
-        int nvme_block_size = file_block_size;
-        int nr_ioaddrs__per_nvme_block = this->n_ioaddrs / nr_file_blocks__in_page;
+            vaddr_t file_page_va = filepage_id << page_bit;
 
-        vaddr_t file_page_va = filepage_id << page_bit;
+            int queue = 0;
+            QueuePair* qp = &ctrl->d_qps[queue];
 
-        int queue = 0;
-        QueuePair* qp = &ctrl->d_qps[queue];
-
-        for (size_t i = 0; i < nr_file_blocks__in_page; i++) {
-            vaddr_t file_block_va = file_page_va + i * file_block_size;
-            nvme_ofst_t nvme_ofst = this->__get_nvmeofst(hdr, file_block_va);
-            size_t start_hqps_block = nvme_ofst >> this->hqps_block_size_log;
-            for (size_t j = 0; j < nr_ioaddrs__per_nvme_block; j++) {
-                int ioaddr_idx = i * nr_ioaddrs__per_nvme_block + j;
+            for (size_t i = 0; i < nr_file_blocks__in_page; i++) {
+                vaddr_t file_block_va = file_page_va + i * file_block_size;
+                nvme_ofst_t nvme_ofst = this->__get_nvmeofst(hdr, file_block_va);
+                size_t start_hqps_block = nvme_ofst >> this->hqps_block_size_log;
+                for (size_t j = 0; j < nr_ioaddrs__per_nvme_block; j++) {
+                    int ioaddr_idx = i * nr_ioaddrs__per_nvme_block + j;
+                }
             }
+
+            nvm_cmd_t cmd;
+            uint16_t cid = get_cid(&(qp->sq));
+            nvm_cmd_header(&cmd, cid, NVM_IO_READ, qp->nvmNamespace);
+            //uint64_t prp1 = dev_buf[0];
+            //uint64_t prp2 = 0;
+            //nvm_cmd_data_ptr(&cmd, prp1, prp2);
+            //nvm_cmd_rw_blks(&cmd, start_block, n_blocks);
+            //uint16_t sq_pos = sq_enqueue(&qp->sq, &cmd);
+            //uint32_t head, head_;
+
+            //uint32_t cq_pos = cq_poll(&qp->cq, cid, &head, &head_);
+
+            //qp->cq.tail.fetch_add(1, simt::memory_order_acq_rel);
+
+            //cq_dequeue(&qp->cq, cq_pos, &qp->sq, head, head_);
+
+            //put_cid(&qp->sq, cid);
         }
 
-        nvm_cmd_t cmd;
-        uint16_t cid = get_cid(&(qp->sq));
-        nvm_cmd_header(&cmd, cid, NVM_IO_READ, qp->nvmNamespace);
-        //uint64_t prp1 = dev_buf[0];
-        //uint64_t prp2 = 0;
-        //nvm_cmd_data_ptr(&cmd, prp1, prp2);
-        //nvm_cmd_rw_blks(&cmd, start_block, n_blocks);
-        //uint16_t sq_pos = sq_enqueue(&qp->sq, &cmd);
-        //uint32_t head, head_;
-
-        //uint32_t cq_pos = cq_poll(&qp->cq, cid, &head, &head_);
-
-        //qp->cq.tail.fetch_add(1, simt::memory_order_acq_rel);
-
-        //cq_dequeue(&qp->cq, cq_pos, &qp->sq, head, head_);
-
-        //put_cid(&qp->sq, cid);
 
 
     }
 };
 
-Controller *ctrl;
+static Controller *ctrl;
 
 void
 host_open_all(
@@ -135,6 +168,14 @@ host_open_geminifs_file_for_device(
         uint64_t pagecache_capacity,
         int page_size) {
     struct geminiFS_hdr *hdr = host_fd;
+
+
+    int file_block_size = 1 << hdr->block_bit;
+    if (file_block_size < (128 * (1ull << 10))) {
+        assert(file_block_size == page_size);
+    } else {
+        assert(file_block_size <= page_size);
+    }
 
     struct geminiFS_hdr *hdr__dev;
     gpuErrchk(cudaMallocManaged(&hdr__dev, hdr->first_block_base));

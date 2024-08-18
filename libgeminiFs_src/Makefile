@@ -1,5 +1,5 @@
 CCFLAGS=-O3 -I/usr/local/cuda/include -L/usr/local/cuda/targets/x86_64-linux/lib
-NVCCFLAGS=-arch=sm_80 -IcuCollections/include -Icccl/thrust -Icccl/libcudacxx/include -Icccl/cub  -I../src/include  -I../src/freestanding/include --expt-relaxed-constexpr --expt-extended-lambda -rdc=true
+NVCCFLAGS=-arch=sm_80 -IcuCollections/include -Icccl/thrust -Icccl/libcudacxx/include -Icccl/cub  -I../src/include  -I../src/freestanding/include --expt-relaxed-constexpr --expt-extended-lambda -rdc=true -G -g
 LDFLAGS=-L. -L../build/lib -Xlinker -rpath=../build/lib -lgeminiFs -lnvm
 
 all: libgeminiFs.a TestForNoBackingPagecache.exe TestForNvmeBacking.exe
