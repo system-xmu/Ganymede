@@ -31,7 +31,7 @@ snvme-core-$(CONFIG_NVME_HWMON)		+= hwmon.o
 snvme-objs := nvfs-pci.o nvfs-p2p.o list.o ctrl.o map.o pci.o 
 
 
-KERNEL_SRC := /lib/modules/$(shell uname -r)/build/
+KERNEL_SRC := /home/qs/linux-5.15/linux
 # /lib/modules/$(shell uname -r)/build/
 # nvme-core-y	:= core.o ioctl.o multipath.o
 # nvme-y := pci.o
