@@ -11,7 +11,7 @@ device_xfer_geminifs_file(dev_fd_t fd_1,
                           size_t nbyte,
                           int is_read);
 
-
-
+extern __global__ void
+device_sync(dev_fd_t);
 
 #endif

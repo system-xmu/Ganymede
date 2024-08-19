@@ -81,12 +81,20 @@ private:
 class CachePage_WithoutBacking: public CachePage {
 public:
     __device__
-    CachePage_WithoutBacking(void * const buf_): CachePage(buf_, 1) { }
+    CachePage_WithoutBacking(int page_size, void * const buf_): CachePage(page_size, buf_, 1) { }
 private:
     __device__ void __write_back(FilePageId filepage_id, void *info1, void *info2) { }
     __device__ void __read_in(FilePageId filepage_id, void *info1, void *info2) { }
 };
 
+
+
+
+template <typename T>
+static __global__ void
+__sync__helper(T *pagecache) {
+    pagecache->__sync__for_block();
+}
 
 class PageCacheImpl__info1 {
 public:
@@ -95,36 +103,40 @@ public:
     int nr_waiting;
 };
 
-template <typename Map1_Ptr, typename Map1_DevRef,
-          typename Map2_Ptr, typename Map2_DevRef,
-          typename Map3_Ptr, typename Map3_DevRef>
 class PageCacheImpl: public PageCache {
 public:
     __device__ PageCacheImpl(uint64_t pagecache_capacity,
             int page_size,
             uint64_t size_of_virtual_space,
             CachePage *pages[],
+            int sync_parallelism,
             void *info1, void *info2,
-            Map1_Ptr map1, Map1_DevRef map1_ref,
-            Map2_Ptr map2, Map2_DevRef map2_ref,
-            Map3_Ptr map3, Map3_DevRef map3_ref):
+            MyLinklistNode *map1[],
+            CachePageId *map2,
+            MyLinklistNode *map3[]):
         filepages__waiting_for_evicting(map1),
-        filepages__waiting_for_evicting__ref(map1_ref),
         nr_waiting(0),
         filepage__to__cachepage(map2),
-        filepage__to__cachepage__ref(map2_ref),
-        zero_reffed_filepages(map3),
-        zero_reffed_filepages__ref(map3_ref) {
-
+        zero_reffed_filepages(map3)
+    {
+        this->sync_parallelism = sync_parallelism;
         this->info1 = info1;
         this->info2 = info2;
 
         this->pagecache_lock.release();
 
         uint64_t nr_page = pagecache_capacity / page_size;
+        uint64_t nr_file_page = size_of_virtual_space / page_size;
+
+        for (FilePageId filepage_id = 0; filepage_id < nr_file_page; filepage_id++) {
+            this->filepages__waiting_for_evicting[filepage_id] = nullptr;
+            this->filepage__to__cachepage[filepage_id] = -1;
+            this->zero_reffed_filepages[filepage_id] = nullptr;
+        }
 
         this->page_size = page_size;
         this->nr_page = nr_page;
+        this->nr_file_page = nr_file_page;
 
         this->pages = pages;
         this->pages_ref = (uint64_t *)malloc(sizeof(uint64_t) * this->nr_page);
@@ -163,7 +175,6 @@ public:
     __device__ CachePageId
     acquire_page(FilePageId filepage_id, uint32_t participating_mask) {
         CachePageId cachepage_id;
-
         uint32_t mask = participating_mask;
         mask = __match_any_sync(mask, (uint64_t)this);
         mask = __match_any_sync(mask, filepage_id);
@@ -197,6 +208,44 @@ public:
         int lane = my_lane_id();
         if (lane == warp_leader)
             this->__release_page_for_warp_leader(filepage_id);
+    }
+
+    __device__ void
+    sync() {
+        __syncwarp();
+        uint32_t mask = __activemask();
+        mask = __match_any_sync(mask, (uint64_t)this);
+        uint32_t warp_leader = __ffs(mask) - 1;
+        int lane = my_lane_id();
+        if (lane == warp_leader) {
+            this->pagecache_lock.acquire();
+            __sync__helper<<<this->sync_parallelism, 1>>>(this);
+        }
+    }
+
+    __device__ void
+    __sync__for_block() {
+        if (threadIdx.x != 0)
+            return;
+        auto grid = cooperative_groups::this_grid();
+
+        size_t nr_page__per_block = this->nr_page / blockDim.x;
+        if (this->nr_page % blockDim.x != 0)
+            nr_page__per_block++;
+
+        size_t start_page_idx = blockIdx.x * nr_page__per_block;
+        size_t end_page_idx_exclusive = start_page_idx + nr_page__per_block;
+        if (this->nr_page <= start_page_idx)
+            return;
+        if (this->nr_page < end_page_idx_exclusive)
+            end_page_idx_exclusive = this->nr_page;
+
+        for (size_t i = start_page_idx; i < end_page_idx_exclusive; i++)
+            this->pages[i]->sync(this->info1, this->info2);
+
+        grid.sync();
+        if (blockIdx.x == 0)
+            this->pagecache_lock.release();
     }
 
     __forceinline__ __device__ uint8_t *
@@ -350,17 +399,16 @@ private:
 //----------------------------------------------------------
     __forceinline__ __device__ PageCacheImpl__info1 *
     __is_filepage_waiting_for_evicting(FilePageId filepage_id) {
-        auto found = this->filepages__waiting_for_evicting__ref.find(filepage_id);
-        if (found != this->filepages__waiting_for_evicting__ref.end()) {
-            auto *n = static_cast<MyLinklistNodeD<PageCacheImpl__info1 *> *>(found->second);
+        auto *n = static_cast<MyLinklistNodeD<PageCacheImpl__info1 *> *>(this->filepages__waiting_for_evicting[filepage_id]);
+        if (n)
             return n->v;
-        } else
+        else
             return nullptr;
     }
 
     __forceinline__ __device__ bool
     __has_quota_to_wait_for_evicting() {
-        return this->nr_waiting < this->filepages__waiting_for_evicting__ref.capacity() / 2;
+        return this->nr_waiting < this->nr_page;
     }
 
     __forceinline__ __device__ void
@@ -372,7 +420,7 @@ private:
         this->filepages__waiting_for_evicting__list.enqueue(n);
         this->nr_waiting++;
 
-        assert(this->filepages__waiting_for_evicting__ref.insert(cuco::pair{filepage_id, n}));
+        this->filepages__waiting_for_evicting[filepage_id] = n;
     }
 
     __forceinline__ __device__ PageCacheImpl__info1 *
@@ -382,7 +430,7 @@ private:
         auto ret = n->v;
         this->nr_waiting--;
 
-        assert(this->filepages__waiting_for_evicting__ref.erase(ret->filepage_id));
+        this->filepages__waiting_for_evicting[ret->filepage_id] = nullptr;
 
         return ret;
     }
@@ -390,21 +438,17 @@ private:
     __forceinline__ __device__ void
     __insert__filepage__mapping_to__cachepage(FilePageId filepage_id,
                                               CachePageId cachepage_id) {
-        assert(this->filepage__to__cachepage__ref.insert(cuco::pair{filepage_id, cachepage_id}));
+        this->filepage__to__cachepage[filepage_id] = cachepage_id;
     }
 
     __forceinline__ __device__ void
     __erase__filepage__mapping(FilePageId filepage_id) {
-        assert(this->filepage__to__cachepage__ref.erase(filepage_id));
+        this->filepage__to__cachepage[filepage_id] = -1;
     }
 
     __forceinline__ __device__ CachePageId
     __get__cachepage_id(FilePageId filepage_id) {
-        auto found = this->filepage__to__cachepage__ref.find(filepage_id);
-        if (found != this->filepage__to__cachepage__ref.end())
-            return found->second;
-        else
-            return -1;
+        return this->filepage__to__cachepage[filepage_id];
     }
 //-----------------------------------------------------------
     __forceinline__ __device__ void
@@ -414,19 +458,13 @@ private:
         n->v = filepage_id;
         this->zero_reffed_filepages__list.enqueue(n);
 
-        assert(this->zero_reffed_filepages__ref.insert(cuco::pair{filepage_id, n}));
+        this->zero_reffed_filepages[filepage_id] = n;
     }
 
     __forceinline__ __device__ void
     __erase__zero_reffed_filepage(FilePageId filepage_id) {
-        MyLinklistNodeD<FilePageId> *n = nullptr;
-        auto found = this->zero_reffed_filepages__ref.find(filepage_id);
-        if (found != this->zero_reffed_filepages__ref.end())
-            n = static_cast<MyLinklistNodeD<FilePageId> *>(found->second);
-
-        assert(n);
-
-        assert(this->zero_reffed_filepages__ref.erase(filepage_id));
+        auto *n = static_cast<MyLinklistNodeD<FilePageId> *>(this->zero_reffed_filepages[filepage_id]);
+        this->zero_reffed_filepages[filepage_id] = nullptr;
         this->zero_reffed_filepages__list.detach_node(n);
         delete n;
     }
@@ -438,12 +476,13 @@ private:
         auto filepage_id = n->v;
         delete n;
 
-        assert(this->zero_reffed_filepages__ref.erase(filepage_id));
+        this->zero_reffed_filepages[filepage_id] = nullptr;
 
         return filepage_id;
     }
 //-----------------------------------------------------------
 
+    int sync_parallelism;
     void *info1, *info2;
 
     cuda::binary_semaphore<cuda::thread_scope_device> pagecache_lock;
@@ -453,20 +492,18 @@ private:
     int page_size;
 
     uint64_t nr_page;
+    uint64_t nr_file_page;
 
     CachePage **pages;
     uint64_t *pages_ref;
 
     size_t nr_waiting;
-    Map1_Ptr filepages__waiting_for_evicting;
-    Map1_DevRef filepages__waiting_for_evicting__ref;
+    MyLinklistNode **filepages__waiting_for_evicting;
     MyLinklist filepages__waiting_for_evicting__list;
 
-    Map2_Ptr filepage__to__cachepage;
-    Map2_DevRef filepage__to__cachepage__ref;
+    CachePageId *filepage__to__cachepage;
 
-    Map3_Ptr zero_reffed_filepages;
-    Map3_DevRef zero_reffed_filepages__ref;
+    MyLinklistNode **zero_reffed_filepages;
     MyLinklist zero_reffed_filepages__list;
 };
 
@@ -476,6 +513,7 @@ __internal__get_pagecache(
         int page_size,
         uint64_t size_of_virtual_space,
         CachePage *pages[],
+        int sync_parallelism,
         void *info1, void *info2) {
     uint64_t nr_page = pagecache_capacity / page_size;
 
@@ -484,63 +522,26 @@ __internal__get_pagecache(
     CachePageId constexpr empty_CachePageId_sentinel = -1;
     MyLinklistNode constexpr *sentinel = nullptr;
 
-    auto *filepages__waiting_for_evicting =
-        new cuco::static_map
-        <FilePageId,
-        MyLinklistNode *,
-        cuco::extent<std::size_t>,
-        cuda::thread_scope_device,
-        thrust::equal_to<FilePageId>,
-        cuco::linear_probing<1, cuco::default_hash_function<FilePageId>>>
-            (2 * nr_page,
-             cuco::empty_key{empty_FilePageId_sentinel},
-             cuco::empty_value{sentinel});
-    auto map1_ref = filepages__waiting_for_evicting->ref(cuco::insert, cuco::find, cuco::erase);
-
-    auto *filepage__to__cachepage =
-        new cuco::static_map
-        <FilePageId,
-        CachePageId,
-        cuco::extent<std::size_t>,
-        cuda::thread_scope_device,
-        thrust::equal_to<FilePageId>,
-        cuco::linear_probing<1, cuco::default_hash_function<FilePageId>>>
-            (2 * nr_page,
-             cuco::empty_key{empty_FilePageId_sentinel},
-             cuco::empty_value{empty_CachePageId_sentinel});
-    auto map2_ref = filepage__to__cachepage->ref(cuco::insert, cuco::find, cuco::erase);
-
-    auto *zero_reffed_filepages =
-        new cuco::static_map
-        <FilePageId,
-        MyLinklistNode *,
-        cuco::extent<std::size_t>,
-        cuda::thread_scope_device,
-        thrust::equal_to<FilePageId>,
-        cuco::linear_probing<1, cuco::default_hash_function<FilePageId>>>
-            (2 * nr_page,
-             cuco::empty_key{empty_FilePageId_sentinel},
-             cuco::empty_value{sentinel});
-    auto map3_ref = zero_reffed_filepages->ref(cuco::insert, cuco::find, cuco::erase);
-
-    using PageCacheImplType =
-        PageCacheImpl<decltype(filepages__waiting_for_evicting), decltype(map1_ref),
-                      decltype(filepage__to__cachepage), decltype(map2_ref),
-                      decltype(zero_reffed_filepages), decltype(map3_ref)>;
-
     PageCache *pagecache;
-    //gpuErrchk(cudaMallocManaged(&pagecache, sizeof(PageCacheImplType)));
-    gpuErrchk(cudaMalloc(&pagecache, sizeof(PageCacheImplType)));
+    gpuErrchk(cudaMalloc(&pagecache, sizeof(PageCacheImpl)));
+
+    uint64_t nr_file_page = size_of_virtual_space / page_size;
+    MyLinklistNode **map1;
+    CachePageId *map2;
+    MyLinklistNode **map3;
+
+    gpuErrchk(cudaMalloc(&map1, nr_file_page * sizeof(MyLinklistNode *)));
+    gpuErrchk(cudaMalloc(&map2, nr_file_page * sizeof(CachePageId)));
+    gpuErrchk(cudaMalloc(&map3, nr_file_page * sizeof(MyLinklistNode *)));
 
     RUN_ON_DEVICE({
-        new (pagecache) PageCacheImplType (pagecache_capacity,
+        new (pagecache) PageCacheImpl (pagecache_capacity,
                 page_size,
                 size_of_virtual_space,
                 pages,
+                sync_parallelism,
                 info1, info2,
-                filepages__waiting_for_evicting, map1_ref,
-                filepage__to__cachepage, map2_ref,
-                zero_reffed_filepages, map3_ref);
+                map1, map2, map3);
     });
     return pagecache;
 }
@@ -561,7 +562,7 @@ host_open_geminifs_file_for_device_without_backing_file(int page_size, uint64_t 
     RUN_ON_DEVICE({
         for (size_t i = 0; i < nr_page; i++) {
             auto *cachepage = cachepage_structures + i;
-            pages[i] = new (cachepage) CachePage_WithoutBacking(all_raw_pages + i * page_size);
+            pages[i] = new (cachepage) CachePage_WithoutBacking(page_size, all_raw_pages + i * page_size);
         }
     });
 
@@ -569,6 +570,7 @@ host_open_geminifs_file_for_device_without_backing_file(int page_size, uint64_t 
             page_size,
             pagecache_capacity,
             pages,
+            1,
             nullptr, nullptr);
     return pagecache_dev;
 }
@@ -746,3 +748,11 @@ device_xfer_geminifs_file(dev_fd_t fd,
     }
 }
 
+__global__ void
+device_sync(dev_fd_t dev_fd) {
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    PageCache *pagecache = (PageCache *)dev_fd;
+    if (tid != 0)
+        return;
+    pagecache->sync();
+}

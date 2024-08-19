@@ -181,47 +181,6 @@ raw_file_size(int fd) {
   return lseek(fd, 0, SEEK_END);
 }
 
-<<<<<<< HEAD:tools/geminiFs/geminifs.c
-//dev_fd_t
-//host_open_geminifs_file_for_device(host_fd_t host_fd) {
-//  dev_fd_t ret;
-//  struct geminiFS_hdr *hdr = host_fd;
-//
-//  nvme_ofst_t *l1__dev;
-//  assert(cudaSuccess ==
-//    cudaMalloc(&l1__dev, hdr->first_block_base));
-//
-//  struct geminiFS_hdr *hdr__file = malloc(hdr->first_block_base);
-//
-//  assert((off_t)(-1) !=
-//    lseek(hdr->fd, 0, SEEK_SET)
-//  );
-//  assert(hdr->first_block_base ==
-//    read(hdr->fd, hdr__file, hdr->first_block_base)
-//  );
-//  assert(cudaSuccess ==
-//    cudaMemcpy(
-//      l1__dev,
-//      hdr__file->l1,
-//      hdr__file->first_block_base - sizeof(*hdr),
-//      cudaMemcpyHostToDevice)
-//  );
-//
-//  free(hdr__file);
-//
-//  ret.l1__dev = l1__dev;
-//  ret.block_bit = hdr->block_bit;
-//  ret.nr_l1 = hdr->nr_l1;
-//  return ret;
-//}
-//
-//void
-//host_close_geminifs_file_for_device(dev_fd_t dev_fd) {
-//  assert(cudaSuccess == cudaFree(dev_fd.l1__dev));
-//}
-
-=======
->>>>>>> 962e26cd41bebb28b23b3e34b6f49dd4513c2397:libgeminiFs_src/geminifs.c
 static void
 test_host(host_fd_t host_fd) {
   size_t size = host_fd->virtual_space_size;

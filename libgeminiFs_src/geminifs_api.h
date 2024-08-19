@@ -38,6 +38,16 @@ typedef void *dev_fd_t;
 //} dev_fd_t;
 
 //-----------------host only------------------
+extern void
+host_open_all(
+        const char *snvme_control_path,
+        const char *snvme_path,
+        const char *nvme_dev_path,
+        const char *mount_path,
+        uint32_t ns_id,
+        uint64_t queueDepth,
+        uint64_t numQueues);
+
 extern host_fd_t
 host_create_geminifs_file(const char *filename,
                           uint64_t block_size,
@@ -59,21 +69,20 @@ host_refine_nvmeofst(host_fd_t fd);
 extern void
 host_close_geminifs_file(host_fd_t fd);
 
+extern void
+host_close_all();
+
 //-----------------host for device------------------
 extern dev_fd_t
 host_open_geminifs_file_for_device(
         host_fd_t host_fd,
         uint64_t pagecache_capacity,
-        const char *snvme_control_path,
-        const char *snvme_path,
-        const char *nvme_dev_path,
-        const char *mount_path);
+        int page_size);
 
 extern dev_fd_t
-host_open_geminifs_file_for_device_without_backing_file(int page_size, uint64_t pagecache_capacity);
-
-extern nvme_ofst_t
-host_convert_va__using_device(dev_fd_t, vaddr_t);
+host_open_geminifs_file_for_device_without_backing_file(
+        int page_size,
+        uint64_t pagecache_capacity);
 
 #ifdef __cplusplus
 }

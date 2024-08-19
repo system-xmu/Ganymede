@@ -52,7 +52,8 @@ enum CachePage_State {
 class CachePage {
 public:
     __device__
-    CachePage(void * const buf_, int never_evicted_): 
+    CachePage(int page_size_, void * const buf_, int never_evicted_): 
+        page_size(page_size_),
         buf(buf_),
         never_evicted(never_evicted_) { }
 
@@ -102,6 +103,7 @@ public:
     cuda::binary_semaphore<cuda::thread_scope_device> lock;
 
     void * buf;
+    const int page_size;
     const int never_evicted;
 private:
     virtual __device__ void __write_back(FilePageId filepage_id, void *info1, void *info2) = 0;
@@ -125,6 +127,9 @@ public:
     virtual __device__ void
     release_page(FilePageId filepage_id, uint32_t participating_mask) = 0;
 
+    virtual __device__ void
+    sync() = 0;
+
     virtual __device__ uint8_t *
     get_raw_page_buf(CachePageId cachepage_id) = 0;
 
@@ -139,6 +144,7 @@ __internal__get_pagecache(
         int page_size,
         uint64_t size_of_virtual_space,
         CachePage *pages[],
+        int sync_parallelism,
         void *info1, void *info2);
 
 extern void
