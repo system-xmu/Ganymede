@@ -1,12 +1,5 @@
-//#include <stdio.h>
-//#include <assert.h>
-//#include <sys/types.h>
-//#include <unistd.h>
-
 #include <cuda/atomic>
 #include <cuda/semaphore>
-#include <cuco/static_map.cuh>
-#include <cuco/static_set.cuh>
 
 #include <cooperative_groups.h>
 
@@ -83,8 +76,8 @@ public:
     __device__
     CachePage_WithoutBacking(int page_size, void * const buf_): CachePage(page_size, buf_, 1) { }
 private:
-    __device__ void __write_back(FilePageId filepage_id, void *info1, void *info2) { }
-    __device__ void __read_in(FilePageId filepage_id, void *info1, void *info2) { }
+    __device__ void __write_back(FilePageId filepage_id, void *info1, void *info2, void *info3) { }
+    __device__ void __read_in(FilePageId filepage_id, void *info1, void *info2, void *info3) { }
 };
 
 
@@ -110,18 +103,20 @@ public:
             uint64_t size_of_virtual_space,
             CachePage *pages[],
             int sync_parallelism,
-            void *info1, void *info2,
+            void *info1, void *info2, void *info3,
             MyLinklistNode *map1[],
             CachePageId *map2,
             MyLinklistNode *map3[]):
         filepages__waiting_for_evicting(map1),
         nr_waiting(0),
         filepage__to__cachepage(map2),
-        zero_reffed_filepages(map3)
+        zero_reffed_filepages(map3),
+        nr_zero_pages(0)
     {
         this->sync_parallelism = sync_parallelism;
         this->info1 = info1;
         this->info2 = info2;
+        this->info3 = info3;
 
         this->pagecache_lock.release();
 
@@ -149,7 +144,6 @@ public:
             page->assigned_to = filepage_id;
             page->lock.release();
             this->__insert__filepage__mapping_to__cachepage(filepage_id, cachepage_id);
-            printf("%llx\n", cachepage_id);
             if (page->never_evicted) {
                 page->state = CACHEPAGE_CLEAN;
                 this->pages_ref[cachepage_id] = 1; // the Ref Count is at lease 1, thus the page won't be evicted.
@@ -181,7 +175,6 @@ public:
         uint32_t warp_leader = __ffs(mask) - 1;
         int lane = my_lane_id();
         if (lane == warp_leader) {
-            printf("acquire_page %llx\n", filepage_id);
             cachepage_id = this->__acquire_page_for_warp_leader(filepage_id);
         }
         cachepage_id = __shfl_sync(mask, cachepage_id, warp_leader);
@@ -241,7 +234,7 @@ public:
             end_page_idx_exclusive = this->nr_page;
 
         for (size_t i = start_page_idx; i < end_page_idx_exclusive; i++)
-            this->pages[i]->sync(this->info1, this->info2);
+            this->pages[i]->sync(this->info1, this->info2, this->info3);
 
         grid.sync();
         if (blockIdx.x == 0)
@@ -264,11 +257,9 @@ private:
 
         this->pagecache_lock.acquire();
 
-        printf("I'm in. I want %llx!!\n", filepage_id);
         ret = this->__get__cachepage_id(filepage_id);
         if (ret != -1) {
             // Page Hit!
-        printf("Hit!!\n");
             size_t cur_ref = (++(this->pages_ref[ret]));
             if (cur_ref == 1)
                 this->__erase__zero_reffed_filepage(filepage_id);
@@ -276,16 +267,15 @@ private:
             __threadfence();
             this->pagecache_lock.release();
 
-        printf("I release the lock\n");
+            printf("I want filepage[%llx], HIT! cachepage[%llx]\n", filepage_id, ret);
+
             this->pages[ret]->lock.acquire();
-            this->pages[ret]->read_in__no_lock(this->info1, this->info2);
+            this->pages[ret]->read_in__no_lock(this->info1, this->info2, this->info3);
             this->pages[ret]->lock.release();
 
-        //printf("I leave~\n");
             return ret;
         }
 
-        assert(0);
         printf("Miss!!\n");
 
         // Miss
@@ -306,7 +296,7 @@ private:
             this->pagecache_lock.release();
 
             this->pages[ret]->lock.acquire();
-            this->pages[ret]->read_in__no_lock(this->info1, this->info2);
+            this->pages[ret]->read_in__no_lock(this->info1, this->info2, this->info3);
             this->pages[ret]->lock.release();
             return ret;
         }
@@ -354,15 +344,15 @@ private:
         __threadfence();
         this->pagecache_lock.release();
         this->pages[ret]->lock.acquire();
-        this->pages[ret]->read_in__no_lock(this->info1, this->info2);
+        this->pages[ret]->read_in__no_lock(this->info1, this->info2, this->info3);
         this->pages[ret]->lock.release();
         return ret;
     }
 
     __forceinline__ __device__ void
     __release_page_for_warp_leader(FilePageId filepage_id) {
+        printf("I want to release the page %llx\n", filepage_id);
         this->pagecache_lock.acquire();
-        printf("I'm %llx, I want to release the page %llx\n", (uint64_t)my_lane_id(), filepage_id);
         CachePageId cachepage_id = this->__get__cachepage_id(filepage_id);
         if ((--(this->pages_ref[cachepage_id])) == 0) {
             // The last one reffing the cachepage exits.
@@ -381,7 +371,7 @@ private:
                 this->pagecache_lock.release();
 
                 this->pages[cachepage_id]->lock.acquire();
-                this->pages[cachepage_id]->write_back__no_lock(this->info1, this->info2);
+                this->pages[cachepage_id]->write_back__no_lock(this->info1, this->info2, this->info3);
                 this->pages[cachepage_id]->lock.release();
 
                 for (size_t i = 0; i < nr_waiting; i++)
@@ -426,6 +416,9 @@ private:
     __forceinline__ __device__ PageCacheImpl__info1 *
     __pop__filepage_waiting_for_evicting() {
         // get and erase
+        if (this->nr_waiting == 0)
+            return nullptr;
+
         auto *n = static_cast<MyLinklistNodeD<PageCacheImpl__info1 *> *>(this->filepages__waiting_for_evicting__list.pop());
         auto ret = n->v;
         this->nr_waiting--;
@@ -459,6 +452,7 @@ private:
         this->zero_reffed_filepages__list.enqueue(n);
 
         this->zero_reffed_filepages[filepage_id] = n;
+        this->nr_zero_pages++;
     }
 
     __forceinline__ __device__ void
@@ -467,11 +461,15 @@ private:
         this->zero_reffed_filepages[filepage_id] = nullptr;
         this->zero_reffed_filepages__list.detach_node(n);
         delete n;
+        this->nr_zero_pages--;
     }
 
     __forceinline__ __device__ FilePageId
     __pop__zero_reffed_filepage_id() {
         // get and erase
+        if (this->nr_zero_pages == 0)
+            return -1;
+
         auto *n = static_cast<MyLinklistNodeD<FilePageId> *>(this->zero_reffed_filepages__list.pop());
         auto filepage_id = n->v;
         delete n;
@@ -483,7 +481,7 @@ private:
 //-----------------------------------------------------------
 
     int sync_parallelism;
-    void *info1, *info2;
+    void *info1, *info2, *info3;
 
     cuda::binary_semaphore<cuda::thread_scope_device> pagecache_lock;
 
@@ -505,6 +503,7 @@ private:
 
     MyLinklistNode **zero_reffed_filepages;
     MyLinklist zero_reffed_filepages__list;
+    size_t nr_zero_pages;
 };
 
 __host__ PageCache *
@@ -514,7 +513,7 @@ __internal__get_pagecache(
         uint64_t size_of_virtual_space,
         CachePage *pages[],
         int sync_parallelism,
-        void *info1, void *info2) {
+        void *info1, void *info2, void *info3) {
     uint64_t nr_page = pagecache_capacity / page_size;
 
     // Initial host part of containers
@@ -540,7 +539,7 @@ __internal__get_pagecache(
                 size_of_virtual_space,
                 pages,
                 sync_parallelism,
-                info1, info2,
+                info1, info2, info3,
                 map1, map2, map3);
     });
     return pagecache;
@@ -571,7 +570,7 @@ host_open_geminifs_file_for_device_without_backing_file(int page_size, uint64_t 
             pagecache_capacity,
             pages,
             1,
-            nullptr, nullptr);
+            nullptr, nullptr, nullptr);
     return pagecache_dev;
 }
 

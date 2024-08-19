@@ -12,6 +12,33 @@
 
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 
+class QueueAcquireHelper {
+public:
+    __device__
+    QueueAcquireHelper(int nr_queues) {
+        this->nr_queues = nr_queues;
+        this->locks = new cuda::binary_semaphore<cuda::thread_scope_device> [nr_queues];
+        for (size_t i = 0; i < nr_queues; i++)
+            this->locks[i].release();
+    }
+
+    __device__ int
+    acquire_queue() {
+        int queue = get_smid() % this->nr_queues;
+        this->locks[queue].acquire();
+        return queue;
+    }
+
+    __device__ void
+    release_queue(int queue) {
+        this->locks[queue].release();
+    }
+
+private:
+    int nr_queues;
+    cuda::binary_semaphore<cuda::thread_scope_device> *locks;
+};
+
 class CachePage_NvmeBacking: public CachePage {
 public:
     __device__
@@ -32,19 +59,20 @@ private:
     }
 
     __device__ void
-    __write_back(FilePageId filepage_id, void *ctrl, void *hdr) {
-        this->__xfer(filepage_id, ctrl, hdr, 1);
+    __write_back(FilePageId filepage_id, void *ctrl, void *hdr, void *queue_acquire_helper) {
+        this->__xfer(filepage_id, ctrl, hdr, queue_acquire_helper, 1);
     }
 
     __device__ void
-    __read_in(FilePageId filepage_id, void *ctrl, void *hdr) {
-        this->__xfer(filepage_id, ctrl, hdr, 0);
+    __read_in(FilePageId filepage_id, void *ctrl, void *hdr, void *queue_acquire_helper) {
+        this->__xfer(filepage_id, ctrl, hdr, queue_acquire_helper, 0);
     }
 
     __device__ __forceinline__ void
-    __xfer(FilePageId filepage_id, void *ctrl_, void *hdr_, int is_read) {
+    __xfer(FilePageId filepage_id, void *ctrl_, void *hdr_, void *queue_acquire_helper_, int is_read) {
         auto *ctrl = (Controller *)ctrl_;
         auto *hdr = (struct geminiFS_hdr *)hdr_;
+        auto *queue_acquire_helper = (QueueAcquireHelper *)queue_acquire_helper_;
 
 
         int page_size = this->page_size;
@@ -53,85 +81,44 @@ private:
 
 
 
-        if (file_block_size < (128 * (1ull << 10))) {
-            vaddr_t file_va = filepage_id << page_bit;
-            nvme_ofst_t nvme_ofst = this->__get_nvmeofst(hdr, file_va);
+        assert(file_block_size == page_size);
 
-            int queue = 0;
-            QueuePair* qp = &ctrl->d_qps[queue];
+        vaddr_t file_va = filepage_id << page_bit;
+        nvme_ofst_t nvme_ofst = this->__get_nvmeofst(hdr, file_va);
 
-            size_t start_hqps_block = nvme_ofst >> this->hqps_block_size_log;
-            int nr_hqps_blocks = file_block_size >> this->hqps_block_size_log;
+        int queue = queue_acquire_helper->acquire_queue();
+        QueuePair* qp = &ctrl->d_qps[queue];
+
+        size_t start_hqps_block = nvme_ofst >> this->hqps_block_size_log;
+        int nr_hqps_blocks = file_block_size >> this->hqps_block_size_log;
+
+        int size_of_ioaddr = 4096;
+        int nr_hqps_blocks__per_ioaddr = 4096 / (1 << this->hqps_block_size_log);
+
+        for (size_t idx_ioaddr = 0;
+                idx_ioaddr < page_size / size_of_ioaddr;
+                idx_ioaddr++, start_hqps_block += nr_hqps_blocks__per_ioaddr) {
             nvm_cmd_t cmd;
             uint16_t cid = get_cid(&(qp->sq));
-            nvm_cmd_header(&cmd, cid, NVM_IO_READ, qp->nvmNamespace);
-            
-            assert(this->n_ioaddrs == 1);
-            uint64_t prp1 = this->ioaddrs[0];
+            uint64_t prp1 = this->ioaddrs[idx_ioaddr];
             uint64_t prp2 = 0;
+
+            if (is_read)
+                nvm_cmd_header(&cmd, cid, NVM_IO_READ, qp->nvmNamespace);
+            else
+                nvm_cmd_header(&cmd, cid, NVM_IO_WRITE, qp->nvmNamespace);
+
             nvm_cmd_data_ptr(&cmd, prp1, prp2);
-            nvm_cmd_rw_blks(&cmd, start_hqps_block, nr_hqps_blocks);
+            nvm_cmd_rw_blks(&cmd, start_hqps_block, nr_hqps_blocks__per_ioaddr);
             uint16_t sq_pos = sq_enqueue(&qp->sq, &cmd);
             uint32_t head, head_;
-
             uint32_t cq_pos = cq_poll(&qp->cq, cid, &head, &head_);
-
             qp->cq.tail.fetch_add(1, simt::memory_order_acq_rel);
-
             cq_dequeue(&qp->cq, cq_pos, &qp->sq, head, head_);
-
             put_cid(&qp->sq, cid);
-        } else {
-            assert(0);
-// page_size
-// |--------------------------------------------------|
-
-// file_block_size == nvme_block_size
-// |------------|
-
-// n_ioaddrs (here is 16)
-// |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-
-            int nr_file_blocks__in_page = page_size / file_block_size;
-            int nr_hqps_blocks = file_block_size >> this->hqps_block_size_log;
-
-            int nvme_block_size = file_block_size;
-            int nr_ioaddrs__per_nvme_block = this->n_ioaddrs / nr_file_blocks__in_page;
-
-            vaddr_t file_page_va = filepage_id << page_bit;
-
-            int queue = 0;
-            QueuePair* qp = &ctrl->d_qps[queue];
-
-            for (size_t i = 0; i < nr_file_blocks__in_page; i++) {
-                vaddr_t file_block_va = file_page_va + i * file_block_size;
-                nvme_ofst_t nvme_ofst = this->__get_nvmeofst(hdr, file_block_va);
-                size_t start_hqps_block = nvme_ofst >> this->hqps_block_size_log;
-                for (size_t j = 0; j < nr_ioaddrs__per_nvme_block; j++) {
-                    int ioaddr_idx = i * nr_ioaddrs__per_nvme_block + j;
-                }
-            }
-
-            nvm_cmd_t cmd;
-            uint16_t cid = get_cid(&(qp->sq));
-            nvm_cmd_header(&cmd, cid, NVM_IO_READ, qp->nvmNamespace);
-            //uint64_t prp1 = dev_buf[0];
-            //uint64_t prp2 = 0;
-            //nvm_cmd_data_ptr(&cmd, prp1, prp2);
-            //nvm_cmd_rw_blks(&cmd, start_block, n_blocks);
-            //uint16_t sq_pos = sq_enqueue(&qp->sq, &cmd);
-            //uint32_t head, head_;
-
-            //uint32_t cq_pos = cq_poll(&qp->cq, cid, &head, &head_);
-
-            //qp->cq.tail.fetch_add(1, simt::memory_order_acq_rel);
-
-            //cq_dequeue(&qp->cq, cq_pos, &qp->sq, head, head_);
-
-            //put_cid(&qp->sq, cid);
         }
 
-
+        queue_acquire_helper->release_queue(queue);
 
     }
 };
@@ -190,21 +177,20 @@ host_open_geminifs_file_for_device(
     CachePage **pages;
     gpuErrchk(cudaMalloc(&pages, sizeof(CachePage *) * nr_page));
 
+    int nr_queues = ctrl->n_qps;
+    QueueAcquireHelper *queue_acquire_helper;
+    gpuErrchk(cudaMalloc(&queue_acquire_helper, sizeof(QueueAcquireHelper)));
+
     RUN_ON_DEVICE({
         for (size_t i = 0; i < nr_page; i++) {
             auto *cachepage = cachepage_structures + i;
-            pages[i] = new (cachepage) CachePage_NvmeBacking(page_size);
+            pages[i] = new (cachepage) CachePage_NvmeBacking (page_size);
         }
+        new (queue_acquire_helper) QueueAcquireHelper (nr_queues);
     });
 
     int device;
     gpuErrchk(cudaGetDevice(&device));
-
-    Controller *ctrl = __get_nvme_ctrl(snvme_control_path,
-            snvme_path,
-            nvme_dev_path,
-            mount_path,
-            1, device, 1024, 32);
 
     for (size_t i = 0; i < nr_page; i++) {
         auto *cachepage = cachepage_structures + i;
@@ -223,6 +209,75 @@ host_open_geminifs_file_for_device(
             page_size,
             hdr->virtual_space_size,
             pages,
-            ctrl->n_qps,
-            ctrl->d_ctrl_ptr, hdr__dev);
+            nr_queues,
+            ctrl->d_ctrl_ptr, hdr__dev, queue_acquire_helper);
+}
+
+class CachePage_TestForPageCache: public CachePage {
+public:
+    __device__
+    CachePage_TestForPageCache(int page_size): CachePage(page_size, nullptr, 0) { }
+private:
+    __device__ __forceinline__ nvme_ofst_t
+    __get_nvmeofst(struct geminiFS_hdr *hdr, vaddr_t va) {
+        return 0;
+    }
+
+    __device__ void
+    __write_back(FilePageId filepage_id, void *ctrl, void *hdr, void *queue_acquire_helper) {
+        this->__xfer(filepage_id, ctrl, hdr, queue_acquire_helper, 1);
+    }
+
+    __device__ void
+    __read_in(FilePageId filepage_id, void *ctrl, void *hdr, void *queue_acquire_helper) {
+        this->__xfer(filepage_id, ctrl, hdr, queue_acquire_helper, 0);
+    }
+
+    __device__ __forceinline__ void
+    __xfer(FilePageId filepage_id, void *ctrl_, void *hdr_, void *queue_acquire_helper_, int is_read) {
+        auto *queue_acquire_helper = (QueueAcquireHelper *)queue_acquire_helper_;
+
+
+        int queue = queue_acquire_helper->acquire_queue();
+        __nanosleep(1000);
+        queue_acquire_helper->release_queue(queue);
+
+    }
+};
+
+dev_fd_t
+host_get_pagecache__for_test_evicting(
+        uint64_t fake_file_size,
+        uint64_t pagecache_capacity,
+        int page_size) {
+    size_t nr_page = pagecache_capacity / page_size;
+
+    uint8_t *all_raw_pages;
+    gpuErrchk(cudaMalloc(&all_raw_pages, nr_page * page_size));
+
+    CachePage_TestForPageCache *cachepage_structures;
+    gpuErrchk(cudaMallocManaged(&cachepage_structures, sizeof(CachePage_TestForPageCache) * nr_page));
+
+    CachePage **pages;
+    gpuErrchk(cudaMalloc(&pages, sizeof(CachePage *) * nr_page));
+
+    int nr_queues = 32;
+    QueueAcquireHelper *queue_acquire_helper;
+    gpuErrchk(cudaMalloc(&queue_acquire_helper, sizeof(QueueAcquireHelper)));
+
+    RUN_ON_DEVICE({
+        for (size_t i = 0; i < nr_page; i++) {
+            auto *cachepage = cachepage_structures + i;
+            pages[i] = new (cachepage) CachePage_TestForPageCache (page_size);
+            cachepage->buf = all_raw_pages + i * page_size;
+        }
+        new (queue_acquire_helper) QueueAcquireHelper (nr_queues);
+    });
+
+    return __internal__get_pagecache(pagecache_capacity,
+            page_size,
+            fake_file_size,
+            pages,
+            nr_queues,
+            nullptr, nullptr, queue_acquire_helper);
 }

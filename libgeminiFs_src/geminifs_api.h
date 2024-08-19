@@ -84,6 +84,12 @@ host_open_geminifs_file_for_device_without_backing_file(
         int page_size,
         uint64_t pagecache_capacity);
 
+extern dev_fd_t
+host_get_pagecache__for_test_evicting(
+        uint64_t fake_file_size,
+        uint64_t pagecache_capacity,
+        int page_size);
+
 #ifdef __cplusplus
 }
 #endif

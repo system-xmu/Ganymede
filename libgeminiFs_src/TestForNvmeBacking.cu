@@ -17,6 +17,10 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
 #define nvme_mount_path "/home/qs/nvm_mount"
 #define nvme_dev_path "/dev/nvme1n1"
 
+
+#define geminifs_file_name "checkpoint.geminifs"
+#define geminifs_file_path (nvme_mount_path "/" geminifs_file_name)
+
 static void
 test_host(host_fd_t host_fd) {
   size_t size = host_fd->virtual_space_size;
@@ -50,25 +54,28 @@ main() {
             1024,
             32);
 
-  size_t virtual_space_size = 20 * (1ull << 30)/*GB*/;
+  size_t virtual_space_size = 1 * (1ull << 30)/*GB*/;
   size_t page_capacity = 128 * (1ull << 20);
   size_t file_block_size = 4096;
   size_t dev_page_size = 4096;
   //size_t virtual_space_size = 4096;
-  host_fd_t host_fd = host_create_geminifs_file(nvme_mount_path "/checkpoint.geminifs", file_block_size, virtual_space_size);
+
+  remove(geminifs_file_path);
+
+  host_fd_t host_fd = host_create_geminifs_file(geminifs_file_path, file_block_size, virtual_space_size);
 
   test_host(host_fd);
 
   host_close_geminifs_file(host_fd);
 
-  host_fd = host_open_geminifs_file("checkpoint.geminifs");
+  host_fd = host_open_geminifs_file(geminifs_file_path);
   test_host(host_fd);
 
   host_refine_nvmeofst(host_fd);
   host_close_geminifs_file(host_fd);
 
 
-  host_fd = host_open_geminifs_file("checkpoint.geminifs");
+  host_fd = host_open_geminifs_file(geminifs_file_path);
 
   uint64_t *dev_buf1;
   uint64_t *dev_buf2;
@@ -82,12 +89,15 @@ main() {
   dev_fd_t dev_fd = host_open_geminifs_file_for_device(host_fd, page_capacity, dev_page_size);
 
   device_xfer_geminifs_file<<<108, 32>>>(dev_fd, 0, dev_buf1, virtual_space_size, 0);
+  cudaDeviceSynchronize();
   device_xfer_geminifs_file<<<108, 32>>>(dev_fd, 0, dev_buf2, virtual_space_size, 1);
+  cudaDeviceSynchronize();
 
   for (size_t i = 0; i < virtual_space_size / sizeof(uint64_t); i++)
       dev_buf2[i] = i + 3;
   
   device_sync<<<1, 1>>>(dev_fd);
+  cudaDeviceSynchronize();
 
   uint64_t *buf3 = (uint64_t *)malloc(virtual_space_size);
   host_xfer_geminifs_file(host_fd, 0, buf3, virtual_space_size, 1);

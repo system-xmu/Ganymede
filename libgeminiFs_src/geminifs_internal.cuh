@@ -61,21 +61,21 @@ public:
     ~CachePage() { }
 
     __forceinline__ __device__ void
-    write_back__no_lock(void *info1, void *info2) {
+    write_back__no_lock(void *info1, void *info2, void *info3) {
         if (this->state == CACHEPAGE_DIRTY) {
-            this->__write_back(this->content_of, info1, info2);
+            this->__write_back(this->content_of, info1, info2, info3);
             this->state = CACHEPAGE_CLEAN;
             __threadfence();
         }
     }
     __forceinline__ __device__ void
-    read_in__no_lock(void *info1, void *info2) {
+    read_in__no_lock(void *info1, void *info2, void *info3) {
         if ((this->content_of != this->assigned_to) || this->state == CACHEPAGE_INVALID) {
-            this->write_back__no_lock(info1, info2);
+            this->write_back__no_lock(info1, info2, info3);
 
             // Here, the state is INVALID or CLEAN
 
-            this->__read_in(this->assigned_to, info1, info2);
+            this->__read_in(this->assigned_to, info1, info2, info3);
             this->content_of = this->assigned_to;
             this->state = CACHEPAGE_CLEAN;
             __threadfence();
@@ -83,9 +83,9 @@ public:
     }
 
     __forceinline__ __device__ void
-    sync(void *info1, void *info2) {
+    sync(void *info1, void *info2, void *info3) {
         this->lock.acquire();
-        this->write_back__no_lock(info1, info2);
+        this->write_back__no_lock(info1, info2, info3);
         this->lock.release();
     }
 
@@ -106,8 +106,8 @@ public:
     const int page_size;
     const int never_evicted;
 private:
-    virtual __device__ void __write_back(FilePageId filepage_id, void *info1, void *info2) = 0;
-    virtual __device__ void __read_in(FilePageId filepage_id, void *info1, void *info2) = 0;
+    virtual __device__ void __write_back(FilePageId filepage_id, void *info1, void *info2, void *info3) = 0;
+    virtual __device__ void __read_in(FilePageId filepage_id, void *info1, void *info2, void *info3) = 0;
 };
 
 class PageCache {
@@ -145,7 +145,7 @@ __internal__get_pagecache(
         uint64_t size_of_virtual_space,
         CachePage *pages[],
         int sync_parallelism,
-        void *info1, void *info2);
+        void *info1, void *info2, void *info3);
 
 extern void
 __internal__drop_pagecache(PageCache *);

@@ -12,6 +12,14 @@
 #include "geminifs_api.h"
 #include "get-offset/get-offset.h"
 
+#define my_assert(code) do { \
+    if (!(code)) { \
+        host_close_all(); \
+        assert(0); \
+    } \
+} while(0)
+
+
 union geminiFS_magic
 the_geminiFS_magic = {
   .magic_cstr = {'g', 'e', 'm', 'i', 'n', 'i', 'f', 's'}
@@ -47,7 +55,7 @@ host_for_each_table_entry(host_fd_t fd,
                   MAP_SHARED,
                   fd->fd,
                   0);
-  assert((void *) -1 != file_mmap);
+  my_assert((void *) -1 != file_mmap);
   for (size_t i = 0; i < hdr->nr_l1; i++) {
     nvme_ofst_t new_nvmeofst = fun(i << hdr->block_bit, file_mmap->l1[i], context);
     if (new_nvmeofst != 0xffffffff)
@@ -63,7 +71,7 @@ host_create_geminifs_file(const char *filename,
   struct geminiFS_hdr *hdr;
   fd_t fd;
 
-  assert(virtual_space_size % block_size == 0);
+  my_assert(virtual_space_size % block_size == 0);
 
   hdr = malloc(sizeof(struct geminiFS_hdr));
   hdr->magic_num = the_geminiFS_magic.magic_num;
@@ -74,13 +82,13 @@ host_create_geminifs_file(const char *filename,
   hdr->first_block_base = ROUND_UP(sizeof(struct geminiFS_hdr) + sizeof(nvme_ofst_t) * hdr->nr_l1, block_size);
 
   fd = open(filename, O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
-  assert(0 <= fd);
+  my_assert(0 <= fd);
 
-  assert(0 ==
+  my_assert(0 ==
     ftruncate(fd, hdr->first_block_base + virtual_space_size));
 
-  assert((off_t)(-1) != lseek(fd, 0, SEEK_SET));
-  assert(sizeof(*hdr) == write(fd, hdr, sizeof(*hdr)));
+  my_assert((off_t)(-1) != lseek(fd, 0, SEEK_SET));
+  my_assert(sizeof(*hdr) == write(fd, hdr, sizeof(*hdr)));
 
   hdr->fd = fd;
 
@@ -91,14 +99,14 @@ host_fd_t
 host_open_geminifs_file(const char *filename) {
   struct geminiFS_hdr *hdr = malloc(sizeof(struct geminiFS_hdr));
   fd_t fd = open(filename, O_RDWR);
-  assert(0 <= fd);
+  my_assert(0 <= fd);
 
-  assert((off_t)(-1) != lseek(fd, 0, SEEK_SET));
-  assert(sizeof(*hdr) == read(fd, hdr, sizeof(*hdr)));
+  my_assert((off_t)(-1) != lseek(fd, 0, SEEK_SET));
+  my_assert(sizeof(*hdr) == read(fd, hdr, sizeof(*hdr)));
 
   hdr->fd = fd;
 
-  assert(hdr->magic_num == the_geminiFS_magic.magic_num);
+  my_assert(hdr->magic_num == the_geminiFS_magic.magic_num);
 
   return hdr;
 }
@@ -111,7 +119,7 @@ host_xfer_geminifs_file(host_fd_t host_fd,
                         int is_read) {
   struct geminiFS_hdr *hdr = host_fd;
   fd_t fd = hdr->fd;
-  assert((off_t)(-1) != lseek(fd, host__convert_va__to(host_fd, va), SEEK_SET));
+  my_assert((off_t)(-1) != lseek(fd, host__convert_va__to(host_fd, va), SEEK_SET));
 
   size_t nbyte_already = 0;
   char *buf = buf_1;
@@ -121,7 +129,7 @@ host_xfer_geminifs_file(host_fd_t host_fd,
       nbyte_this_time = read(fd, buf, nbyte);
     else
       nbyte_this_time = write(fd, buf, nbyte);
-    assert(nbyte_this_time != -1);
+    my_assert(nbyte_this_time != -1);
 
     nbyte -= nbyte_this_time;
     buf += nbyte_this_time;
@@ -153,7 +161,7 @@ host_refine_nvmeofst_1(vaddr_t va,
   mapping.len = context->block_size;
   if (ioctl(context->snvme_helper_fd, SNVME_HELP_GET_NVME_OFFSET, &mapping) < 0) {
       perror("ioctl failed");
-      assert(0);
+      my_assert(0);
   } 
   //printf("%lx, %lx\n", va, mapping.address);
   return mapping.address;
@@ -165,7 +173,7 @@ host_refine_nvmeofst(host_fd_t fd) {
   int snvme_helper_fd = open(snvme_helper_path, O_RDWR);
   if (snvme_helper_fd < 0) {
       perror("Failed to open snvme_helper_fd");
-      assert(0);
+      my_assert(0);
   }
   struct refine_nvmeofst_context c;
   c.host_fd = fd;
@@ -195,7 +203,7 @@ test_host(host_fd_t host_fd) {
   host_xfer_geminifs_file(host_fd, 0, buf2, size, 1);
 
   for (size_t i = 0; i < size/sizeof(size_t); i++) {
-    assert(buf1[i] == buf2[i]);
+    my_assert(buf1[i] == buf2[i]);
   }
   host_xfer_geminifs_file(host_fd, 8, buf2, 4088, 1);
   //for (size_t i = 0; i < 512; i++) {
@@ -205,69 +213,9 @@ test_host(host_fd_t host_fd) {
   host_xfer_geminifs_file(host_fd, 0, buf2, size, 1);
 
   for (size_t i = 0; i < size/sizeof(size_t); i++) {
-    assert(buf1[i] == buf2[i]);
+    my_assert(buf1[i] == buf2[i]);
   }
 
   free(buf1);
   free(buf2);
 }
-
-//static void
-//test_device_va_convert(host_fd_t host_fd,
-//                       dev_fd_t dev_fd) {
-//  struct geminiFS_hdr *hdr = host_fd;
-//  int block_size = 1 << hdr->block_bit;
-//
-//  int snvme_helper_fd = open(snvme_helper_path, O_RDWR);
-//  if (snvme_helper_fd < 0) {
-//      perror("Failed to open snvme_helper_fd");
-//      assert(0);
-//  }
-//
-//  for (vaddr_t va = 0;
-//       va < hdr->virtual_space_size;
-//       va += block_size) {
-//    nvme_ofst_t t1 = host_convert_va__using_device(dev_fd, va);
-//
-//    rawfile_ofst_t rawfile_ofst = host__convert_va__to(host_fd, va);
-//    struct nds_mapping mapping;
-//    mapping.file_fd = hdr->fd;
-//    mapping.offset = rawfile_ofst;
-//    mapping.len = block_size;
-//    if (ioctl(snvme_helper_fd, SNVME_HELP_GET_NVME_OFFSET, &mapping) < 0) {
-//        perror("ioctl failed");
-//        assert(0);
-//    } 
-//    nvme_ofst_t t2 = mapping.address;
-//
-//    assert(t1 == t2);
-//  }
-//
-//  close(snvme_helper_fd);
-//}
-
-
-
-//int
-//main() {
-//  dev_fd_t dev_fd = host_open_geminifs_file_for_device_without_backing_file(4096, 1 << 20);
-//  ////size_t virtual_space_size = (uint64_t)20 * (1 << 30)/*GB*/;
-//  //size_t virtual_space_size = 4096;
-//  //host_fd_t host_fd = host_create_geminifs_file("checkpoint.geminifs", 4096, virtual_space_size);
-//
-//  //test_host(host_fd);
-//
-//  //host_close_geminifs_file(host_fd);
-//
-//  //host_fd = host_open_geminifs_file("checkpoint.geminifs");
-//  //test_host(host_fd);
-//
-//  //host_refine_nvmeofst(host_fd);
-//
-//  ////dev_fd_t dev_fd = host_open_geminifs_file_for_device(host_fd);
-//  ////test_device_va_convert(host_fd, dev_fd);
-//  ////host_close_geminifs_file_for_device(dev_fd);
-//
-//  //host_close_geminifs_file(host_fd);
-//  return 0;
-//}
