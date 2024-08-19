@@ -31,7 +31,7 @@ void syncFileSystem(const char *device) {
 
 bool mountDevice(const char *device, const char *mountPoint) {  
     char command[256];  
-    snprintf(command, sizeof(command), "systemd-mount %s %s", device, mountPoint);  
+    snprintf(command, sizeof(command), "mount %s %s", device, mountPoint);  
     if (std::system(command) != 0) {  
         std::cerr << "Failed to mount device. Attempting to recreate filesystem..." << std::endl;  
         createFileSystem(device);  
@@ -46,12 +46,12 @@ bool mountDevice(const char *device, const char *mountPoint) {
   
 bool umountDevice(const char *device) {  
     char command[256];  
-    snprintf(command, sizeof(command), "systemd-umount %s", device);  
+    snprintf(command, sizeof(command), "umount %s", device);  
     return std::system(command) == 0;  
 }
 bool lumountDevice(const char *device) {  
     char command[256];  
-    snprintf(command, sizeof(command), "systemd-umount %s", device);  
+    snprintf(command, sizeof(command), "umount %s", device);  
     return std::system(command) == 0;  
 }
 
