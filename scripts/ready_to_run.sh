@@ -6,7 +6,7 @@ if ls /dev/ | grep -q "nvme0n1" && ls /dev/ | grep -q "snvme"; then
     ./nvme_unreg
     echo "Running nvme_module_change.sh with reload option..."  
     ./nvme_module_change.sh reload  
-elif ls /dev/ | grep -q "nvme" && ! ls /dev/ | grep -q "snvme"; then  
+elif ls /dev/ | grep -q "nvme0n1" && ! ls /dev/ | grep -q "snvme"; then  
     echo "Detected nvme device, but no snvme device detected."  
       
     # Get a list of nvme devices  
