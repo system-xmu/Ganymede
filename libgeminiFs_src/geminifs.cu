@@ -276,7 +276,7 @@ private:
             return ret;
         }
 
-        printf("Miss!!\n");
+        printf("I want filepage[%llx], MISS!\n", filepage_id);
 
         // Miss
         // ret == -1
@@ -431,6 +431,7 @@ private:
     __forceinline__ __device__ void
     __insert__filepage__mapping_to__cachepage(FilePageId filepage_id,
                                               CachePageId cachepage_id) {
+        printf("change map! filepage[%llx]->cachepage[%llx]\n", filepage_id, cachepage_id);
         this->filepage__to__cachepage[filepage_id] = cachepage_id;
     }
 
@@ -457,6 +458,7 @@ private:
 
     __forceinline__ __device__ void
     __erase__zero_reffed_filepage(FilePageId filepage_id) {
+        printf("erase filepage_id[%llx]\n", filepage_id);
         auto *n = static_cast<MyLinklistNodeD<FilePageId> *>(this->zero_reffed_filepages[filepage_id]);
         this->zero_reffed_filepages[filepage_id] = nullptr;
         this->zero_reffed_filepages__list.detach_node(n);
@@ -475,6 +477,7 @@ private:
         delete n;
 
         this->zero_reffed_filepages[filepage_id] = nullptr;
+        this->nr_zero_pages--;
 
         return filepage_id;
     }

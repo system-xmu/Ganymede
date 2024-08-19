@@ -13,7 +13,7 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
 
 int
 main() {
-  size_t virtual_space_size = 256 * (1ull << 20)/*GB*/;
+  size_t virtual_space_size = 1 * (1ull << 30)/*GB*/;
   size_t page_capacity = 128 * (1ull << 20);
   size_t dev_page_size = 4096;
 
