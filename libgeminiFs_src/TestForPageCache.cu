@@ -3,6 +3,37 @@
 
 #include "geminifs_api.cuh"
 
+struct GpuTimer
+{
+      cudaEvent_t start;
+      cudaEvent_t stop;
+
+      GpuTimer() {
+            cudaEventCreate(&start);
+            cudaEventCreate(&stop);
+      }
+
+      ~GpuTimer() {
+            cudaEventDestroy(start);
+            cudaEventDestroy(stop);
+      }
+
+      void Start() {
+            cudaEventRecord(start, 0);
+      }
+
+      void Stop() {
+            cudaEventRecord(stop, 0);
+      }
+
+      float Elapsed() {
+            float elapsed;
+            cudaEventSynchronize(stop);
+            cudaEventElapsedTime(&elapsed, start, stop);
+            return elapsed;
+      }
+};
+
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true) {
    if (code != cudaSuccess) {
@@ -13,7 +44,7 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
 
 int
 main() {
-  size_t virtual_space_size = 1 * (1ull << 30)/*GB*/;
+  size_t virtual_space_size = 16 * (1ull << 30)/*GB*/;
   size_t page_capacity = 128 * (1ull << 20);
   size_t dev_page_size = 4096;
 

@@ -92,6 +92,9 @@ host_create_geminifs_file(const char *filename,
 
   hdr->fd = fd;
 
+  void *t = malloc(virtual_space_size);
+  host_xfer_geminifs_file(hdr, 0, t, virtual_space_size, 0);
+
   return hdr;
 }
 
@@ -135,6 +138,8 @@ host_xfer_geminifs_file(host_fd_t host_fd,
     buf += nbyte_this_time;
     nbyte_already += nbyte_this_time;
   }
+  if (!is_read)
+      fsync(fd);
   return nbyte_already;
 }
 
@@ -163,7 +168,7 @@ host_refine_nvmeofst_1(vaddr_t va,
       perror("ioctl failed");
       my_assert(0);
   } 
-  //printf("%lx, %lx\n", va, mapping.address);
+  //printf("geminifs_file_va[%lx], raw_file_ofst[%lx], nvme_ofst[%lx]\n", va, host__convert_va__to(context->host_fd, va),  mapping.address);
   return mapping.address;
 }
 

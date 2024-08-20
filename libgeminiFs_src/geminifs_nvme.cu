@@ -22,14 +22,15 @@ public:
             this->locks[i].release();
     }
 
-    __device__ int
+    __forceinline__ __device__ int
     acquire_queue() {
-        int queue = get_smid() % this->nr_queues;
+        //int queue = get_smid() % this->nr_queues;
+        int queue = 0;
         this->locks[queue].acquire();
         return queue;
     }
 
-    __device__ void
+    __forceinline__ __device__ void
     release_queue(int queue) {
         this->locks[queue].release();
     }
@@ -60,12 +61,12 @@ private:
 
     __device__ void
     __write_back(FilePageId filepage_id, void *ctrl, void *hdr, void *queue_acquire_helper) {
-        this->__xfer(filepage_id, ctrl, hdr, queue_acquire_helper, 1);
+        this->__xfer(filepage_id, ctrl, hdr, queue_acquire_helper, 0);
     }
 
     __device__ void
     __read_in(FilePageId filepage_id, void *ctrl, void *hdr, void *queue_acquire_helper) {
-        this->__xfer(filepage_id, ctrl, hdr, queue_acquire_helper, 0);
+        this->__xfer(filepage_id, ctrl, hdr, queue_acquire_helper, 1);
     }
 
     __device__ __forceinline__ void
@@ -87,6 +88,7 @@ private:
         nvme_ofst_t nvme_ofst = this->__get_nvmeofst(hdr, file_va);
 
         int queue = queue_acquire_helper->acquire_queue();
+        printf("I get a queue [%llx]\n", (uint64_t)queue);
         QueuePair* qp = &ctrl->d_qps[queue];
 
         size_t start_hqps_block = nvme_ofst >> this->hqps_block_size_log;
@@ -102,24 +104,39 @@ private:
             uint16_t cid = get_cid(&(qp->sq));
             uint64_t prp1 = this->ioaddrs[idx_ioaddr];
             uint64_t prp2 = 0;
+            {
+                if (is_read) {
+                    nvm_cmd_header(&cmd, cid, NVM_IO_READ, qp->nvmNamespace);
+                    printf("read in filepage_id[%llx] file_va[%llx] nvmeofst[%llx] ioaddr[%llx] hqps_block_size_log[%llx]\n", filepage_id, file_va, nvme_ofst, this->ioaddrs[idx_ioaddr], (uint64_t)this->hqps_block_size_log);
+                } else {
+                    nvm_cmd_header(&cmd, cid, NVM_IO_WRITE, qp->nvmNamespace);
+                    printf("write back filepage_id[%llx] file_va[%llx] nvmeofst[%llx] ioaddr[%llx] hqps_block_size_log[%llx]\n", filepage_id, file_va, nvme_ofst, this->ioaddrs[idx_ioaddr], (uint64_t)this->hqps_block_size_log);
+                }
 
-            if (is_read)
-                nvm_cmd_header(&cmd, cid, NVM_IO_READ, qp->nvmNamespace);
-            else
-                nvm_cmd_header(&cmd, cid, NVM_IO_WRITE, qp->nvmNamespace);
-
-            nvm_cmd_data_ptr(&cmd, prp1, prp2);
-            nvm_cmd_rw_blks(&cmd, start_hqps_block, nr_hqps_blocks__per_ioaddr);
-            uint16_t sq_pos = sq_enqueue(&qp->sq, &cmd);
-            uint32_t head, head_;
-            uint32_t cq_pos = cq_poll(&qp->cq, cid, &head, &head_);
-            qp->cq.tail.fetch_add(1, simt::memory_order_acq_rel);
-            cq_dequeue(&qp->cq, cq_pos, &qp->sq, head, head_);
-            put_cid(&qp->sq, cid);
+                nvm_cmd_data_ptr(&cmd, prp1, prp2);
+                nvm_cmd_rw_blks(&cmd, start_hqps_block, nr_hqps_blocks__per_ioaddr);
+                uint16_t sq_pos = sq_enqueue(&qp->sq, &cmd);
+                uint32_t head, head_;
+                uint32_t cq_pos = cq_poll(&qp->cq, cid, &head, &head_);
+                qp->cq.tail.fetch_add(1, simt::memory_order_acq_rel);
+                cq_dequeue(&qp->cq, cq_pos, &qp->sq, head, head_);
+                put_cid(&qp->sq, cid);
+            }
+            if (!is_read) {
+                    nvm_cmd_header(&cmd, cid, NVM_IO_FLUSH, qp->nvmNamespace);
+                nvm_cmd_data_ptr(&cmd, prp1, prp2);
+                nvm_cmd_rw_blks(&cmd, start_hqps_block, nr_hqps_blocks__per_ioaddr);
+                uint16_t sq_pos = sq_enqueue(&qp->sq, &cmd);
+                uint32_t head, head_;
+                uint32_t cq_pos = cq_poll(&qp->cq, cid, &head, &head_);
+                qp->cq.tail.fetch_add(1, simt::memory_order_acq_rel);
+                cq_dequeue(&qp->cq, cq_pos, &qp->sq, head, head_);
+                put_cid(&qp->sq, cid);
+            }
         }
 
+        printf("I release the queue [%llx]\n", (uint64_t)queue);
         queue_acquire_helper->release_queue(queue);
-
     }
 };
 

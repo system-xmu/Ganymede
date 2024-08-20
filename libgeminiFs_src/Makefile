@@ -1,11 +1,14 @@
-CCFLAGS= -O0 -g -I/usr/local/cuda/include -L/usr/local/cuda/targets/x86_64-linux/lib
+CCFLAGS= -O3 -I/usr/local/cuda/include -L/usr/local/cuda/targets/x86_64-linux/lib
 NVCCFLAGS=-arch=sm_80 -Icccl/thrust -Icccl/libcudacxx/include -Icccl/cub  -I../src/include  -I../src/freestanding/include --expt-relaxed-constexpr --expt-extended-lambda -rdc=true -O3
 LDFLAGS=-L. -L../build/lib -Xlinker -rpath=../build/lib -lgeminiFs -lnvm
 
-all: libgeminiFs.a TestForNoBackingPagecache.exe TestForNvmeBacking.exe TestForPageCache.exe
+all: libgeminiFs.a TestForNoBackingPagecache.exe TestForNvmeBacking.exe TestForPageCache.exe TestForNvmeofstRefining.exe
 
 libgeminiFs.a: geminifs.cuda.o geminifs_nvme.cuda.o geminifs.o
 	ar rcs libgeminiFs.a geminifs.cuda.o geminifs_nvme.cuda.o geminifs.o
+
+TestForNvmeofstRefining.exe: TestForNvmeofstRefining.cu libgeminiFs.a
+	nvcc $(LDFLAGS) $(NVCCFLAGS) TestForNvmeofstRefining.cu -g -G -o TestForNvmeofstRefining.exe
 
 TestForNvmeBacking.exe: TestForNvmeBacking.cu libgeminiFs.a
 	nvcc $(LDFLAGS) $(NVCCFLAGS) TestForNvmeBacking.cu  -g -G -o TestForNvmeBacking.exe

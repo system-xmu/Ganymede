@@ -1,6 +1,7 @@
 
 #include <cassert>
 #include <iostream>
+#include <ctime>
 #include "geminifs_api.cuh"
 
 
@@ -21,27 +22,6 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
 #define geminifs_file_name "checkpoint.geminifs"
 #define geminifs_file_path (nvme_mount_path "/" geminifs_file_name)
 
-static void
-test_host(host_fd_t host_fd) {
-  size_t size = host_fd->virtual_space_size;
-  size_t *buf1 = (size_t *)malloc(size);
-  size_t *buf2 = (size_t *)malloc(size);
-
-  for (size_t i = 0; i < size/sizeof(size_t); i++) {
-    buf1[i] = i + 2;
-  }
-
-  host_xfer_geminifs_file(host_fd, 0, buf1, size, 0);
-  host_xfer_geminifs_file(host_fd, 0, buf2, size, 1);
-
-  for (size_t i = 0; i < size/sizeof(size_t); i++) {
-    assert(buf1[i] == buf2[i]);
-  }
-
-  free(buf1);
-  free(buf2);
-}
-
 
 int
 main() {
@@ -54,60 +34,85 @@ main() {
             1024,
             32);
 
-  size_t virtual_space_size = 1 * (1ull << 30)/*GB*/;
-  size_t page_capacity = 128 * (1ull << 20);
+  size_t virtual_space_size = 128 * (1ull << 20)/*GB*/;
+  size_t page_capacity = 4 * (1ull << 10);
   size_t file_block_size = 4096;
   size_t dev_page_size = 4096;
-  //size_t virtual_space_size = 4096;
+
+  srand(time(0));
+  int rand_start = rand();
 
   remove(geminifs_file_path);
 
   host_fd_t host_fd = host_create_geminifs_file(geminifs_file_path, file_block_size, virtual_space_size);
-
-  test_host(host_fd);
-
-  host_close_geminifs_file(host_fd);
-
-  host_fd = host_open_geminifs_file(geminifs_file_path);
-  test_host(host_fd);
-
   host_refine_nvmeofst(host_fd);
-  host_close_geminifs_file(host_fd);
 
+  uint64_t *buf1 = (uint64_t *)malloc(virtual_space_size);
+  for (size_t i = 0; i < virtual_space_size / sizeof(uint64_t); i++)
+      buf1[i] = rand_start + i;
+  host_xfer_geminifs_file(host_fd, 0, buf1, virtual_space_size, 0);
+  
+  uint64_t *buf2 = (uint64_t *)malloc(virtual_space_size);
+  host_xfer_geminifs_file(host_fd, 0, buf2, virtual_space_size, 1);
+  //printf("buf2: ");
+  //for (size_t i = 0; i < virtual_space_size / sizeof(uint64_t); i++)
+  //    printf("%llx ", buf2[i]);
+  //printf("\n");
+
+  host_close_geminifs_file(host_fd);
 
   host_fd = host_open_geminifs_file(geminifs_file_path);
 
   uint64_t *dev_buf1;
   uint64_t *dev_buf2;
 
-  gpuErrchk(cudaMallocManaged(&dev_buf1, virtual_space_size));
+  //gpuErrchk(cudaMallocManaged(&dev_buf1, virtual_space_size));
   gpuErrchk(cudaMallocManaged(&dev_buf2, virtual_space_size));
-
-  for (size_t i = 0; i < virtual_space_size / sizeof(uint64_t); i++)
-      dev_buf1[i] = i + 3;
 
   dev_fd_t dev_fd = host_open_geminifs_file_for_device(host_fd, page_capacity, dev_page_size);
 
-  device_xfer_geminifs_file<<<108, 32>>>(dev_fd, 0, dev_buf1, virtual_space_size, 0);
-  cudaDeviceSynchronize();
+  //device_xfer_geminifs_file<<<108, 32>>>(dev_fd, 0, dev_buf1, virtual_space_size, 0);
+  //cudaDeviceSynchronize();
   device_xfer_geminifs_file<<<108, 32>>>(dev_fd, 0, dev_buf2, virtual_space_size, 1);
   cudaDeviceSynchronize();
 
-  for (size_t i = 0; i < virtual_space_size / sizeof(uint64_t); i++)
-      dev_buf2[i] = i + 3;
+  //uint64_t *buf3 = (uint64_t *)malloc(virtual_space_size);
+
+  for (size_t i = 0; i < virtual_space_size / sizeof(uint64_t); i++) {
+      if (dev_buf2[i] != i + rand_start) {
+          printf("ERROR GPU!!!\n");
+          //for (size_t j = 0; j < virtual_space_size / sizeof(uint64_t); j++) {
+          //    printf("%llx ", (uint64_t)dev_buf2[j]);
+          //}
+
+          goto out;
+      }
+  }
   
   device_sync<<<1, 1>>>(dev_fd);
   cudaDeviceSynchronize();
 
-  uint64_t *buf3 = (uint64_t *)malloc(virtual_space_size);
-  host_xfer_geminifs_file(host_fd, 0, buf3, virtual_space_size, 1);
-  for (size_t i = 0; i < virtual_space_size / sizeof(uint64_t); i++)
-      buf3[i] = i + 3;
-
 
   host_close_geminifs_file(host_fd);
 
+  //host_fd = host_open_geminifs_file(geminifs_file_path);
 
+  //host_xfer_geminifs_file(host_fd, 0, buf3, virtual_space_size, 1);
+
+
+  //for (size_t i = 0; i < virtual_space_size / sizeof(uint64_t); i++) {
+  //    printf("buf3[%llx] = %llx\n", (uint64_t)i, (uint64_t)buf3[i]);
+  //    if (buf3[i] != i + 3) {
+  //        printf("ERROR!!!");
+  //        for (size_t j = 0; j < virtual_space_size / sizeof(uint64_t); j++) {
+  //            printf("%llx ", (uint64_t)buf3[j]);
+  //        }
+  //        goto out;
+  //    }
+  //}
+  printf("ALL OK!\n");
+
+out:
   host_close_all();
 
   return 0;

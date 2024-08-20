@@ -3,6 +3,37 @@
 #include <iostream>
 #include "geminifs_api.cuh"
 
+struct GpuTimer
+{
+      cudaEvent_t start;
+      cudaEvent_t stop;
+
+      GpuTimer() {
+            cudaEventCreate(&start);
+            cudaEventCreate(&stop);
+      }
+
+      ~GpuTimer() {
+            cudaEventDestroy(start);
+            cudaEventDestroy(stop);
+      }
+
+      void Start() {
+            cudaEventRecord(start, 0);
+      }
+
+      void Stop() {
+            cudaEventRecord(stop, 0);
+      }
+
+      float Elapsed() {
+            float elapsed;
+            cudaEventSynchronize(stop);
+            cudaEventElapsedTime(&elapsed, start, stop);
+            return elapsed;
+      }
+};
+
 
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true) {
@@ -15,10 +46,13 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
 
 int
 main() {
-  int block_size = 1ull << 12; /* 4096 */
-  size_t capacity = 128 * (1ull << 20); /* 128M */
+  int block_size = 256 * (1ull << 10); /* 32k */
+  size_t capacity = 16 * (1ull << 30); /* 16G */
 
-  gpuErrchk(cudaSetDevice(0));
+
+  int nr_warps = 108;
+
+  gpuErrchk(cudaSetDevice(1));
 
   size_t heapsz = 1 * (1ull << 30);
   gpuErrchk(cudaDeviceSetLimit(cudaLimitMallocHeapSize, heapsz));
@@ -26,7 +60,7 @@ main() {
   dev_fd_t dev_fd =
       host_open_geminifs_file_for_device_without_backing_file(block_size, capacity);
 
-  size_t buf_size = 128 * (1ull << 10); /* 128k */
+  size_t buf_size = 1 * (1ull << 30); /* 1G */
 
   uint64_t *whole_host_buf = (uint64_t *)malloc(capacity);
   uint64_t *another_whole_host_buf = (uint64_t *)malloc(capacity);
@@ -42,13 +76,31 @@ main() {
   for (vaddr_t va = 0; va < capacity; va += buf_size) {
       gpuErrchk(cudaMemcpy(dev_buf1, (uint8_t *)whole_host_buf + va, buf_size, cudaMemcpyHostToDevice));
       cudaDeviceSynchronize();
-      device_xfer_geminifs_file<<<54, 32>>>(dev_fd, va, dev_buf1, buf_size, 0);
+
+      GpuTimer gpu_timer;
+
+      gpu_timer.Start();
+      device_xfer_geminifs_file<<<nr_warps, 32>>>(dev_fd, va, dev_buf1, buf_size, 0);
+      gpu_timer.Stop();
+
+      float time = gpu_timer.Elapsed();
+      float bw = ((float)buf_size * 1000) / (time * (1ull << 30));
+      std::cout << "bw:" << bw << "GB per s" << std::endl;
+
       cudaDeviceSynchronize();
-      exit(0);
   }
 
   for (vaddr_t va = 0; va < capacity; va += buf_size) {
-      device_xfer_geminifs_file<<<54, 32>>>(dev_fd, va, dev_buf2, buf_size, 1);
+      GpuTimer gpu_timer;
+
+      gpu_timer.Start();
+      device_xfer_geminifs_file<<<nr_warps, 32>>>(dev_fd, va, dev_buf2, buf_size, 1);
+      gpu_timer.Stop();
+
+      float time = gpu_timer.Elapsed();
+      float bw = ((float)buf_size * 1000) / (time * (1ull << 30));
+      std::cout << "bw:" << bw << "GB per s" << std::endl;
+
       cudaDeviceSynchronize();
       gpuErrchk(cudaMemcpy((uint8_t *)another_whole_host_buf + va, dev_buf2, buf_size, cudaMemcpyDeviceToHost));
       cudaDeviceSynchronize();

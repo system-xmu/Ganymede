@@ -153,6 +153,7 @@ public:
                 this->__insert__zero_reffed_filepage(filepage_id);
             }
         }
+        printf("Geminifs open OK\n");
     }
 
     __device__ ~PageCacheImpl() {
@@ -267,7 +268,7 @@ private:
             __threadfence();
             this->pagecache_lock.release();
 
-            printf("I want filepage[%llx], HIT! cachepage[%llx]\n", filepage_id, ret);
+            //printf("I want filepage[%llx], HIT! cachepage[%llx]\n", filepage_id, ret);
 
             this->pages[ret]->lock.acquire();
             this->pages[ret]->read_in__no_lock(this->info1, this->info2, this->info3);
@@ -276,7 +277,7 @@ private:
             return ret;
         }
 
-        printf("I want filepage[%llx], MISS!\n", filepage_id);
+        //printf("I want filepage[%llx], MISS!\n", filepage_id);
 
         // Miss
         // ret == -1
@@ -298,6 +299,7 @@ private:
             this->pages[ret]->lock.acquire();
             this->pages[ret]->read_in__no_lock(this->info1, this->info2, this->info3);
             this->pages[ret]->lock.release();
+            //printf("I want filepage[%llx], find a zero-reffed cachepage[%llx] to be evicted!\n", filepage_id, ret);
             return ret;
         }
 
@@ -310,7 +312,7 @@ private:
 
         if (leaders_waiting_for_evicting == nullptr && !has_quota_to_wait) {
             this->pagecache_lock.release();
-            __nanosleep(200);
+            __nanosleep(1000);
             return this->__acquire_page_for_warp_leader(filepage_id);
         }
 
@@ -334,6 +336,8 @@ private:
         ret = this->__get__cachepage_id(filepage_id);
         assert(ret != -1);
 
+        //printf("I want filepage[%llx], MISS, but being assigned cachepage[%llx]!\n", filepage_id, ret);
+
         auto cur_waiting = leaders_waiting_for_evicting->nr_waiting;
         if (cur_waiting == 1) {
             delete leaders_waiting_for_evicting;
@@ -351,7 +355,7 @@ private:
 
     __forceinline__ __device__ void
     __release_page_for_warp_leader(FilePageId filepage_id) {
-        printf("I want to release the page %llx\n", filepage_id);
+        //printf("I want to release the page %llx\n", filepage_id);
         this->pagecache_lock.acquire();
         CachePageId cachepage_id = this->__get__cachepage_id(filepage_id);
         if ((--(this->pages_ref[cachepage_id])) == 0) {
@@ -431,7 +435,7 @@ private:
     __forceinline__ __device__ void
     __insert__filepage__mapping_to__cachepage(FilePageId filepage_id,
                                               CachePageId cachepage_id) {
-        printf("change map! filepage[%llx]->cachepage[%llx]\n", filepage_id, cachepage_id);
+        //printf("change map! filepage[%llx]->cachepage[%llx]\n", filepage_id, cachepage_id);
         this->filepage__to__cachepage[filepage_id] = cachepage_id;
     }
 
@@ -458,7 +462,7 @@ private:
 
     __forceinline__ __device__ void
     __erase__zero_reffed_filepage(FilePageId filepage_id) {
-        printf("erase filepage_id[%llx]\n", filepage_id);
+        //printf("erase filepage_id[%llx]\n", filepage_id);
         auto *n = static_cast<MyLinklistNodeD<FilePageId> *>(this->zero_reffed_filepages[filepage_id]);
         this->zero_reffed_filepages[filepage_id] = nullptr;
         this->zero_reffed_filepages__list.detach_node(n);
@@ -715,10 +719,10 @@ device_xfer_geminifs_file(dev_fd_t fd,
 
 
     size_t warp_id__overview = warp_id__in_block + nr_warp__per_block * block_id;
-    if (0 == my_lane_id()) {
-    printf("I'm warp %llx (in-block id %llx) threadIdx.x %llx, I account for [%llx, %llx)\n",
-            warp_id__overview, warp_id__in_block, threadIdx.x, begin__warp, exclusive_end__warp);
-    }
+    //if (0 == my_lane_id()) {
+    //printf("I'm warp %llx (in-block id %llx) threadIdx.x %llx, I account for [%llx, %llx)\n",
+    //        warp_id__overview, warp_id__in_block, threadIdx.x, begin__warp, exclusive_end__warp);
+    //}
 
     buf_dev = buf_dev + PAGE_BASE__BY_ID(begin__warp - begin, page_bit_num);
     for (FilePageId filepage_id = begin__warp;

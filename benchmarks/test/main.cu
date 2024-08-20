@@ -33,30 +33,33 @@ read_from_nvme(QueuePair* qp,uint64_t start_block, uint64_t dev_buf[], uint64_t 
     // for (size_t i = 0; i < 256; i++)
     //     buf[i] = i;
     
-    nvm_cmd_t cmd;
-    
-    uint16_t cid = get_cid(&(qp->sq)); 
+    for (size_t i = 0; i < 1024; i++) {
+        printf ("%d\n", i);
+        nvm_cmd_t cmd;
 
-    nvm_cmd_header(&cmd, cid, NVM_IO_READ, qp->nvmNamespace);
+        uint16_t cid = get_cid(&(qp->sq)); 
 
-    uint64_t prp1 = dev_buf[0];
-    uint64_t prp2 = 0;
-    nvm_cmd_data_ptr(&cmd, prp1, prp2);
-    nvm_cmd_rw_blks(&cmd, start_block, blk_num); // 128KB
-    uint16_t sq_pos = sq_enqueue(&qp->sq, &cmd);
-    uint32_t head, head_;
-    // uint64_t pc_pos;
-    // uint64_t pc_prev_head;
+        nvm_cmd_header(&cmd, cid, NVM_IO_READ, qp->nvmNamespace);
 
-    uint32_t cq_pos = cq_poll(&qp->cq, cid, &head, &head_);
+        uint64_t prp1 = dev_buf[0];
+        uint64_t prp2 = 0;
+        nvm_cmd_data_ptr(&cmd, prp1, prp2);
+        nvm_cmd_rw_blks(&cmd, start_block, blk_num); // 128KB
+        uint16_t sq_pos = sq_enqueue(&qp->sq, &cmd);
+        uint32_t head, head_;
+        // uint64_t pc_pos;
+        // uint64_t pc_prev_head;
 
-    qp->cq.tail.fetch_add(1, simt::memory_order_acq_rel);
-    // // pc_prev_head = pc->q_head->load(simt::memory_order_relaxed);
-    // // pc_pos = pc->q_tail->fetch_add(1, simt::memory_order_acq_rel);
+        uint32_t cq_pos = cq_poll(&qp->cq, cid, &head, &head_);
 
-    cq_dequeue(&qp->cq, cq_pos, &qp->sq, head, head_);
+        qp->cq.tail.fetch_add(1, simt::memory_order_acq_rel);
+        // // pc_prev_head = pc->q_head->load(simt::memory_order_relaxed);
+        // // pc_pos = pc->q_tail->fetch_add(1, simt::memory_order_acq_rel);
 
-    put_cid(&qp->sq, cid);
+        cq_dequeue(&qp->cq, cq_pos, &qp->sq, head, head_);
+
+        put_cid(&qp->sq, cid);
+    }
 
 }
 
