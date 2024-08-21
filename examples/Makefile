@@ -1,5 +1,5 @@
 NVCCFLAGS=-arch=sm_80 -I../libgeminiFs_src -O3
-LDFLAGS=-L../build/lib -Xlinker -rpath=$(shell pwd)/../build/lib -lgeminiFs -lnvm -arch=sm_80 -I../libgeminiFs_src
+LDFLAGS=-L../build/lib -Xlinker -rpath=$(shell pwd)/../build/lib -lgeminiFs -lnvm -arch=sm_80
 
 all: TestForNoBackingPagecache.exe TestForNvmeBacking.exe TestForPageCache.exe TestForNvmeofstRefining.exe
 

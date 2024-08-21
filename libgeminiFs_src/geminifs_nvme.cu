@@ -16,6 +16,12 @@ class QueueAcquireHelper {
 public:
     __device__
     QueueAcquireHelper(int nr_queues) {
+        this->lock.release();
+        this->queue_now = 0;
+        this->cmd_count = new int[nr_queues];
+        for (size_t i = 0; i < nr_queues; i++)
+            this->cmd_count[i] = 1023;
+
         this->nr_queues = nr_queues;
         this->locks = new cuda::binary_semaphore<cuda::thread_scope_device> [nr_queues];
         for (size_t i = 0; i < nr_queues; i++)
@@ -25,7 +31,18 @@ public:
     __forceinline__ __device__ int
     acquire_queue() {
         //int queue = get_smid() % this->nr_queues;
-        int queue = 0;
+
+        int queue;
+        this->lock.acquire();
+        while (1) {
+            queue = this->queue_now;
+            this->queue_now = (this->queue_now + 1) % this->nr_queues;
+            if (this->cmd_count[queue]) {
+                this->cmd_count[queue]--;
+                break;
+            }
+        }
+
         this->locks[queue].acquire();
         return queue;
     }
@@ -33,9 +50,14 @@ public:
     __forceinline__ __device__ void
     release_queue(int queue) {
         this->locks[queue].release();
+        this->lock.release();
     }
 
 private:
+    cuda::binary_semaphore<cuda::thread_scope_device> lock;
+    int queue_now;
+    int *cmd_count;
+
     int nr_queues;
     cuda::binary_semaphore<cuda::thread_scope_device> *locks;
 };
@@ -80,63 +102,64 @@ private:
         int page_bit = __popc(page_size - 1);
         int file_block_size = 1 << hdr->block_bit;
 
+        vaddr_t filepage_va = filepage_id << page_bit;
+        uint64_t cachepage_ioaddr = this->ioaddrs[0];
 
+        int nr_file_blocks__per_page = page_size / file_block_size;
+        for (int idx_file_block__in_page = 0;
+                idx_file_block__in_page < nr_file_blocks__per_page;
+                idx_file_block__in_page++) {
+            int queue = queue_acquire_helper->acquire_queue();
+            printf("I get a queue [%llx]\n", (uint64_t)queue);
+            QueuePair* qp = &ctrl->d_qps[queue];
 
-        assert(file_block_size == page_size);
+            vaddr_t fileblock_va = filepage_va + idx_file_block__in_page * file_block_size;
+            nvme_ofst_t nvme_ofst = this->__get_nvmeofst(hdr, fileblock_va);
+            uint64_t corresponding_ioaddr = cachepage_ioaddr + idx_file_block__in_page * file_block_size;
 
-        vaddr_t file_va = filepage_id << page_bit;
-        nvme_ofst_t nvme_ofst = this->__get_nvmeofst(hdr, file_va);
+            size_t start_hqps_block = nvme_ofst >> this->hqps_block_size_log;
+            int nr_hqps_blocks = file_block_size >> this->hqps_block_size_log;
 
-        int queue = queue_acquire_helper->acquire_queue();
-        printf("I get a queue [%llx]\n", (uint64_t)queue);
-        QueuePair* qp = &ctrl->d_qps[queue];
-
-        size_t start_hqps_block = nvme_ofst >> this->hqps_block_size_log;
-        int nr_hqps_blocks = file_block_size >> this->hqps_block_size_log;
-
-        int size_of_ioaddr = 4096;
-        int nr_hqps_blocks__per_ioaddr = 4096 / (1 << this->hqps_block_size_log);
-
-        for (size_t idx_ioaddr = 0;
-                idx_ioaddr < page_size / size_of_ioaddr;
-                idx_ioaddr++, start_hqps_block += nr_hqps_blocks__per_ioaddr) {
-            nvm_cmd_t cmd;
-            uint16_t cid = get_cid(&(qp->sq));
-            uint64_t prp1 = this->ioaddrs[idx_ioaddr];
-            uint64_t prp2 = 0;
             {
+                nvm_cmd_t cmd;
+                uint16_t cid = get_cid(&(qp->sq));
+                uint64_t prp1 = corresponding_ioaddr;
+                uint64_t prp2 = 0;
                 if (is_read) {
                     nvm_cmd_header(&cmd, cid, NVM_IO_READ, qp->nvmNamespace);
-                    printf("read in filepage_id[%llx] file_va[%llx] nvmeofst[%llx] ioaddr[%llx] hqps_block_size_log[%llx]\n", filepage_id, file_va, nvme_ofst, this->ioaddrs[idx_ioaddr], (uint64_t)this->hqps_block_size_log);
+                    printf("read in filepage_id[%llx] file_va[%llx] nvmeofst[%llx] start_block[%llx] ioaddr[%llx] hqps_block_size_log[%llx]\n", filepage_id, fileblock_va, nvme_ofst, (uint64_t)start_hqps_block, corresponding_ioaddr, (uint64_t)this->hqps_block_size_log);
                 } else {
                     nvm_cmd_header(&cmd, cid, NVM_IO_WRITE, qp->nvmNamespace);
-                    printf("write back filepage_id[%llx] file_va[%llx] nvmeofst[%llx] ioaddr[%llx] hqps_block_size_log[%llx]\n", filepage_id, file_va, nvme_ofst, this->ioaddrs[idx_ioaddr], (uint64_t)this->hqps_block_size_log);
+                    printf("write back filepage_id[%llx] file_va[%llx] nvmeofst[%llx] start_block[%llx] ioaddr[%llx] hqps_block_size_log[%llx]\n", filepage_id, fileblock_va, nvme_ofst, (uint64_t)start_hqps_block, corresponding_ioaddr, (uint64_t)this->hqps_block_size_log);
                 }
 
                 nvm_cmd_data_ptr(&cmd, prp1, prp2);
-                nvm_cmd_rw_blks(&cmd, start_hqps_block, nr_hqps_blocks__per_ioaddr);
+                nvm_cmd_rw_blks(&cmd, start_hqps_block, nr_hqps_blocks);
                 uint16_t sq_pos = sq_enqueue(&qp->sq, &cmd);
                 uint32_t head, head_;
                 uint32_t cq_pos = cq_poll(&qp->cq, cid, &head, &head_);
+                printf("poll OK\n");
                 qp->cq.tail.fetch_add(1, simt::memory_order_acq_rel);
                 cq_dequeue(&qp->cq, cq_pos, &qp->sq, head, head_);
                 put_cid(&qp->sq, cid);
             }
-            if (!is_read) {
-                    nvm_cmd_header(&cmd, cid, NVM_IO_FLUSH, qp->nvmNamespace);
-                nvm_cmd_data_ptr(&cmd, prp1, prp2);
-                nvm_cmd_rw_blks(&cmd, start_hqps_block, nr_hqps_blocks__per_ioaddr);
-                uint16_t sq_pos = sq_enqueue(&qp->sq, &cmd);
-                uint32_t head, head_;
-                uint32_t cq_pos = cq_poll(&qp->cq, cid, &head, &head_);
-                qp->cq.tail.fetch_add(1, simt::memory_order_acq_rel);
-                cq_dequeue(&qp->cq, cq_pos, &qp->sq, head, head_);
-                put_cid(&qp->sq, cid);
-            }
+            printf("I release the queue [%llx]\n", (uint64_t)queue);
+            queue_acquire_helper->release_queue(queue);
         }
 
-        printf("I release the queue [%llx]\n", (uint64_t)queue);
-        queue_acquire_helper->release_queue(queue);
+
+        //if (!is_read) {
+        //        nvm_cmd_header(&cmd, cid, NVM_IO_FLUSH, qp->nvmNamespace);
+        //    nvm_cmd_data_ptr(&cmd, prp1, prp2);
+        //    nvm_cmd_rw_blks(&cmd, start_hqps_block, nr_hqps_blocks__per_ioaddr);
+        //    uint16_t sq_pos = sq_enqueue(&qp->sq, &cmd);
+        //    uint32_t head, head_;
+        //    uint32_t cq_pos = cq_poll(&qp->cq, cid, &head, &head_);
+        //    qp->cq.tail.fetch_add(1, simt::memory_order_acq_rel);
+        //    cq_dequeue(&qp->cq, cq_pos, &qp->sq, head, head_);
+        //    put_cid(&qp->sq, cid);
+        //}
+
     }
 };
 
@@ -220,7 +243,6 @@ host_open_geminifs_file_for_device(
             cachepage->ioaddrs[j] = cachepage->gpu_buffer->ioaddrs[j];
         cachepage->hqps_block_size_log = ctrl->h_qps[0]->block_size_log;
     }
-
 
     return __internal__get_pagecache(pagecache_capacity,
             page_size,

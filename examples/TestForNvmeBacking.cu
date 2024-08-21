@@ -34,8 +34,8 @@ main() {
             1024,
             32);
 
-  size_t virtual_space_size = 128 * (1ull << 20)/*GB*/;
-  size_t page_capacity = 4 * (1ull << 10);
+  size_t virtual_space_size = 1 * (1ull << 20)/*GB*/;
+  size_t page_capacity = 16 * (1ull << 10);
   size_t file_block_size = 4096;
   size_t dev_page_size = 4096;
 
