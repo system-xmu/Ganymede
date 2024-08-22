@@ -78,7 +78,7 @@ release_samples:
 samples = $(wildcard test_gds_latency.cc)
 # cusamples = $(wildcard cufile_sample_*.cu)
 objs = $(samples:.cc=)  $(samples:.cc=_static)
-cuobjs = $(cusamples:.cu=) vectorAdd.o
+# cuobjs = $(cusamples:.cu=) vectorAdd.o
 build: $(objs) $(cuobjs)
 
 CUDA_ARCH = -gencode=arch=compute_60,code=sm_60 \
@@ -93,14 +93,10 @@ CUDA_ARCH = -gencode=arch=compute_60,code=sm_60 \
             -gencode=arch=compute_86,code=sm_86 \
             -gencode=arch=compute_80,code=compute_80
 
-vectorAdd.o : vectorAdd.cu
-	$(NVCC) $(INCLUDES) --cudadevrt static --cudart static \
-		$(CUDA_ARCH)  --ptxas-options=-v --compiler-options \
-		--compile --lib $< -o $@
 
-%: %.cc $(CUFILE_INCLUDE_PATH)/cufile.h vectorAdd.o
+%: %.cc $(CUFILE_INCLUDE_PATH)/cufile.h 
 	$(CC) $(INCLUDES) $(CXXFLAGS) $^ -o $@ $(LDFLAGS)
-%_static: %.cc $(CUFILE_INCLUDE_PATH)/cufile.h vectorAdd.o
+%_static: %.cc $(CUFILE_INCLUDE_PATH)/cufile.h 
 	$(CC)  $(INCLUDES) $(CXXFLAGS) $^ -o $@ $(LDFLAGS_STATIC)
 
 
