@@ -3,9 +3,9 @@
 
 #include <errno.h>
 #include <string.h>
-#include "fs_calls.cuh"
+#include "fs_calls.cu.h"
 #include "host_loop.h"
-#include "fs_initializer.cuh"
+#include "fs_initializer.cu.h"
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <stdio.h>

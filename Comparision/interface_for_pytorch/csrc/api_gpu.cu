@@ -11,39 +11,6 @@ inline void __checkCudaErrors(cudaError err, const char *file, const int line)
 		exit(-1);
 	}
 }
-
-// TODO
-__global__ void read(char* filename, size_t *offset, size_t *size, char* buffer)
-{
-	__shared__ int fd;
-
-	fd = 0;
-	// O_DIRECT 跳过page cache
-	fd = gopen(filename, O_GRDONLY | O_DIRECT);
-
-	if (*size != gread(fd, *offset, *size, (uchar*)buffer))
-	{
-		assert(NULL);
-	}
-	gclose(fd);
-}
-
-__global__ void write(char* filename, size_t *offset, size_t *size, char *data)
-{
-   
-    __shared__ int fd;
-    fd = 0;
-    fd = gopen(filename, O_GRDWR | O_GCREAT | O_GWRONCE);
-    if (fd < 0)
-        ERROR("Failed to open file");
-   
-    size_t bytes_write = gwrite(fd, *offset, *size, (uchar*)data);
-    if(bytes_write != *size)
-        ERROR("Failed to write data");
-    if(gclose(fd) < 0)
-        ERROR("Failed to close file");
-}
-
 DeviceData copy_data_to_device(const char* h_filename, size_t h_offset, size_t h_size) 
 {
     DeviceData device_data;
@@ -72,6 +39,51 @@ char* copy_string_to_device(const char* h_str)
     CUDA_SAFE_CALL(cudaMemcpy(d_str, h_str, n + 1, cudaMemcpyHostToDevice));
     return d_str;
 }
+
+__global__ void read(char* filename, size_t *offset, size_t *size, char* buffer)
+{
+	__shared__ uchar* scratch;
+	__shared__ int fd;
+	BEGIN_SINGLE_THREAD 
+	scratch = (uchar*) malloc((*size) + 1);
+	GPU_ASSERT(scratch != NULL);
+	END_SINGLE_THREAD
+	fd = 0;
+	fd = gopen(filename, O_GRDONLY | O_DIRECT);
+	if (fd < 0)
+			ERROR("Failed to open file");
+
+	if (*size != gread(fd, *offset, *size, scratch))
+	{
+		assert(NULL);
+	}
+	__syncthreads();
+
+	// copy to buffer
+	for (size_t i = threadIdx.x; i < *size; i += blockDim.x) {
+        buffer[i] = scratch[i];
+    }
+	gclose(fd);
+}
+
+
+__global__ void write(char* filename, size_t *offset, size_t *size, char *data)
+{
+   
+    __shared__ int fd;
+    fd = 0;
+    fd = gopen(filename, O_GRDWR | O_GCREAT | O_GWRONCE);
+    if (fd < 0)
+        ERROR("Failed to open file");
+   
+    size_t bytes_write = gwrite(fd, *offset, *size, (uchar*)data);
+    if(bytes_write != *size)
+        ERROR("Failed to write data");
+    if(gclose(fd) < 0)
+        ERROR("Failed to close file");
+}
+
+
 void gpu_read(char* filename, size_t offset, size_t size, char *buffer)
 {
 	DeviceData device_data = copy_data_to_device(filename, offset, size);
@@ -91,7 +103,7 @@ void gpu_read(char* filename, size_t offset, size_t size, char *buffer)
 	fprintf(stderr, "\n");
 	delete gpuGlobals;
 
-	cudaDeviceReset();
+	// cudaDeviceReset();
 }
 
 void gpu_write(char* filename, size_t offset, size_t size, char *d_data)
@@ -112,7 +124,7 @@ void gpu_write(char* filename, size_t offset, size_t size, char *d_data)
 	fprintf(stderr, "\n");
 	delete gpuGlobals;
 
-	cudaDeviceReset();
+	// cudaDeviceReset();
 
 }
 

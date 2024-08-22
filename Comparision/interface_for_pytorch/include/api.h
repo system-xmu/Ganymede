@@ -1,6 +1,9 @@
 
 #include <stdio.h>
 #include <ATen/ATen.h>
+
+#include <c10/util/ArrayRef.h>
+#include <c10/util/typeid.h>
 #include <torch/extension.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -13,7 +16,9 @@
 // #include "api_gpu.cuh"
 #include "space_mgr.h"
 
-typedef unsigned char uchar;  
+typedef unsigned char uchar;
+
+
 
 class GPUfs
 {

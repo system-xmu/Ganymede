@@ -16,9 +16,8 @@ SpaceInfo GPUfs::prepare_write(const at::Tensor &tensor, const std::string &key)
 
 SpaceInfo GPUfs::prepare_read(const at::Tensor &tensor, const std::string &key)
 {
-    // TODO, 同时支持cuda 和cpu tensor
-    if (!tensor.is_contiguous() || !tensor.is_cpu())
-        throw std::runtime_error("Tensor must be contiguous and on cpu");
+    if (!tensor.is_contiguous() || !tensor.is_cuda())
+        throw std::runtime_error("Tensor must be contiguous and on cuda");
     if (this->tensors_info.find(key) == this->tensors_info.end())
         throw std::runtime_error("Read error, tensor not found");
     ull bytes = tensor.storage().nbytes();
@@ -43,18 +42,25 @@ void GPUfs::gpufs_write(const at::Tensor &tensor, const std::string &key)
     std::tie(offset, bytes) = prepare_write(tensor, key);
     printf("[C++]Tensor ptr:%p, offset: %lld, bytes: %lld\n", (void*)tensor.data_ptr(), offset, bytes);
     gpu_write(const_cast<char*>(this->filename.c_str()), offset, bytes, reinterpret_cast<char*>(tensor.data_ptr()));
+    // c10::ArrayRef shape = tensor.sizes();
+    // at::ScalarType dtype = tensor.scalar_type();
 
-    // lseek(this->fd, offset, SEEK_SET);
-    // write(this->fd, tensor.data_ptr(), bytes);
-
+    // std::cout<< "shape: " << shape <<  std::endl; // ArrayRef
+    // std::cout<< "dtype: " << tensor.scalar_type()<<  std::endl; // ScalarType
+    
 }
 
 void GPUfs::gpufs_read(const at::Tensor &tensor, const std::string &key)
 {
     ull offset, bytes;
     std::tie(offset, bytes) = prepare_read(tensor, key);
-    // lseek(this->fd, offset, SEEK_SET);
-    // read(this->fd, tensor.data_ptr(), bytes);
+    // here tensor is device ptr
+    // c10::ArrayRef shape = this->tensorMeta_info[key].shape;
+    // at::ScalarType dtype = this->tensorMeta_info[key].dtype;
+    // at::Tensor empty_tensor =  at::empty(shape, dtype);
+    // // TODO: 创建empty tensor
+    // torch::Tensor a = torch::empty({2, 4},at::kCUDA);　//　a 在cuda上
+
     gpu_read(const_cast<char*>(this->filename.c_str()), offset, bytes, reinterpret_cast<char*>(tensor.data_ptr()));
     release(offset, bytes);
 }
