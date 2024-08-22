@@ -7,7 +7,7 @@ In order to properly install gpufs on our server, make sure that the downloaded 
 The implemented interfaces are: geminifs.save(), gemififs.load()
 
 ## Install
-    $ ./install.sh 1   # 0 indicate uninstall
+    $ ./install.sh 1   # 0 indicates uninstall
 
 ## Example
 
