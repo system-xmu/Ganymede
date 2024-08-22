@@ -1,20 +1,22 @@
-# GeminiFS
+## Introduction
+This directory contains the GPUfs source code and the interface between GPUfs and PyTorch.
+In order to properly install gpufs on our server, make sure that the downloaded code branch is Master. Or download it directly: 
 
-## libmldk
-CPU lib for parsing the MLDK format
-GPU lib for parsing the MLDK format in GPU
-## src
-bam src to construct the GPU-NVMe path
-## kernel_module
-Modifield NVMe Module for CPU/GPU Share
-MLDK.ko used for metedata acquire and allocation
+    $ git clone git@github.com:fanfanaaaa/gpufs.git
 
-## Comparision
-GPUfs
-GPUfs + GDS
-## benchmarks
-Fio
-GPU Fio
-Bam benchs
-Dataset Load
-CheckPoints load/restore
+The implemented interfaces are: geminifs.save(), gemififs.load()
+
+## Install
+    $ ./install.sh 1   # 0 indicate uninstall
+
+## Example
+
+```
+from api import Geminifs
+
+model = MyNet()
+model.to("cuda")
+filepath = "your filepath to save checkpoints"
+geminifs = Geminifs(filepath)
+geminifs.save(model.state_dict())
+geminifs.load()
