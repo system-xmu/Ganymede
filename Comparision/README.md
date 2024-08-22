@@ -4,7 +4,7 @@ In order to properly install gpufs on our server, make sure that the downloaded 
 
     $ git clone git@github.com:fanfanaaaa/gpufs.git
 
-The implemented interfaces are: geminifs.save(), gemififs.load()
+The implemented interfaces are: geminifs.save(), geminifs.load()
 
 ## Install
     $ ./install.sh 1   # 0 indicates uninstall
