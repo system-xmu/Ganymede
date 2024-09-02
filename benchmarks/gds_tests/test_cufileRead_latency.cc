@@ -30,7 +30,7 @@
 #include <cuda.h>
 #include <cufile.h>
 #include "cufile_sample_utils.h"
-#include <iomanip> // 用于控制输出格式  
+#include <iomanip> 
 // includes, project
 //#include "helper_cuda_drvapi.h"
 //#include "helper_functions.h"
@@ -78,6 +78,7 @@ typedef struct cfg {
         int gpu;
         CUfileHandle_t cf_handle;
         size_t offset;
+        int nthreads;
 } cfg_t;
 #define MAX_N_THREADS 700
 pthread_t threads[MAX_N_THREADS];
@@ -89,78 +90,80 @@ extern void vectorAdd(const float *A, const float *B, float *C,
                           int numElements);
 }
 #endif
-typedef long long ll;
-size_t file_size = 1 * 1024 * 1024 * 1024; // 4GB file
-size_t pageSize = 4096;
+#define MAX_READ_IO_NUM (2000000)
+
+u_int64_t file_size = 1LL << 33; // 8GB
+size_t pageSize = 4096; // 1<<12
 
 static void* thread_cuRead(void* arg)
 {
        
-        void* d_buffer = NULL;
         CUfileError_t status;
         int ret;
 
-
-
         cfg_t *cfg = (cfg_t *)arg;
-    
-       
-        printf("size of each thread read in bytes :%ld \n", pageSize);
+        int cnt = 0;
+        for (u_int64_t offset = cfg->offset; offset < file_size; offset += cfg->nthreads*pageSize)
+        {
+                if(cnt == MAX_READ_IO_NUM)
+			break;
+                cnt++;
+                void* d_buffer = NULL;
+                // Malloc
+                check_cudaruntimecall(cudaSetDevice(cfg->gpu));
+                check_cudaruntimecall(cudaMalloc(&d_buffer, pageSize));
 
-        // Initialize
-        check_cudaruntimecall(cudaSetDevice(cfg->gpu));
-        check_cudaruntimecall(cudaMalloc(&d_buffer, pageSize));
+                auto start = std::chrono::high_resolution_clock::now(); 
+                
+                // Register buffer
+                status = cuFileBufRegister((void*)d_buffer, pageSize, 0);
+                if (status.err != CU_FILE_SUCCESS) {
+                        ret = -1;
+                        std::cerr << "Register buffer failed:"
+                                << cuFileGetErrorString(status) << std::endl;
+                        exit(EXIT_FAILURE);
+                }
 
-        cudaEvent_t     start, stop;
-        cudaEventCreate(&start);
-        cudaEventCreate(&stop);
-        cudaEventRecord(start, 0) ;
-        auto start2 = std::chrono::high_resolution_clock::now(); 
-        
-        // std::cout << "registering device memory of size :" << size << std::endl;
-        // registers device memory
-        status = cuFileBufRegister((void*)d_buffer, pageSize, 0);
-        if (status.err != CU_FILE_SUCCESS) {
-                ret = -1;
-                std::cerr << "buffer register A failed:"
-                        << cuFileGetErrorString(status) << std::endl;
-                exit(EXIT_FAILURE);
+                // Read pageSize I/O
+                ret = cuFileRead(cfg->cf_handle, (void*)d_buffer, pageSize, offset, 0);
+                if (ret < 0) 
+                {
+                        if (IS_CUFILE_ERR(ret))
+                                std::cerr << "read failed : "<< cuFileGetErrorString(ret) << std::endl;
+                        else
+                        {
+                                std::cerr << "read failed : "<< cuFileGetErrorString(errno) << std::endl;
+                                exit(1);
+                        }
+                                
+                } else 
+                {
+                        // std::cout << "read bytes to d_buffer:" << ret << std::endl;
+                        ret = 0;
+                }
+
+                // Deregister buffer 
+                status =cuFileBufDeregister(d_buffer);
+                if (status.err != CU_FILE_SUCCESS) 
+                {
+                        ret = -1;
+                        std::cerr << "Deregister buffer failed:"<< cuFileGetErrorString(status) << std::endl;
+                        exit(EXIT_FAILURE);
+                }
+                
+                auto end = std::chrono::high_resolution_clock::now();  
+                auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+                double rtime = static_cast<double>(elapsed.count());
+                printf("Thread read time: %.3f us\n",rtime);
+                
+                if(d_buffer)
+                        check_cudaruntimecall(cudaFree(d_buffer));
+
         }
-
-      
-        // reads device memory contents  from file  for size bytes
-        ret = cuFileRead(cfg->cf_handle, (void*)d_buffer, pageSize, cfg->offset, 0);
-        if (ret < 0) {
-                if (IS_CUFILE_ERR(ret))
-                        std::cerr << "read failed : "
-                                << cuFileGetErrorString(ret) << std::endl;
-                else
-                        std::cerr << "read failed : "
-                                << cuFileGetErrorString(errno) << std::endl;
-                exit(1);
-        } else {
-                // std::cout << "read bytes to d_buffer:" << ret << std::endl;
-                ret = 0;
-        }
-
-
-        // check_cudaruntimecall(cudaStreamSynchronize(0));
-        auto end2 = std::chrono::high_resolution_clock::now();  
-        // end = clock();
-        auto elapsed2 = std::chrono::duration_cast<std::chrono::microseconds>(end2 - start2);
-        double rtime = static_cast<double>(elapsed2.count());
-        printf("Thread time is %.3f us\n",rtime);
-        // std::cout << "Thread elapsed time: " << elapsed2.count() << "us\n"; 
-        cudaEventRecord(stop, 0);
-
-        float   elapsedTime;
-        cudaEventElapsedTime(&elapsedTime,start, stop);
+        
        
 
-        
         return NULL;
-
-
 }
 
 // Host code
@@ -188,7 +191,7 @@ int main(int argc, char **argv)
                 exit(EXIT_FAILURE);
         }
 
-        std::cout << "opening file " << TESTFILE << std::endl;
+        // std::cout << "opening file " << TESTFILE << std::endl;
 
         // opens file 
         ret = open(TESTFILE, O_CREAT | O_RDWR | O_DIRECT, 0664);
@@ -213,7 +216,6 @@ int main(int argc, char **argv)
                 exit(EXIT_FAILURE);
         }
 
-
         size_t offset = 0;
         for (int i = 0; i < nthreads; i++)
         {
@@ -221,7 +223,8 @@ int main(int argc, char **argv)
                 pthread_t thread;
                 cfg.gpu = gpuId;
                 cfg.cf_handle = cf_handle;
-                cfg.offset = offset + pageSize * i;
+                cfg.offset = offset + pageSize * i;     // init thread offset
+                cfg.nthreads = nthreads;
                 pthread_create(&thread, NULL, &thread_cuRead, &cfg);
                 threads[i] = thread;
         }

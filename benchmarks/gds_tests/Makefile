@@ -75,7 +75,7 @@ release_samples:
 	@echo "Release samples Built"
 
 
-samples = $(wildcard test_gds_latency.cc)
+samples = $(wildcard test_cuFileBatchIOSubmit_latency.cc test_cufileRead_latency.cc)
 # cusamples = $(wildcard cufile_sample_*.cu)
 objs = $(samples:.cc=)  $(samples:.cc=_static)
 # cuobjs = $(cusamples:.cu=) vectorAdd.o
