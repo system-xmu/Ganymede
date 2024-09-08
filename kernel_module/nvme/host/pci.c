@@ -1249,7 +1249,7 @@ static int adapter_alloc_cq_user(struct nvme_dev *dev, struct map* q_map,int qid
 	c.create_cq.opcode = nvme_admin_create_cq;
 	c.create_cq.prp1 = cpu_to_le64(q_map->addrs[0]);
 	c.create_cq.cqid = cpu_to_le16(qid);
-	c.create_cq.qsize = cpu_to_le16(dev->q_depth - 1);
+	c.create_cq.qsize = cpu_to_le16(dev->q_depth-1);
 	c.create_cq.cq_flags = cpu_to_le16(flags);
 	c.create_cq.irq_vector = 0;
 	// printk("adapter_alloc_cq_user qid is %u, addr is %lx,q depth is %d\n",qid,q_map->addrs[0],dev->q_depth - 1);
@@ -1275,7 +1275,7 @@ static int adapter_alloc_sq_user(struct nvme_dev *dev, struct map* q_map,int qid
 	c.create_sq.opcode = nvme_admin_create_sq;
 	c.create_sq.prp1 = cpu_to_le64(q_map->addrs[0]);
 	c.create_sq.sqid = cpu_to_le16(qid);
-	c.create_sq.qsize = cpu_to_le16(dev->q_depth - 1);
+	c.create_sq.qsize = cpu_to_le16(dev->q_depth-1);
 	c.create_sq.sq_flags = cpu_to_le16(flags);
 	c.create_sq.cqid = cpu_to_le16(qid);
 	// printk("adapter_alloc_sq_user qid is %u, addr is %lx,q depth is %d\n",qid,q_map->addrs[0],dev->q_depth - 1);

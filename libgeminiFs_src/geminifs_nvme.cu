@@ -110,6 +110,7 @@ private:
                 idx_file_block__in_page < nr_file_blocks__per_page;
                 idx_file_block__in_page++) {
             int queue = queue_acquire_helper->acquire_queue();
+            // 并行操作队列死锁
             printf("I get a queue [%llx]\n", (uint64_t)queue);
             QueuePair* qp = &ctrl->d_qps[queue];
 

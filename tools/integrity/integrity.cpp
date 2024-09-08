@@ -404,7 +404,8 @@ int main(int argc, char** argv)
     read_info.offset = nvme_ofst >> 9 ;
     read_info.num_blocks = 4096 >> 9;
     printf("offset is %lx, block num is %u\n",read_info.offset,read_info.num_blocks);
-    status = read_and_dump(&disk,&qp,buffer.dma,&read_info);
+    for(int  i = 0; i < 512; i++)
+        status = read_and_dump(&disk,&qp,buffer.dma,&read_info);
     //status = disk_read(&disk, &buffer, 1, read_bytes,ctrl);
     printf("disk_read ret is %d\n",status);
     buffer2 = (int *)buffer.buffer;
