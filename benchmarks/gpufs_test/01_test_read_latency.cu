@@ -17,12 +17,12 @@ inline void __checkCudaErrors(cudaError err, const char *file, const int line)
 	}
 }
 
-#define MAX_READ_IO_NUM (5000000)
+#define MAX_READ_IO_NUM (10000)
 #define MAX_TRIALS (10000)
 typedef long long ll;
 size_t pageSize = 1 << 12;	// 4k
 size_t memSize = pageSize * 2048; // 4M
-ll fileSize = 1LL << 38;	// 256GB
+ll fileSize = 1LL << 35;	// 32GB
 int device = 1;
 
 __shared__ uchar* scratch;
@@ -38,21 +38,12 @@ __global__ void read(char* filename, ll *offset, size_t *size, void* buffer_addr
 	fd = gopen(filename, O_GRDONLY | O_DIRECT);	//only open once
 	if (fd < 0)
 			ERROR("Failed to open file");
-	// for (size_t me =  blockIdx.x * FS_BLOCKSIZE; me < *size;
-	// 		me += FS_BLOCKSIZE * gridDim.x)
-	// {
-	// 	int toRead = min((unsigned int) FS_BLOCKSIZE,
-	// 			(unsigned int) (*size - me));
-	// 	if (toRead != gread(fd, me, toRead, (uchar*)buffer_addr))
-	// 		assert(NULL);
-	
-	// }
+
 	int tid = blockIdx.x * blockDim.x + threadIdx.x;
 	ll off = *offset + tid * FS_BLOCKSIZE;
 
 	if (FS_BLOCKSIZE != gread(fd, off , FS_BLOCKSIZE, (uchar*)buffer_addr + tid * FS_BLOCKSIZE))
 		assert(NULL);
-	
 	
 	__syncthreads();
 	
@@ -61,8 +52,7 @@ __global__ void read(char* filename, ll *offset, size_t *size, void* buffer_addr
 	{
 		end = clock();
 		duration = (double)(end - start) / (double)1000;
-		// printf("read %d, t is %lf\n",threadIdx.x,duration);
-		printf("Thread read time: %.3f us\n", duration);
+		printf("Thread latency: %.3f us\n", duration);
 	}
 }
 void test_read_latency(char* h_filename, int nblocks, int nthreads, int trials)
@@ -111,19 +101,17 @@ void test_read_latency(char* h_filename, int nblocks, int nthreads, int trials)
 				printf("Device failed, CUDA error message is: %s\n\n",cudaGetErrorString(error));
 
 			double time_after = _timestamp();
-		
-			// printf("%d: %.3f us\n",cnt, time_after - time_before);
-			
+					
 			// reset
-			CUDA_SAFE_CALL(cudaMemset(scratch_dev, 0, sizeof(u_int64_t)));
+			CUDA_SAFE_CALL(cudaMemset(scratch_gpu, 0, memSize));
 
 			cnt++;
-			// if(cnt == MAX_READ_IO_NUM)
-			// 	break;
+			if(cnt == MAX_READ_IO_NUM)
+				break;
 			
 		}
-		// if(cnt == MAX_READ_IO_NUM)
-		// 	break;
+		if(cnt == MAX_READ_IO_NUM)
+			break;
 	}
 	
 	
@@ -141,7 +129,7 @@ int main(int argc, char** argv)
 	char* gpudev = getenv("GPUDEVICE");
 	if (gpudev != NULL)
 		device = atoi(gpudev);
-	device = 1;
+	device = 0;
 	CUDA_SAFE_CALL(cudaSetDevice(device));
 	cudaDeviceProp deviceProp;
 	CUDA_SAFE_CALL(cudaGetDeviceProperties(&deviceProp, device));
@@ -149,9 +137,9 @@ int main(int argc, char** argv)
 
 	// printf("Running on device %d: \"%s\"\n", device, deviceProp.name);
 
-	if (argc < 1)
+	if (argc < 5)
 	{
-		fprintf(stderr, "<kernel_iterations> <blocks> <threads> filename\n");
+		fprintf(stderr, "Usage: <kernel_iterations> <blocks> <threads> filename\n");
 		return -1;
 	}
 

@@ -37,10 +37,10 @@
 using namespace std;
 
 #define MAX_BUFFER_SIZE 4096
-#define MAX_BATCH_IOS 512
-#define MAX_READ_IO_NUM (2000000)
+#define MAX_BATCH_IOS 1024
+#define MAX_READ_IO_NUM (10000)
 
-u_int64_t file_size = 1LL << 33; // 8GB
+u_int64_t file_size = 1LL << 35; // 32GB
 
 int main(int argc, char *argv[]) {
     const char *TESTFILE;
@@ -55,7 +55,7 @@ int main(int argc, char *argv[]) {
 
     if(argc < 5) 
 	{
-		std::cerr << argv[0] << "<iterations> <filepath> <gpuid> <num batch entries> <nondirectflag> "<< std::endl;
+		std::cerr << argv[0] << " Usage: <iterations> <filepath> <gpuid> <num batch entries> <nondirectflag>(default:0) "<< std::endl;
 		exit(1);
 	}
     iterations =  atoi(argv[1]);
@@ -69,14 +69,13 @@ int main(int argc, char *argv[]) {
 		return -1;
 	}
     
-    // std::cout << "opening file " << TESTFILE << std::endl;
     batch_size = atoi(argv[4]);
 	if(batch_size > MAX_BATCH_IOS) {
 		std::cerr << "Requested batch Size exceeds maximum Batch Size limit:" << MAX_BATCH_IOS << std::endl;
 		return -1;
 	}
 
-    
+    int io_cnt = 0;
 	for (int n = 0; n < iterations; n++)
 	{
 		int fd[MAX_BATCH_IOS];
@@ -140,10 +139,7 @@ int main(int argc, char *argv[]) {
 			check_cudaruntimecall(cudaMemset((void*)(devPtr[i]), 0xab, size));
 			check_cudaruntimecall(cudaStreamSynchronize(0));	
 		}
-		// filler
-
-		// std::cout << "registering device memory of size :" << size << std::endl;
-
+		
 		start = std::chrono::high_resolution_clock::now();
 
 		// registers device memory
@@ -156,9 +152,6 @@ int main(int argc, char *argv[]) {
 				goto out2;
 			}
 		}
-
-		// std::cout << "writing from device memory" << std::endl;
-
 
 		for(i = 0; i < batch_size; i++) {
 			
@@ -178,23 +171,18 @@ int main(int argc, char *argv[]) {
 				goto out2;
 			}	
 		}
-
-		// std::cout << "Setting Up Batch" << std::endl;
-
 		
 		errorBatch = cuFileBatchIOSetUp(&batch_id, batch_size);
 		if(errorBatch.err != 0) {
 			std::cerr << "Error in setting Up Batch" << std::endl;
 			goto out3;
 		}
-		// std::cout << "Submitting Batch IO" << std::endl;
 		
 		errorBatch = cuFileBatchIOSubmit(batch_id, batch_size, io_batch_params, flags);	
 		if(errorBatch.err != 0) {
 			std::cerr << "Error in IO Batch Submit" << std::endl;
 			goto out3;
 		}
-		// std::cout << "Batch IO Submitted" << std::endl;
 		
 		while(num_completed != batch_size) {
 			memset(io_batch_events, 0, sizeof(*io_batch_events));
@@ -204,19 +192,20 @@ int main(int argc, char *argv[]) {
 				std::cerr << "Error in IO Batch Get Status" << std::endl;
 				goto out4;
 			}
-			// std::cout << "Got events " << nr << std::endl;
 			num_completed += nr;
 			for(i = 0; i < nr; i++) {
 				uint64_t buf[MAX_BUFFER_SIZE];
 				cudaMemcpy(buf, io_batch_params[i].u.batch.devPtr_base, io_batch_events[i].ret, cudaMemcpyDeviceToHost);
-				// std::cout << "Completed  IO, index" << i << " size: " << io_batch_events[i].ret << std::endl;
 			}
 		}
 		end = std::chrono::high_resolution_clock::now();  
 		elapsed = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
 		rtime = static_cast<double>(elapsed.count());
-		printf("Batch IO time: %.3f us\n", rtime/batch_size);
-		// std::cout << "Batch IO Get status done got completetions for " << nr << " events" << std::endl;
+		printf("Avg latency: %.3f us\n", rtime / batch_size);
+		io_cnt += batch_size;
+		if (io_cnt == MAX_READ_IO_NUM)
+			break;
+		
 	out4:
 		cuFileBatchIODestroy(batch_id);
 
@@ -232,12 +221,12 @@ int main(int argc, char *argv[]) {
 					<< cuFileGetErrorString(status) << std::endl;
 			}
 		}
-		// std::cout << "cuFile BufDeregsiter Done" << std::endl;
+
 	out2:
 		for(i = 0; i < batch_size; i++) {
 			check_cudaruntimecall(cudaFree(devPtr[i]));
 		}
-		// std::cout << "cudaFree Done" << std::endl;
+
 	out1:
 		// close file
 		for(i = 0; i < batch_size; i++) {
@@ -246,7 +235,6 @@ int main(int argc, char *argv[]) {
 				close(fd[i]);
 			}
 		}
-		// std::cout << "cuFileHandleDeregister Done" << std::endl;
 
 		
 	}	// end iteration
