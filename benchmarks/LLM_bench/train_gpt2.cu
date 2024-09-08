@@ -691,13 +691,14 @@ void gpt2_forward(GPT2 *model, const int* inputs, size_t B, size_t T) {
         NvtxRange layer_range("Layer", l);
         // TODO: 检验参数更新的正确性, 操纵的都是一个指针,应该不需要显示修改
         // initial
-        ParameterTensors params;
-        ActivationTensors acts;
-
+        
+        ParameterTensors params = model->params;
+        ActivationTensors acts =  model->acts;
         if (l > 0 && Enable_offload)
         {
-            File* file = open(itermdiate_acts);
-          
+           
+            FILE* file = fopenCheck(itermdiate_acts, "rb");
+   
 
             size_t file_off = 0;
             for (int i = 0; i < NUM_ACTIVATION_TENSORS; i++)
@@ -771,12 +772,13 @@ void gpt2_forward(GPT2 *model, const int* inputs, size_t B, size_t T) {
                                     params.lnfw, params.lnfb,
                                     B * T, C, main_stream);
         }
-        if(Enable_Offload)
+        if(Enable_offload)
         {
-         
+            FILE* file = fopenCheck(itermdiate_acts, "w+");
+
             for (int i = 0; i < NUM_ACTIVATION_TENSORS; i++)
             {
-                device_to_file(*(model->acts_specs[i].ptr), file, model->acts_specs[i].size, IO_BUF_SIZE, main_stream);
+                device_to_file(file, *(model->acts_specs[i].ptr), model->acts_specs[i].size, IO_BUF_SIZE, main_stream);
             }
         }
   
