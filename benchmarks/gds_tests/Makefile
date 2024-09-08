@@ -75,10 +75,10 @@ release_samples:
 	@echo "Release samples Built"
 
 
-samples = $(wildcard test_gds_latency.cc)
-# cusamples = $(wildcard cufile_sample_*.cu)
+samples = $(wildcard 01_test_cuFileRead_latency_nthread.cc 02_test_cuFileBatchIOSubmit_latency.cc )
+cusamples = $(wildcard 03_test_cuFileRead_bandwith.cu)
 objs = $(samples:.cc=)  $(samples:.cc=_static)
-# cuobjs = $(cusamples:.cu=) vectorAdd.o
+cuobjs = $(cusamples:.cu=) 
 build: $(objs) $(cuobjs)
 
 CUDA_ARCH = -gencode=arch=compute_60,code=sm_60 \
@@ -95,9 +95,13 @@ CUDA_ARCH = -gencode=arch=compute_60,code=sm_60 \
 
 
 %: %.cc $(CUFILE_INCLUDE_PATH)/cufile.h 
-	$(CC) $(INCLUDES) $(CXXFLAGS) $^ -o $@ $(LDFLAGS)
+	$(CC) $(INCLUDES) $(CXXFLAGS) $^ -o $@ $(LDFLAGS) -ldl -lpthread -lcufile -lcuda -lcudart
 %_static: %.cc $(CUFILE_INCLUDE_PATH)/cufile.h 
-	$(CC)  $(INCLUDES) $(CXXFLAGS) $^ -o $@ $(LDFLAGS_STATIC)
+	$(CC)  $(INCLUDES) $(CXXFLAGS) $^ -o $@ $(LDFLAGS_STATIC) -ldl -lpthread -lcufile -lcuda -lcudart
+
+03_test_cuFileRead_bandwith: 03_test_cuFileRead_bandwith.cu
+	$(NVCC) -I $(CUFILE_INCLUDE_PATH) $(INCLUDES) --cudadevrt static --cudart static $(CUDA_ARCH) $^ -o $@ $(CUFILE_LIB) -lcuda
+	$(NVCC) -I $(CUFILE_INCLUDE_PATH) $(INCLUDES) --cudart static $(CUDA_ARCH) $^ -o $@_static $(CUFILE_LIB_STATIC) -lcuda
 
 
 install:
