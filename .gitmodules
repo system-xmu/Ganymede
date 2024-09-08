@@ -1,3 +1,6 @@
 [submodule "Comparision/gpufs"]
 	path = Comparision/gpufs
 	url = git@github.com:fanfanaaaa/gpufs.git
+[submodule "benchmarks/Bam_bench/bam"]
+	path = benchmarks/Bam_bench/bam
+	url = git@github.com:ZaidQureshi/bam.git
