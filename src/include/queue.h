@@ -113,13 +113,13 @@ struct QueuePair
         sq_size = std::min(queueDepth, sq_size);
         cq_size = std::min(queueDepth, cq_size);
  
-        // printf("sq_size: %ld\tcq_size: %ld\n", sq_size, cq_size);
+        
         bool sq_need_prp = false;//(!cqr) || (sq_size > MAX_SQ_ENTRIES_64K);
         bool cq_need_prp = false;// (!cqr) || (cq_size > MAX_CQ_ENTRIES_64K);
 
         size_t sq_mem_size =  sq_size * sizeof(nvm_cmd_t) + sq_need_prp*(64*1024);
         size_t cq_mem_size =  cq_size * sizeof(nvm_cpl_t) + cq_need_prp*(64*1024);
-
+        printf("sq_size: %ld\tcq_size: %ld\n", sq_mem_size, cq_mem_size);
 //        std::cout << sq_size << "\t" << sq_mem_size << std::endl;
         //size_t queueMemSize = ctrl.info.page_size * 2;
         //size_t prpListSize = ctrl.info.page_size * numThreads * (doubleBuffered + 1);

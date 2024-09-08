@@ -91,9 +91,9 @@ static size_t rw_bytes(const struct disk* disk, struct queue_pair* qp, const nvm
 
         uint16_t prp_list = num_cmds % sq->qs;
         size_t num_blocks = NVM_PAGE_TO_BLOCK(disk->page_size, disk->block_size, num_pages);
-        printf("rw_bytes page_size is %u, block_size is %u,num_pages is %u\n",disk->page_size,disk->block_size,num_pages);
+        // printf("rw_bytes page_size is %u, block_size is %u,num_pages is %u\n",disk->page_size,disk->block_size,num_pages);
         size_t start_block = offset + NVM_PAGE_TO_BLOCK(disk->page_size, disk->block_size, page);
-        printf("rw_bytes start_block is %lx, num_blocks num is %u\n",start_block,num_blocks);
+        // printf("rw_bytes start_block is %lx, num_blocks num is %u\n",start_block,num_blocks);
         nvm_cmd_header(cmd, NVM_DEFAULT_CID(sq), op, disk->ns_id);
         
         list = NVM_PRP_LIST(qp->sq->qmem.dma, NVM_SQ_PAGES(qp->sq->qmem.dma, sq->qs) + prp_list);
@@ -130,31 +130,31 @@ int read_and_dump(const struct disk* disk, struct queue_pair* qp, const nvm_dma_
     // Clear all PRP lists
     size_t sq_pages = NVM_SQ_PAGES(qp->sq->qmem.dma, qp->sq->queue.qs);
     memset(NVM_DMA_OFFSET(qp->sq->qmem.dma, sq_pages), 0, qp->sq->qmem.dma->page_size * (qp->sq->qmem.dma->n_ioaddrs - sq_pages));
-    printf("read_and_dump sq_pages is %d, qs is %u\n",sq_pages,qp->sq->queue.qs);
+    // printf("read_and_dump sq_pages is %d, qs is %u\n",sq_pages,qp->sq->queue.qs);
 
     size_t num_cmds = 0;
     uint64_t start_block = args->offset ;
     size_t size_remaining = args->num_blocks * disk->block_size;
-    printf("start_block is %lx, size_remaining num is %u\n",start_block,size_remaining);
+    // printf("start_block is %lx, size_remaining num is %u\n",start_block,size_remaining);
     while (size_remaining != 0)
     {
-        fprintf(stderr, "Reading %zu bytes [%zu MB] (total=%zu)\n", 
-                buffer->n_ioaddrs * disk->page_size, 
-                (buffer->n_ioaddrs * disk->page_size) >> 20,
-                args->num_blocks * disk->block_size - size_remaining);
+        // fprintf(stderr, "Reading %zu bytes [%zu MB] (total=%zu)\n", 
+        //         buffer->n_ioaddrs * disk->page_size, 
+        //         (buffer->n_ioaddrs * disk->page_size) >> 20,
+        //         args->num_blocks * disk->block_size - size_remaining);
         size_t remaining = size_remaining;
 
         clock_gettime(CLOCK_MONOTONIC, &start);
 
         num_cmds += rw_bytes(disk, qp, buffer, &start_block, &size_remaining, NVM_IO_READ);
-        printf("read_and_dump rw_bytes, cmd is %u",num_cmds);
+        // printf("read_and_dump rw_bytes, cmd is %u",num_cmds);
         while (qp->num_cpls < num_cmds)
         {
             usleep(1);
         }
         clock_gettime(CLOCK_MONOTONIC, &end);
 
-        print_stats(&start, &end, remaining - size_remaining);
+        // print_stats(&start, &end, remaining - size_remaining);
 
     }
 
