@@ -82,9 +82,7 @@ GPT-2 Transformer Neural Net training loop. See README.md for usage.
         } \  
     } while (0)
 // ----------------------------------------------------------------------------
-// gds for file 
-int global_fd;
-CUfileHandle_t global_cufile_handle;
+int Enable_offload=0;
 
 
 // ----------------------------------------------------------------------------
@@ -468,7 +466,7 @@ void gds_register_file(int fd, CUfileHandle_t* cf_handle)
     memset((void *)&cf_descr, 0, sizeof(CUfileDescr_t));
     cf_descr.handle.fd = fd;
     cf_descr.type = CU_FILE_HANDLE_TYPE_OPAQUE_FD;
-    status = cuFileHandleRegister(cf_handle, &cf_descr);
+    CUfileError_t status = cuFileHandleRegister(cf_handle, &cf_descr);
     if (status.err != CU_FILE_SUCCESS) {
         printf("file register error\n");
         close(fd);
@@ -484,7 +482,6 @@ int gds_device_to_file(CUfileHandle_t* cf_handle, void* dev_buffer, size_t io_si
     {
         printf("GDS write checkpoint to file failed\n");
         cuFileHandleDeregister(*cf_handle);
-        close(fd);
         exit(EXIT_FAILURE);
     }
     return ret;
@@ -497,7 +494,6 @@ int gds_file_to_device(CUfileHandle_t* cf_handle, void* dev_buffer, size_t io_si
     {
         printf("Read model's parameters from file failed\n");
         cuFileHandleDeregister(cf_handle);
-        close(fd);
         exit(EXIT_FAILURE);
     }
     return ret;
@@ -788,10 +784,10 @@ void gpt2_forward(GPT2 *model, const int* inputs, size_t B, size_t T) {
             ParameterTensors params;
             ActivationTensors acts;
 
-            CUfileHandle_t* atcs_handle = NULL;
+            CUfileHandle_t* acts_handle = NULL;
             CUfileHandle_t* param_handle = NULL;
             int acts_fd =  gds_open_file(itermdiate_acts);
-            int param_fd = gds_device_to_file(intermdiate_params);
+            int param_fd = gds_open_file(intermdiate_params);
 
             gds_register_file(acts_fd, acts_handle);
             gds_register_file(param_fd, param_handle);
@@ -799,7 +795,7 @@ void gpt2_forward(GPT2 *model, const int* inputs, size_t B, size_t T) {
             size_t file_off = 0;
             for (int i = 0; i < NUM_ACTIVATION_TENSORS; i++)
             {
-                gds_file_to_device(acts_handle, *(model->acts_specs[i].ptr), file_off, 0);
+                gds_file_to_device(acts_handle, *(model->acts_specs[i].ptr), model->acts_specs[i].size, file_off, 0);
                 file_off += model->acts_specs[i].size;
             }
           
@@ -871,13 +867,13 @@ void gpt2_forward(GPT2 *model, const int* inputs, size_t B, size_t T) {
                                     params.lnfw, params.lnfb,
                                     B * T, C, main_stream);
         }
-        if(Enable_Offload)
+        if(Enable_offload)
         {
             // TODO HYF, 把当前的activations和model param写盘, 设计tensor数据的读写
-            CUfileHandle_t* atcs_handle = NULL;
+            CUfileHandle_t* acts_handle = NULL;
             CUfileHandle_t* param_handle = NULL;
             int acts_fd =  gds_open_file(itermdiate_acts);
-            int param_fd = gds_device_to_file(intermdiate_params);
+            int param_fd = gds_open_file(intermdiate_params);
 
             gds_register_file(acts_fd, acts_handle);
             gds_register_file(param_fd, param_handle);
@@ -885,7 +881,7 @@ void gpt2_forward(GPT2 *model, const int* inputs, size_t B, size_t T) {
             size_t file_off = 0;
             for (int i = 0; i < NUM_ACTIVATION_TENSORS; i++)
             {
-                gds_device_to_file(acts_handle, *(model->acts_specs[i].ptr), file_off, 0);
+                gds_device_to_file(acts_handle, *(model->acts_specs[i].ptr), model->acts_specs[i].size, file_off, 0);
                 file_off += model->acts_specs[i].size;
             }
 
@@ -1383,11 +1379,11 @@ void save_state(const char* filename, int step, GPT2* model, DataLoader* loader)
     // device_to_file(state_file, model->m_memory, shard_num_parameters * sizeof(float), IO_BUF_SIZE, main_stream);
     // device_to_file(state_file, model->v_memory, shard_num_parameters * sizeof(float), IO_BUF_SIZE, main_stream);
     gds_device_to_file(cf_handle, model->m_memory, shard_num_parameters * sizeof(float), 0, 0);
-    gds_device_to_file(cf_handle, model->v_memorys, shard_num_parameters * sizeof(float), 0, 0);
+    gds_device_to_file(cf_handle, model->v_memory, shard_num_parameters * sizeof(float), 0, 0);
   
     if(model->use_master_weights) {
         // device_to_file(state_file, model->master_weights, shard_num_parameters * sizeof(float), IO_BUF_SIZE, main_stream);
-        gds_device_to_file(cf_handle, model->master_weightss, shard_num_parameters * sizeof(float), 0, 0);
+        gds_device_to_file(cf_handle, model->master_weights, shard_num_parameters * sizeof(float), 0, 0);
     }
 
     // write dataloader state if we are using the Permuted version of it
