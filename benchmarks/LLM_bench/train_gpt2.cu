@@ -70,8 +70,14 @@ GPT-2 Transformer Neural Net training loop. See README.md for usage.
 // defines: multi_gpu_get_shard_offset, multi_gpu_async_reduce_gradient
 #include "llmc/zero.cuh"
 #include<cuda_runtime.h>
+#include <time.h>
+#include <iostream>
+using namespace std;
+int Enable_offload = 1;
 
-int Enable_offload = 0;
+double total_offload_time = 0.0;   
+double total_load_time = 0.0;   
+
 // ----------------------------------------------------------------------------
 // global vars for I/O
 char filename_buffer[512];
@@ -645,7 +651,14 @@ void gpt_build_from_descriptor(GPT2 *model, const char* descriptor) {
 
 // propagate inputs through the network to produce logits.
 // right now, this function is fully synchronous with the host
-void gpt2_forward(GPT2 *model, const int* inputs, size_t B, size_t T) {
+void gpt2_forward(GPT2 *model, const int* inputs, size_t B, size_t T, int step) {
+    // cudaEvent_t start_forward, stop_forward;
+    // double total_time_forward = 0.0;
+
+    // cudaEventCreate(&start_forward);
+    // cudaEventCreate(&stop_forward);
+    // cudaEventRecord(start_forward);
+
     NVTX_RANGE_FN();
     // we must be careful and use size_t instead of int, otherwise
     // we could overflow int. E.g. l * B * NH * T * T overflows int at B 16.
@@ -684,32 +697,40 @@ void gpt2_forward(GPT2 *model, const int* inputs, size_t B, size_t T) {
     // first layernorm isn't fused
     layernorm_forward((model->recompute < 2) ? acts.ln1 : acts.lnf, acts.ln1_mean, acts.ln1_rstd, acts.encoded, params.ln1w, params.ln1b, B, T, C, main_stream);
 
-    const char*  itermdiate_acts = "itermdiate_acts.bin";
-    const char*  intermdiate_params = "itermdiate_params.bin";
 
     for (int l = 0; l < L; l++) {
         NvtxRange layer_range("Layer", l);
         // TODO: 检验参数更新的正确性, 操纵的都是一个指针,应该不需要显示修改
         // initial
         
-        ParameterTensors params = model->params;
-        ActivationTensors acts =  model->acts;
-        if (l > 0 && Enable_offload)
-        {
+        // ParameterTensors params = model->params;
+        // ActivationTensors acts =  model->acts;
+        // if (l > 0 && Enable_offload)
+        // {
            
-            FILE* file = fopenCheck(itermdiate_acts, "rb");
-   
+        //     FILE* file = fopenCheck(itermdiate_acts, "rb");
+        //     size_t file_off = 0;
+            
+        //     for (int i = 0; i < NUM_ACTIVATION_TENSORS; i++)
+        //     {
 
-            size_t file_off = 0;
-            for (int i = 0; i < NUM_ACTIVATION_TENSORS; i++)
-            {
-                // TODO: 需要修改, 原本的这个接口不涉及偏移量
-                file_to_device(*(model->acts_specs[i].ptr), file, model->acts_specs[i].size, IO_BUF_SIZE, main_stream);
-            }
-          
-        }
+        //         cudaEvent_t start_load, stop_load;
+        //         float time_load = 0.0;
+        //         cudaEventCreate(&start_load);
+        //         cudaEventCreate(&stop_load);
+        //         cudaEventRecord(start_load);
+
+        //         file_to_device(*(model->acts_specs[i].ptr), file, model->acts_specs[i].size, IO_BUF_SIZE, main_stream);
+                
+        //         cudaEventRecord(stop_load);
+        //         cudaEventSynchronize(stop_load);
+        //         cudaEventElapsedTime(&time_load, start_load, stop_load);
+        //         total_load_time += time_load;
+        //         // printf0("Layer:%d, activations: %d KB, load time %.3f ms\n", l, model->acts_specs[i].size / 1024, time_load);
+
+        //     }
+        // }
         floatX* residual = l == 0 ? acts.encoded : acts.residual3 + (l-1) * B * T * C;
-        // HYF TODO: 把读出的activation更新到model上 
          
         // get the pointers of the weights for this layer
         floatX* l_qkvw = params.qkvw + l * 3*C * C;
@@ -774,18 +795,34 @@ void gpt2_forward(GPT2 *model, const int* inputs, size_t B, size_t T) {
         }
         if(Enable_offload)
         {
+            const char*  itermdiate_acts = "itermdiate_acts.bin";
             FILE* file = fopenCheck(itermdiate_acts, "w+");
+            cudaEvent_t start_offload, stop_offload;
+            float time_offload = 0.0;
+            cudaEventCreate(&start_offload);
+            cudaEventCreate(&stop_offload);
+            cudaEventRecord(start_offload);
 
             for (int i = 0; i < NUM_ACTIVATION_TENSORS; i++)
-            {
                 device_to_file(file, *(model->acts_specs[i].ptr), model->acts_specs[i].size, IO_BUF_SIZE, main_stream);
-            }
+            
+            cudaEventRecord(stop_offload);
+            cudaEventSynchronize(stop_offload);
+            cudaEventElapsedTime(&time_offload, start_offload, stop_offload);
+            // printf0("Layer:%d, activations: %d KB, offload time %.3f ms\n", l, model->acts_specs[i].size / 1024, time_offload);
+            if(step > 0)   
+                total_offload_time += time_offload / 1000.0f;
         }
-  
+
     }
 
     matmul_forward_cublaslt(acts.output, acts.lnf, params.wte, NULL, B, T, C, Vp, main_stream);
     cudaCheck(cudaDeviceSynchronize());
+  
+    // cudaEventRecord(stop_forward);
+    // cudaEventSynchronize(stop_forward);
+    // cudaEventElapsedTime(&total_time_forward, start_forward, stop_forward);
+    // printf0("Total forward time: %.3f s,  offload activations time: %.3f s, compute time: %.3f s\n", total_time_forward / 1000,  total_offload_time / 1000, (total_time_forward-total_offload_time) / 1000);
 }
 
 
@@ -795,7 +832,7 @@ void gpt2_forward(GPT2 *model, const int* inputs, size_t B, size_t T) {
 float gpt2_validate(GPT2 *model, const int* inputs, const int* targets, size_t B, size_t T) {
     assert(targets != NULL);
     // forward the model itself
-    gpt2_forward(model, inputs, B, T);
+    gpt2_forward(model, inputs, B, T, 0);
     // convenience shortcuts, size_t instead of int so that pointer arithmetics don't overflow
     const size_t V = model->config.vocab_size;
     const size_t Vp = model->config.padded_vocab_size;
@@ -819,7 +856,14 @@ float gpt2_validate(GPT2 *model, const int* inputs, const int* targets, size_t B
     return mean_loss;
 }
 
-void gpt2_backward_and_reduce(GPT2 *model, int* inputs, const int* targets, int grad_accum_steps, int micro_step) {
+void gpt2_backward_and_reduce(GPT2 *model, int* inputs, const int* targets, int grad_accum_steps, int micro_step, int step) {
+    // cudaEvent_t start_backward, stop_backward;
+    // float total_backward_time = 0.0;
+    // float total_load_time = 0.0;
+    // cudaEventCreate(&start_backward);
+    // cudaEventCreate(&stop_backward);
+    // cudaEventRecord(start_backward);
+  
     if(model->grads_memory == nullptr) {
         fprintf(stderr, "Need to allocate gradients before backward");
         exit(EXIT_FAILURE);
@@ -882,6 +926,28 @@ void gpt2_backward_and_reduce(GPT2 *model, int* inputs, const int* targets, int 
     // now backward all the layers
     for (int l = L-1; l >= 0; l--) {
         NvtxRange layer_range("Layer", l);
+        if (Enable_offload)
+        {
+            const char*  itermdiate_acts = "itermdiate_acts.bin";
+            FILE* file = fopenCheck(itermdiate_acts, "rb");
+
+            cudaEvent_t start_load, stop_load;
+            float time_load = 0.0;
+            cudaEventCreate(&start_load);
+            cudaEventCreate(&stop_load);
+            cudaEventRecord(start_load);
+            for (int i = NUM_ACTIVATION_TENSORS -1 ; i >= 0; i--)
+            {
+                file_to_device(*(model->acts_specs[i].ptr), file, model->acts_specs[i].size, IO_BUF_SIZE, main_stream);
+            }
+            cudaEventRecord(stop_load);
+            cudaEventSynchronize(stop_load);
+            cudaEventElapsedTime(&time_load, start_load, stop_load);
+            if(step > 0)
+                total_load_time += time_load / 1000.0f;
+            // printf0("Layer:%d, activations: %d KB, load time %.3f ms\n", l, model->acts_specs[i].size / 1024, time_load);
+
+        }
 
         residual = l == 0 ? acts.encoded : acts.residual3 + (l-1) * B * T * C;
 
@@ -1004,6 +1070,11 @@ void gpt2_backward_and_reduce(GPT2 *model, int* inputs, const int* targets, int 
     } else {
         model->mean_loss = -1.f; // no loss available yet
     }
+    // cudaEventRecord(stop_backward);
+    // cudaEventSynchronize(stop_backward);
+    // cudaEventElapsedTime(&total_backward_time, start_backward, stop_backward);
+    // printf0("Total forward time: %.3f s,  load activations time: %.3f s, compute time: %.3f s\n", total_backward_time / 1000,  total_load_time / 1000, (total_backward_time-total_load_time) / 1000);
+
 }
 
 // Gets the offset of a specific tensor for a specific layer in the GPT2 model
@@ -1384,7 +1455,7 @@ void delete_checkpoint(const char* output_log_dir, int step, MultiGpuConfig* mul
     }
 }
 
-#ifndef TESTING
+// #ifndef TESTING
 // if we are TESTING (see test_gpt2.cu), we'll skip everything below this point
 
 // ----------------------------------------------------------------------------
@@ -1491,11 +1562,6 @@ int main(int argc, char *argv[]) {
     char server_ip[256] = "";  // used if init_method set to "tcp" -> set to your server ip address
     char fs_path[256] = "";  // used if init_method set to "fs" -> set to a shared filesystem path
 
-    cudaEvent_t start_p2p, stop_p2p;
-    float total_time;
-    cudaEventCreate(&start_p2p);
-    cudaEventCreate(&stop_p2p);
-    cudaEventRecord(start_p2p);
 
     for (int i = 1; i < argc; i+=2) {
         if (i + 1 >= argc) { error_usage(); } // must have arg after flag
@@ -1620,18 +1686,18 @@ int main(int argc, char *argv[]) {
     } else if (ends_with_bin(load_filename)) {
         
         // otherwise, if this is a .bin file, we assume it's a model, let's init from it
-        cudaEvent_t start, stop;
-        float time = 0.0;
-        cudaEventCreate(&start);
-        cudaEventCreate(&stop);
-        cudaEventRecord(start);
+        cudaEvent_t load_model_param_start, load_model_param_stop;
+        float load_model_time = 0.0;
+        cudaEventCreate(&load_model_param_start);
+        cudaEventCreate(&load_model_param_stop);
+        cudaEventRecord(load_model_param_start);
 
         gpt2_build_from_checkpoint(&model, load_filename);
         
-        cudaEventRecord(stop);
-        cudaEventSynchronize(stop);
-        cudaEventElapsedTime(&time, start, stop);
-        printf0("HYF read checkpoint: time %.3f ms\n", time);
+        cudaEventRecord(load_model_param_stop);
+        cudaEventSynchronize(load_model_param_stop);
+        cudaEventElapsedTime(&load_model_time, load_model_param_start, load_model_param_stop);
+        printf0("Load file: %s, build model from checkpoint time: %.3f ms\n",  load_filename, load_model_time);
     } else {
         // if it's not .bin, it could be a "special descriptor". This descriptor is used to
         // construct GPT-2 / GPT-3 models in a convenient format. See the function for docs.
@@ -1728,6 +1794,7 @@ int main(int argc, char *argv[]) {
     // if we found a checkpoint to resume from, load the optimization state
     int step = 0;
     gpt2_allocate_state(&model, B, T);
+    printf0("gpt2_allocate_state success\n");
     if (resuming == 1) {
         snprintf(filename_buffer, sizeof(filename_buffer), "%s/state_%08d_%05d.bin", output_log_dir, resume_max_step, multi_gpu_config.process_rank);
         load_state(&step, &model, &train_loader, filename_buffer);
@@ -1823,7 +1890,7 @@ int main(int argc, char *argv[]) {
                 // on cuDNN 9.2.1 with cuDNN FrontEnd 1.5.2, T >= 256 seems bit-for-bit identical
                 // (but even if it wasn't fully identical that's probably not the end of the world)
                 // note this is still somewhat wasteful because we don't have a KV cache!
-                gpt2_forward(&model, gen_tokens, 1, CEIL_DIV(t, min(T,256)) * min(T,256));
+                gpt2_forward(&model, gen_tokens, 1, CEIL_DIV(t, min(T,256)) * min(T,256), step);
                 // get the V-dimensional vector probs[0, t-1, :]
                 floatX* logits = model.acts.output + (t - 1) * model.config.padded_vocab_size;
                 // move probs back to CPU and sample (note we only move the first vocab_size logits, ignoring the padding)
@@ -1853,18 +1920,18 @@ int main(int argc, char *argv[]) {
         if ((checkpoint_every > 0 && output_log_dir != NULL && resuming == 0) &&
             ((step > 0 && step % checkpoint_every == 0) || last_step)) {
             // writes model .bin file, state .bin files, and DONE file for step
-            cudaEvent_t start, stop;
-            float time = 0.0;
-            cudaEventCreate(&start);
-            cudaEventCreate(&stop);
-            cudaEventRecord(start);
+            cudaEvent_t checkpoint_start, checkpoint_stop;
+            float checkpoint_time = 0.0;
+            cudaEventCreate(&checkpoint_start);
+            cudaEventCreate(&checkpoint_stop);
+            cudaEventRecord(checkpoint_start);
 
             write_checkpoint(output_log_dir, step, &model, &train_loader, &multi_gpu_config);
-            cudaEventRecord(stop);
-            cudaEventSynchronize(stop);
-            cudaEventElapsedTime(&time, start, stop);
+            cudaEventRecord(checkpoint_stop);
+            cudaEventSynchronize(checkpoint_stop);
+            cudaEventElapsedTime(&checkpoint_time, checkpoint_start, checkpoint_stop);
         
-            printf("HYF write checkpoint: step: %d, time %.3f ms\n", step, time);
+            printf0("Step: %d, checkpoint_time: %.3f ms\n", step, checkpoint_time);
             // we only keep checkpoints_keep checkpoints on disk to save space
             // so now that we wrote a new checkpoint, delete one old one (unless it is a "major" checkpoint)
             // we only do this is checkpoint keeping is turned on (checkpoints_keep > 0)
@@ -1895,9 +1962,9 @@ int main(int argc, char *argv[]) {
             // fetch the next data batch
             dataloader_next_batch(&train_loader);
             // forward pass. note that we pass in grad_accum_steps, which scales down the loss
-            gpt2_forward(&model, train_loader.inputs, B, T);
+            gpt2_forward(&model, train_loader.inputs, B, T, step);
             // backward pass. all model params accumulate gradients with += inside this inner loop
-            gpt2_backward_and_reduce(&model, train_loader.inputs, train_loader.targets, grad_accum_steps, micro_step);
+            gpt2_backward_and_reduce(&model, train_loader.inputs, train_loader.targets, grad_accum_steps, micro_step, step);
         }
         float zloss = (float)(update_detector(&loss_outlier_detector, (double)model.mean_loss)); // loss z-score
         // fetch the next learning rate
@@ -1905,7 +1972,7 @@ int main(int argc, char *argv[]) {
         // calculate the gradient norm and how much we wish to scale the gradient
         float grad_norm = gpt2_calculate_grad_norm(&model, &multi_gpu_config);
         float zgrad = (float)(update_detector(&grad_norm_outlier_detector, (double)grad_norm)); // grad z-score
-        // update the model parameters // HYF: 如何卸载,这里模型参数要如何更新
+        // update the model parameters 
         if (isfinite(zloss) && skip_update_lossz != 0.0f && zloss > skip_update_lossz) {
             printf0("skipping update due to loss z-score of %f\n", zloss);
         } else if (isfinite(zgrad) && skip_update_gradz != 0.0f && zgrad > skip_update_gradz) {
@@ -1949,11 +2016,9 @@ int main(int argc, char *argv[]) {
         if (step == 3) { cudaProfilerStop(); }
     }
 
-    cudaEventSynchronize(stop_p2p);
-    cudaEventElapsedTime(&total_time, start_p2p, stop_p2p);
-    // add a total average, for optimizations that are only mild improvements (excluding 1st batch as warmup)
-    printf0("End to End time cost: %.3f ms\n", total_time);
-    printf0("Total compute time: %f s, total average iteration time: %f ms\n", total_sum_iteration_time_s, total_sum_iteration_time_s / (train_num_batches-1) * 1000);
+    // the first batch to be a warmup (include offload time and load time), step indicates number of training batches
+    printf0("Step:%d, Train num batch: %d, Total sum iteration time: %.3f s , Avg iteration time: %.3d s\n", step, train_num_batches, total_sum_iteration_time_s, total_sum_iteration_time_s / (step -1));
+    printf0("Total offload checkpoint time: %.3f s, total load checkpoint time: %.3f s, total compute time: %.3f s", total_offload_time, total_load_time, total_sum_iteration_time_s - total_load_time - total_offload_time);
 
     // free and destroy everything
     cudaCheck(cudaEventDestroy(end));

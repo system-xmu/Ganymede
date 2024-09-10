@@ -4,3 +4,9 @@
 [submodule "benchmarks/Bam_bench/bam"]
 	path = benchmarks/Bam_bench/bam
 	url = git@github.com:ZaidQureshi/bam.git
+[submodule "benchmarks/LLM_bench/llmc"]
+	path = benchmarks/LLM_bench/llmc
+	url = git@github.com:karpathy/llm.c.git
+[submodule "benchmarks/LLM_bench/cudnn-fronted"]
+	path = benchmarks/LLM_bench/cudnn-fronted
+	url = git@github.com:NVIDIA/cudnn-frontend.git
