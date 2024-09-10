@@ -458,21 +458,24 @@ int gds_open_file(const char* filename)
         printf("file open error\n");    
         exit(EXIT_FAILURE);
     }
+    printf0("here. fd: %d\n",fd);
     return fd;
 }
+
 void gds_register_file(int fd, CUfileHandle_t* cf_handle)
 {
     CUfileDescr_t cf_descr;
+    CUfileHandle_t fh;
     memset((void *)&cf_descr, 0, sizeof(CUfileDescr_t));
     cf_descr.handle.fd = fd;
     cf_descr.type = CU_FILE_HANDLE_TYPE_OPAQUE_FD;
-    CUfileError_t status = cuFileHandleRegister(cf_handle, &cf_descr);
+    CUfileError_t status = cuFileHandleRegister(&fh, &cf_descr);
     if (status.err != CU_FILE_SUCCESS) {
         printf("file register error\n");
         close(fd);
         exit(EXIT_FAILURE);
     }
-
+    cf_handle = &fh;
 }
 int gds_device_to_file(CUfileHandle_t* cf_handle, void* dev_buffer, size_t io_size, off_t file_offset, off_t devBuf_offset)
 {
@@ -550,9 +553,12 @@ void gpt2_build_from_checkpoint(GPT2 *model, const char* checkpoint_path, bool w
     
     // open and regiter file for gds
     int fd = gds_open_file(checkpoint_path);
+  
     CUfileHandle_t* cf_handle = NULL;
+    // printf("here 554, fd:%d\n", fd);
     gds_register_file(fd, cf_handle);
 
+    printf0("register success\n");
     int model_header[256];
     freadCheck(model_header, sizeof(int), 256, model_file);
     if (model_header[0] != 20240326) { printf("Bad magic model file\n"); exit(EXIT_FAILURE); }
@@ -596,7 +602,7 @@ void gpt2_build_from_checkpoint(GPT2 *model, const char* checkpoint_path, bool w
         assert(model->params_memory != NULL);
         // file_to_device(model->params_memory, model_file, model->num_parameters_bytes, IO_BUF_SIZE, main_stream);
         // read .bin for model
-        gds_file_to_device(cf_handle, model->params_memory, model->num_parameters_bytes, 0, 0);
+        // gds_file_to_device(cf_handle, model->params_memory, model->num_parameters_bytes, 0, 0);
     }
     fcloseCheck(model_file);
 
@@ -779,18 +785,11 @@ void gpt2_forward(GPT2 *model, const int* inputs, size_t B, size_t T) {
         NvtxRange layer_range("Layer", l);
         if (l > 0 && Enable_offload)
         {
-
             // initial
-            ParameterTensors params;
             ActivationTensors acts;
-
             CUfileHandle_t* acts_handle = NULL;
-            CUfileHandle_t* param_handle = NULL;
             int acts_fd =  gds_open_file(itermdiate_acts);
-            int param_fd = gds_open_file(intermdiate_params);
-
             gds_register_file(acts_fd, acts_handle);
-            gds_register_file(param_fd, param_handle);
 
             size_t file_off = 0;
             for (int i = 0; i < NUM_ACTIVATION_TENSORS; i++)
@@ -817,7 +816,6 @@ void gpt2_forward(GPT2 *model, const int* inputs, size_t B, size_t T) {
         floatX* l_fcprojb = params.fcprojb + l * C;
 
         // get the pointers of the activations for this layer
-        // HYF: 模拟卸载, 从盘内读activations
         floatX* l_ln1 = (model->recompute < 2) ? acts.ln1 + l * B * T * C : acts.lnf;
         floatX* l_qkvr = acts.qkvr + l * B * T * 3*C;
         floatX* l_atty = acts.atty + l * B * T * C;
@@ -871,12 +869,9 @@ void gpt2_forward(GPT2 *model, const int* inputs, size_t B, size_t T) {
         {
             // TODO HYF, 把当前的activations和model param写盘, 设计tensor数据的读写
             CUfileHandle_t* acts_handle = NULL;
-            CUfileHandle_t* param_handle = NULL;
-            int acts_fd =  gds_open_file(itermdiate_acts);
-            int param_fd = gds_open_file(intermdiate_params);
 
             gds_register_file(acts_fd, acts_handle);
-            gds_register_file(param_fd, param_handle);
+            int acts_fd =  gds_open_file(itermdiate_acts);
 
             size_t file_off = 0;
             for (int i = 0; i < NUM_ACTIVATION_TENSORS; i++)
@@ -1889,10 +1884,8 @@ int main(int argc, char *argv[]) {
     float ema_tokens_per_second = 0.0f;
     for (; step <= train_num_batches; step++) {
         NvtxRange step_range("Train step", step);
-        if (step == 100)
-        {
+        if (step == 4)
             break;
-        }
         
         int last_step = step == train_num_batches;
 

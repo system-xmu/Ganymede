@@ -16,7 +16,7 @@ FORCE_NVCC_O ?= 3
 
 # NVCC flags
 # -t=0 is short for --threads, 0 = number of CPUs on the machine
-NVCC_FLAGS = --threads=0 -t=0 --use_fast_math -std=c++17 -O$(FORCE_NVCC_O)
+NVCC_FLAGS = --threads=0  -rdc=true -t=0 --use_fast_math -std=c++17 -O$(FORCE_NVCC_O) --generate-code code=sm_80,arch=compute_80
 NVCC_LDFLAGS = -lcublas -lcublasLt -lcufile
 ARCH ?= $(shell uname -m)
 CUDA_PATH   := /usr/local/cuda
@@ -242,7 +242,14 @@ else
 endif
 
 NVCC_INCLUDES += -I /home/hyf/Ganymede/Comparision/gpufs/include/
-NVCC_LDLIBS += -lgpufs -L /home/hyf/Ganymede/Comparision/gpufs/lib
+NVCC_LDFLAGS += -L/home/hyf/Ganymede/Comparision/gpufs/lib/
+NVCC_LDLIBS += -lgpufs 
+
+# add cuda support
+NVCC_INCLUDES += -I /usr/local/cuda/include
+NVCC_LDFLAGS += -L/usr/local/cuda/lib64
+NVCC_LDLIBS += -lcudart -lcublas -lcublasLt -lnvidia-ml
+
 # Precision settings, default to bf16 but ability to override
 PRECISION ?= BF16
 VALID_PRECISIONS := FP32 FP16 BF16
@@ -290,7 +297,7 @@ train_gpt2cu: train_gpt2.cu $(NVCC_CUDNN)
 	$(NVCC) $(NVCC_FLAGS) $(PFLAGS) $^ $(NVCC_LDFLAGS) $(NVCC_INCLUDES) $(NVCC_LDLIBS) $(CUDA_OUTPUT_FILE)
 
 train_gpt2_gpufscu: train_gpt2_gpufs.cu $(NVCC_CUDNN)
-	$(NVCC) $(NVCC_FLAGS) $(PFLAGS) $^ $(NVCC_LDFLAGS) $(NVCC_INCLUDES) $(NVCC_LDLIBS) $(CUDA_OUTPUT_FILE)
+	$(NVCC) $(NVCC_FLAGS) $(CUDA_OUTPUT_FILE) $(PFLAGS) $^ $(NVCC_LDFLAGS) $(NVCC_INCLUDES) $(NVCC_LDLIBS) 
 
 train_gpt2_gdscu: train_gpt2_gds.cu $(NVCC_CUDNN)
 	$(NVCC) $(NVCC_FLAGS) $(PFLAGS) $^ $(NVCC_LDFLAGS) $(NVCC_INCLUDES) $(NVCC_LDLIBS) $(CUDA_OUTPUT_FILE)

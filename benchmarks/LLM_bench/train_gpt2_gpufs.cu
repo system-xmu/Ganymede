@@ -1,6 +1,7 @@
 /*
 GPT-2 Transformer Neural Net training loop. See README.md for usage.
 */
+
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -70,10 +71,12 @@ GPT-2 Transformer Neural Net training loop. See README.md for usage.
 // defines: multi_gpu_get_shard_offset, multi_gpu_async_reduce_gradient
 #include "llmc/zero.cuh"
 
-#include <cuda.h>
-#include <cuda_runtime.h>
 #include "fs_calls.cu.h"
 #include "host_loop.h"
+#include "fs_initializer.cu.h"
+// #include "../../../Comparision/gpufs/include/fs_calls.cu.h"
+// #include "../../../Comparision/gpufs/include/host_loop.h"
+// #include "../../../Comparision/gpufs/include/fs_initializer.cu.h"
 
 #define CUDA_CHECK(fn) \  
     do { \  
@@ -83,6 +86,115 @@ GPT-2 Transformer Neural Net training loop. See README.md for usage.
             exit(EXIT_FAILURE); \  
         } \  
     } while (0)
+
+struct DeviceData {
+    size_t* d_file_offset;
+    size_t* d_size;
+};
+
+int global_device = 0;
+
+    // initializer(&gpuGlobals);
+// GPUfs
+__global__ void _gpufs_open(char* filename, int* d_fd)
+{
+    int fd = 0;
+    fd = gopen(filename, O_GRDONLY | O_DIRECT);
+	size_t filesize = fstat(fd);
+    d_fd = &fd;
+}
+__global__ void gpufs_read(int* fd, size_t *file_offset, size_t *io_size, char* dev_buffer)
+{
+	if (*io_size != gread(*fd, *file_offset, *io_size, (uchar*)dev_buffer))
+        ERROR("Failed to read data");
+	__syncthreads();
+	if(gclose(*fd) < 0)
+        ERROR("Failed to close file");
+}
+
+__global__ void gpufs_write(int* fd, size_t* file_offset, size_t* io_size, char* dev_buffer)
+{
+    size_t bytes_write = gwrite(*fd, *file_offset, *io_size, (uchar*)dev_buffer);
+    if(bytes_write != *io_size)
+        ERROR("Failed to write data");
+    __syncthreads();
+    if(gclose(*fd) < 0)
+        ERROR("Failed to close file");
+}
+
+DeviceData copy_data_to_device(size_t h_offset, size_t h_size) 
+{
+    DeviceData device_data;
+
+
+    // Copy offset to device
+    CUDA_SAFE_CALL(cudaMalloc(&device_data.d_file_offset, sizeof(size_t)));
+    CUDA_SAFE_CALL(cudaMemcpy(device_data.d_file_offset, &h_offset, sizeof(size_t), cudaMemcpyHostToDevice));
+
+    // Copy size to device
+    CUDA_SAFE_CALL(cudaMalloc(&device_data.d_size, sizeof(size_t)));
+    CUDA_SAFE_CALL(cudaMemcpy(device_data.d_size, &h_size, sizeof(size_t), cudaMemcpyHostToDevice));
+
+    return device_data;
+}
+void gpufs_open(const char* filename, int* fd)
+{
+    volatile GPUGlobals* gpuGlobals;
+    initializer(&gpuGlobals);
+    char* d_filename = NULL;
+    CUDA_SAFE_CALL(cudaMalloc(&fd, sizeof(int)));
+    CUDA_SAFE_CALL(cudaMemset(fd, 0, sizeof(int)));
+
+    CUDA_SAFE_CALL(cudaMalloc(&d_filename, sizeof(filename) + 1));
+    CUDA_SAFE_CALL(cudaMemcpy(d_filename, filename, sizeof(filename) + 1, cudaMemcpyHostToDevice));
+    _gpufs_open<<<64, 128, 0, gpuGlobals->streamMgr->kernelStream>>>(d_filename, fd);
+    delete gpuGlobals; // TODO, 放在int main最后即可
+
+}
+void gpufs_file_to_device(int* d_fd, char* dev_buffer, size_t io_size, size_t file_offset, size_t devBuf_offset)
+{
+    volatile GPUGlobals* gpuGlobals;
+    initializer(&gpuGlobals);
+	DeviceData device_data = copy_data_to_device(file_offset, io_size);
+
+    // TODO, 端到端测试这里的threads和blocks要怎么设置，需要与Geminifs对齐
+	gpufs_read<<<64, 128, 0,gpuGlobals->streamMgr->kernelStream>>>(d_fd, device_data.d_file_offset, device_data.d_size, dev_buffer);
+	run_gpufs_handler(gpuGlobals, global_device);
+	cudaError_t error = cudaDeviceSynchronize();
+	//Check for errors and failed asserts in asynchronous kernel launch.
+	if (error != cudaSuccess)
+	{
+		printf("Device failed, CUDA error message is: %s\n\n",
+		cudaGetErrorString(error));
+	}
+
+	fprintf(stderr, "\n");
+	delete gpuGlobals; // TODO, 放在int main最后即可
+
+	// cudaDeviceReset();
+}
+
+void gpufs_device_to_file(int* d_fd, char* dev_buffer, size_t io_size, size_t file_offset, size_t devBuf_offset)
+{
+    volatile GPUGlobals* gpuGlobals;
+    initializer(&gpuGlobals);
+   	DeviceData device_data = copy_data_to_device(file_offset, io_size);
+    // TODO, 端到端测试这里的threads和blocks要怎么设置，需要与Geminifs对齐
+	gpufs_write<<<1,1,0,gpuGlobals->streamMgr->kernelStream>>>(d_fd, device_data.d_file_offset, device_data.d_size, dev_buffer);
+	run_gpufs_handler(gpuGlobals, global_device);
+	cudaError_t error = cudaDeviceSynchronize();
+	if (error != cudaSuccess)
+	{
+		printf("Device failed, CUDA error message is: %s\n\n",
+		cudaGetErrorString(error));
+	}
+
+	fprintf(stderr, "\n");
+	delete gpuGlobals;   // TODO
+	// cudaDeviceReset();
+
+}
+
 // ----------------------------------------------------------------------------
 // global vars for I/O
 char filename_buffer[512];
@@ -439,110 +551,14 @@ void gpt2_allocate_state(GPT2 *model, int B, int T) {
     printf0("memory per sequence: %zu MiB\n", bytes_per_sequence / 1024 / 1024);
     printf0(" -> estimated maximum batch size: %zu\n", B + free / bytes_per_sequence);
 }
-// GPUfs
-__global__ void _gpufs_open(char* filename, int* d_fd)
-{
-    int fd = 0;
-    fd = gopen(filename, O_GRDONLY | O_DIRECT);
-	size_t filesize = fstat(fd);
-    d_fd = &fd;
-}
-__global__ void gpufs_read(int* fd, size_t *file_offset, size_t *io_size, char* dev_buffer)
-{
-	if (*io_size != gread(*fd, *file_offset, *io_size, (uchar*)dev_buffer))
-        ERROR("Failed to read data");
-	__syncthreads();
-	if(gclose(*fd) < 0)
-        ERROR("Failed to close file");
-}
 
-__global__ void gpufs_write(int* fd, size_t* file_offset, size_t* io_size, char* dev_buffer)
-{
-    size_t bytes_write = gwrite(*fd, *file_offset, *io_size, (uchar*)dev_buffer);
-    if(bytes_write != *io_size)
-        ERROR("Failed to write data");
-    __syncthreads();
-    if(gclose(*fd) < 0)
-        ERROR("Failed to close file");
-}
-struct DeviceData {
-    size_t* d_file_offset;
-    size_t* d_size;
-};
-volatile GPUGlobals* gpuGlobals;
-initializer(&gpuGlobals);
-int global_device = 0;
-DeviceData copy_data_to_device(size_t h_offset, size_t h_size) 
-{
-    DeviceData device_data;
-
-
-    // Copy offset to device
-    CUDA_SAFE_CALL(cudaMalloc(&device_data.d_file_offset, sizeof(size_t)));
-    CUDA_SAFE_CALL(cudaMemcpy(device_data.d_file_offset, &h_offset, sizeof(size_t), cudaMemcpyHostToDevice));
-
-    // Copy size to device
-    CUDA_SAFE_CALL(cudaMalloc(&device_data.d_size, sizeof(size_t)));
-    CUDA_SAFE_CALL(cudaMemcpy(device_data.d_size, &h_size, sizeof(size_t), cudaMemcpyHostToDevice));
-
-    return device_data;
-}
-void gpufs_open(const char* filename, int* d_fd);
-{
-    char* d_filename = NULL;
-    CUDA_SAFE_CALL(cudaMalloc(&d_fd, sizeof(int)));
-    CUDA_SAFE_CALL(cudaMemset(d_fd, 0, sizeof(int)));
-
-    CUDA_SAFE_CALL(cudaMalloc(&d_filename, sizeof(filename) + 1));
-    CUDA_SAFE_CALL(cudaMemcpy(d_filename, filename, sizeof(filename) + 1, cudaMemcpyHostToDevice));
-    _gpufs_open<<<1,1,0,gpuGlobals->streamMgr->kernelStream>>>(d_filename, d_fd);
-}
-void gpufs_file_to_device(int* d_fd, char* dev_buffer, size_t io_size, size_t file_offset, size_t devBuf_offset)
-{
-	DeviceData device_data = copy_data_to_device(file_offset, io_size);
-
-    // TODO, 端到端测试这里的threads和blocks要怎么设置，需要与Geminifs对齐
-	gpufs_read<<<1,1,0,gpuGlobals->streamMgr->kernelStream>>>(d_fd, device_data.d_file_offset, device_data.d_size, dev_buffer);
-	run_gpufs_handler(gpuGlobals, global_device);
-	cudaError_t error = cudaDeviceSynchronize();
-	//Check for errors and failed asserts in asynchronous kernel launch.
-	if (error != cudaSuccess)
-	{
-		printf("Device failed, CUDA error message is: %s\n\n",
-		cudaGetErrorString(error));
-	}
-
-	fprintf(stderr, "\n");
-	// delete gpuGlobals; // TODO
-
-	// cudaDeviceReset();
-}
-
-void gpufs_device_to_file(int* d_fd, char* dev_buffer, size_t io_size, size_t file_offset, size_t devBuf_offset)
-{
-   	DeviceData device_data = copy_data_to_device(file_offset, io_size);
-    // TODO, 端到端测试这里的threads和blocks要怎么设置，需要与Geminifs对齐
-	gpufs_write<<<1,1,0,gpuGlobals->streamMgr->kernelStream>>>(d_fd, device_data.d_file_offset, device_data.d_size, dev_buffer);
-	run_gpufs_handler(gpuGlobals, global_device);
-	cudaError_t error = cudaDeviceSynchronize();
-	if (error != cudaSuccess)
-	{
-		printf("Device failed, CUDA error message is: %s\n\n",
-		cudaGetErrorString(error));
-	}
-
-	fprintf(stderr, "\n");
-	// delete gpuGlobals;   // TODO
-	// cudaDeviceReset();
-
-}
 void gpt2_GPUfsWrite_to_checkpoint(GPT2 *model, const char* checkpoint_path) {
     // write the model to a checkpoint file
     printf0("Writing model to %s\n", checkpoint_path);
     FILE *model_file = fopenCheck(checkpoint_path, "wb");
 
-    int* fd = NULL;
-    gpufs_open(checkpoint_path, fd);
+    int* dev_fd = NULL;
+    gpufs_open(checkpoint_path, dev_fd);
 
     // write the header first
     int model_header[256];
@@ -560,8 +576,8 @@ void gpt2_GPUfsWrite_to_checkpoint(GPT2 *model, const char* checkpoint_path) {
     // write the parameters
     // device_to_file(model_file, model->params_memory, model->num_parameters_bytes,
     //                IO_BUF_SIZE, main_stream);
-    // CPU进程获得文件最后offset
-    gpufs_device_to_file(d_fd, model->params_memory, model->num_parameters_bytes, offset, 0);
+
+    gpufs_device_to_file(dev_fd, (char*)model->params_memory, model->num_parameters_bytes, 0, 0);
 
     // close file, we're done
     fcloseCheck(model_file);
@@ -588,8 +604,8 @@ void gpt2_build_from_checkpoint(GPT2 *model, const char* checkpoint_path, bool w
     // read in model from a checkpoint file
     FILE *model_file = fopenCheck(checkpoint_path, "rb");
        
-    int* fd = NULL;
-    gpufs_open(checkpoint_path, fd);
+    int* dev_fd = NULL;
+    gpufs_open(checkpoint_path, dev_fd);
  
     int model_header[256];
     freadCheck(model_header, sizeof(int), 256, model_file);
@@ -633,7 +649,7 @@ void gpt2_build_from_checkpoint(GPT2 *model, const char* checkpoint_path, bool w
     if (weight_init) {
         assert(model->params_memory != NULL);
         // file_to_device(model->params_memory, model_file, model->num_parameters_bytes, IO_BUF_SIZE, main_stream);
-        gpufs_file_to_device(fd, (char*)model->params_memory, model->num_parameters_bytes, 0, 0);
+        gpufs_file_to_device(dev_fd, (char*)model->params_memory, model->num_parameters_bytes, 0, 0);
     }
     fcloseCheck(model_file);
 
@@ -1334,8 +1350,8 @@ void save_state(const char* filename, int step, GPT2* model, DataLoader* loader)
     printf("Writing states to %s\n", filename);
     FILE *state_file = fopenCheck(filename, "wb");
 
-    int* fd = NULL;
-    gpufs_open(filename, fd);
+    int* dev_fd = NULL;
+    gpufs_open(filename, dev_fd);
 
     int state_header[256];
     memset(state_header, 0, sizeof(state_header));
@@ -1361,16 +1377,13 @@ void save_state(const char* filename, int step, GPT2* model, DataLoader* loader)
     // device_to_file(state_file, model->m_memory, shard_num_parameters * sizeof(float), IO_BUF_SIZE, main_stream);
     // device_to_file(state_file, model->v_memory, shard_num_parameters * sizeof(float), IO_BUF_SIZE, main_stream);
     // TODO: get offset
-    off_t offset = lseek(fd, 0, SEEK_END);  
-    gpufs_device_to_file(fd, model->m_memory, shard_num_parameters * sizeof(float), offset, 0);
-    offset = lseek(fd, 0, SEEK_END); 
-    gpufs_device_to_file(fd, model->v_memorys, shard_num_parameters * sizeof(float), offset, 0);
+    gpufs_device_to_file(dev_fd, (char*)model->m_memory, shard_num_parameters * sizeof(float), 0, 0);
+    gpufs_device_to_file(dev_fd, (char*)model->v_memory, shard_num_parameters * sizeof(float), 0, 0);
 
   
     if(model->use_master_weights) {
         // device_to_file(state_file, model->master_weights, shard_num_parameters * sizeof(float), IO_BUF_SIZE, main_stream);
-        offset = lseek(fd, 0, SEEK_END); 
-        gpufs_device_to_file(fd, model->master_weights, shard_num_parameters * sizeof(float), offset, 0);
+        gpufs_device_to_file(dev_fd, (char*)model->master_weights, shard_num_parameters * sizeof(float), 0, 0);
 
     }
 
@@ -1389,8 +1402,8 @@ void save_state(const char* filename, int step, GPT2* model, DataLoader* loader)
 void load_state(int* step, GPT2* model, DataLoader* loader, const char* filename) {
     FILE *state_file = fopenCheck(filename, "rb");
 
-    int* fd = NULL;
-    gpufs_open(filename, fd);
+    int* dev_fd = NULL;
+    gpufs_open(filename, dev_fd);
    
     int state_header[256];
     freadCheck(state_header, sizeof(int), 256, state_file);
@@ -1420,12 +1433,12 @@ void load_state(int* step, GPT2* model, DataLoader* loader, const char* filename
     assert(model->m_memory != nullptr);
     assert(model->v_memory != nullptr);
 
-    gpufs_file_to_device(fd, (char*)model->m_memory, shard_num_parameters * sizeof(float), 0, 0);
-    gpufs_file_to_device(fd, (char*)model->v_memory, shard_num_parameters * sizeof(float), 0, 0);
+    gpufs_file_to_device(dev_fd, (char*)model->m_memory, shard_num_parameters * sizeof(float), 0, 0);
+    gpufs_file_to_device(dev_fd, (char*)model->v_memory, shard_num_parameters * sizeof(float), 0, 0);
     if(model->use_master_weights) {
         assert(model->master_weights != nullptr);
         // file_to_device(model->master_weights, state_file, shard_num_parameters * sizeof(float), IO_BUF_SIZE, main_stream);
-        gpufs_file_to_device(fd, (char*)model->master_weights, shard_num_parameters * sizeof(float), 0, 0);
+        gpufs_file_to_device(dev_fd, (char*)model->master_weights, shard_num_parameters * sizeof(float), 0, 0);
  
         // restore weights from the master weights using the RNG state before last weight update
         model->rng_state = model->rng_state_last_update;
@@ -1496,7 +1509,7 @@ void delete_checkpoint(const char* output_log_dir, int step, MultiGpuConfig* mul
     }
 }
 
-#ifndef TESTING
+// #ifndef TESTING
 // if we are TESTING (see test_gpt2.cu), we'll skip everything below this point
 
 // ----------------------------------------------------------------------------
@@ -1563,6 +1576,7 @@ void error_usage() {
 // ----------------------------------------------------------------------------
 // main training loop
 int main(int argc, char *argv[]) {
+   
     // read in the (optional) command line arguments
     const char* train_data_pattern = "dev/data/tinyshakespeare/tiny_shakespeare_train.bin";
     const char* val_data_pattern = "dev/data/tinyshakespeare/tiny_shakespeare_val.bin";
@@ -1857,6 +1871,11 @@ int main(int argc, char *argv[]) {
     double total_sum_iteration_time_s = 0.0;
     float ema_tokens_per_second = 0.0f;
     for (; step <= train_num_batches; step++) {
+        if (step == 2)
+        {
+            break;
+        }
+        
         NvtxRange step_range("Train step", step);
 
         int last_step = step == train_num_batches;
@@ -2049,4 +2068,5 @@ int main(int argc, char *argv[]) {
     common_free(model);
     return 0;
 }
-#endif
+
+
