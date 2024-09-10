@@ -39,11 +39,11 @@
 
 /* SQ doorbell register offset */
 #define SQ_DBL(p, y, dstrd)    \
-        ((volatile uint32_t*) (((volatile unsigned char*) (p)) + 0x1000 + (((y)) * (4 << (dstrd)))) )
+        ((volatile uint32_t*) (((volatile unsigned char*) (p)) + 0x1000 + ((2*(y)) * (4 << (dstrd)))) )
 
 
 /* CQ doorbell register offset */
 #define CQ_DBL(p, y, dstrd)    \
-        ((volatile uint32_t*) (((volatile unsigned char*) (p)) + 0x1000 + (((y) + 1) * (4 << (dstrd)))) )
+        ((volatile uint32_t*) (((volatile unsigned char*) (p)) + 0x1000 + ((2*(y) + 1) * (4 << (dstrd)))) )
 
 #endif /* __NVM_INTERNAL_REGS_H__ */

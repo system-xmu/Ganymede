@@ -232,6 +232,7 @@ inline Controller::~Controller()
     int ret = Host_file_system_exit(dev_path);
     if(ret < 0)
         exit(-1);
+    printf("Controller realease\n");
     nvm_ctrl_free(ctrl);
 
 }

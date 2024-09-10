@@ -3,7 +3,7 @@
 # Check if nvme and snvme devices exist  
 if ls /dev/ | grep -q "nvme0n1" && ls /dev/ | grep -q "snvme"; then  
     echo "Both nvme and snvme devices detected. Running unreg_nvme script..."  
-    ./nvme_unreg
+    ./nvme_unreg /dev/snvm_control 0
     echo "Running nvme_module_change.sh with reload option..."  
     ./nvme_module_change.sh reload  
 elif ls /dev/ | grep -q "nvme0n1" && ! ls /dev/ | grep -q "snvme"; then  

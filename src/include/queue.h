@@ -119,7 +119,7 @@ struct QueuePair
 
         size_t sq_mem_size =  sq_size * sizeof(nvm_cmd_t) + sq_need_prp*(64*1024);
         size_t cq_mem_size =  cq_size * sizeof(nvm_cpl_t) + cq_need_prp*(64*1024);
-        printf("sq_size: %ld\tcq_size: %ld\n", sq_mem_size, cq_mem_size);
+        // printf("sq_size: %ld\tcq_size: %ld\n", sq_mem_size, cq_mem_size);
 //        std::cout << sq_size << "\t" << sq_mem_size << std::endl;
         //size_t queueMemSize = ctrl.info.page_size * 2;
         //size_t prpListSize = ctrl.info.page_size * numThreads * (doubleBuffered + 1);
@@ -127,10 +127,10 @@ struct QueuePair
 //        std::cout << "Started creating DMA\n";
         // qmem->vaddr will be already a device pointer after the following call
         this->sq_mem = create_queue_Dma(ctrl, NVM_PAGE_ALIGN(sq_mem_size, 1UL << 16), cudaDevice,0,qp_id);
- //       std::cout << "Finished creating sq dma vaddr: " << this->sq_mem.get()->vaddr << "\tioaddr: " << std::hex<< this->sq_mem.get()->ioaddrs[0] << std::dec << std::endl;
+    //    std::cout << "Finished creating sq dma vaddr: " << this->sq_mem.get()->vaddr << "\tioaddr: " << std::hex<< this->sq_mem.get()->ioaddrs[0] << std::dec << std::endl;
         this->cq_mem = create_queue_Dma(ctrl, NVM_PAGE_ALIGN(cq_mem_size, 1UL << 16), cudaDevice,1,qp_id);
         //this->prp_mem = createDma(ctrl, NVM_PAGE_ALIGN(prp_mem_size, 1UL << 16), cudaDevice, adapter, segmentId);
- //       std::cout << "Finished creating cq dma vaddr: " << this->cq_mem.get()->vaddr << "\tioaddr: " << std::hex << this->cq_mem.get()->ioaddrs[0] << std::dec << std::endl;
+    //    std::cout << "Finished creating cq dma vaddr: " << this->cq_mem.get()->vaddr << "\tioaddr: " << std::hex << this->cq_mem.get()->ioaddrs[0] << std::dec << std::endl;
 
         // Set members
         // this->pageSize = info.page_size;
@@ -182,7 +182,7 @@ int ioctl_get_dev_info(nvm_ctrl_t* ctrl, struct disk* d)
         return errno;
     }
     ctrl->start_cq_idx = dev_info.start_cq_idx;
-    ctrl->dstrd = dev_info.dstrd;
+    // ctrl->dstrd = dev_info.dstrd;
     ctrl->nr_user_q = dev_info.nr_user_q;
 
 
@@ -215,10 +215,10 @@ int init_userioq_device(nvm_ctrl_t* ctrl,  QueuePair** qps,struct disk* d)
         qps[i]->block_size_minus_1 = d->block_size -1;
         qps[i]->block_size_log = std::log2(d->block_size);
         qps[i]->nvmNamespace = d->ns_id;
-
+        // printf("pageSize  is %u, block_size is %lu, block_size_minus_1 is %u, block_size_minus_1 is %u block_size_log is %u, nvmNamespace is %u\n",qps[i]->pageSize,qps[i]->block_size,qps[i]->block_size_minus_1,qps[i]->block_size_log,qps[i]->nvmNamespace);
 
         // clear cq
-        nvm_queue_clear(&qps[i]->cq,ctrl,true,i+ctrl->start_cq_idx,qps[i]->cq.qs,0,qps[i]->cq_mem.get()->vaddr,qps[i]->cq_mem.get()->ioaddrs[0]);
+        nvm_queue_clear(&qps[i]->cq,ctrl,true,i+ctrl->start_cq_idx,qps[i]->cq.qs,1,qps[i]->cq_mem.get()->vaddr,qps[i]->cq_mem.get()->ioaddrs[0]);
     
 
         // clear sq

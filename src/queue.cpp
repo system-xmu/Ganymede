@@ -40,6 +40,7 @@ int nvm_queue_clear(nvm_queue_t* queue, const nvm_ctrl_t* ctrl, bool cq, uint16_
     {
         // printf("nvm_queue_clear qid is %u, addr is %lx\n",queue->no,queue->ioaddr);
     }
+    // printf("queue->no is %u, queue->qs is %u,queue->es is %u,queue->local is %u,ctrl->dstrd is %u\nqueue->db is %lx,queue->vaddr is %lx,queue->ioaddr is %lx\n\n",queue->no,queue->qs,queue->es,queue->local,ctrl->dstrd,queue->db,queue->vaddr,queue->ioaddr); 
     // printf("mm_ptr start at %lx, vaddr is %lx\n",ctrl->mm_ptr,vaddr);
     return 0;
 }

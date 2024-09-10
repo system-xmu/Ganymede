@@ -72,11 +72,14 @@ int Host_file_system_int(const char *device, const char *mountPoint)
 int Host_file_system_exit(const char *mountPoint)
 {
     // 程序正常退出或异常捕获后尝试卸载设备
+    int ret = -1;
     syncFileSystem(mountPoint);
     for (int i = 0; i < 3; ++i) {  
         if (umountDevice(mountPoint)) {  
             std::cerr << "Device umounted successfully." << std::endl;  
+            ret = 0;
             break;  
+            
         } else {  
             syncFileSystem(mountPoint);
             std::cerr << "Failed to umount the device. Attempt " << (i + 1) << ". Retrying..." << std::endl;  
@@ -84,7 +87,7 @@ int Host_file_system_exit(const char *mountPoint)
             sleep(2); // 等待2秒  
         }  
     } 
-    
+    return ret;
 }
 
   

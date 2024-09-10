@@ -113,7 +113,7 @@ uint32_t move_head_cq(nvm_queue_t* q, uint32_t cur_head, nvm_queue_t* sq) {
                 //  printf("cq_dequeue 5\n");
                 sq->tickets[loc].val.fetch_add(1, simt::memory_order_relaxed);
             }
-            printf("---new_sq_head: %llu\tcur_sq_head: %llu\tloc: %llu\tsq_move_count: %llu\n", (unsigned long long) new_sq_head, (unsigned long long) cur_sq_head, (unsigned long long) loc, (unsigned long long) sq_move_count);
+            // printf("---new_sq_head: %llu\tcur_sq_head: %llu\tloc: %llu\tsq_move_count: %llu\n", (unsigned long long) new_sq_head, (unsigned long long) cur_sq_head, (unsigned long long) loc, (unsigned long long) sq_move_count);
 
             sq->head.fetch_add(sq_move_count, simt::memory_order_acq_rel);
         }
@@ -402,21 +402,20 @@ uint32_t cq_poll(nvm_queue_t* cq, uint16_t search_cid, uint32_t* loc_ = NULL, ui
             bool search_phase = ((~(cur_head >> cq->qs_log2)) & 0x01);
             uint32_t loc = cur_head & (cq->qs_minus_1);
             uint32_t cpl_entry = ((nvm_cpl_t*)cq->vaddr)[loc].dword[3];
-            for(k=0;k<16;k++ )
-            {
-                printf("dowrd0 is %u\t dowrd1 is %u\t dowrd2 is %u\t dowrd3 is %u\t",((nvm_cpl_t*)cq->vaddr)[k].dword[0],((nvm_cpl_t*)cq->vaddr)[k].dword[1],((nvm_cpl_t*)cq->vaddr)[k].dword[2],((nvm_cpl_t*)cq->vaddr)[k].dword[3]);
-                printf ("\n");
-            }
+            // for(k=0;k<16;k++ )
+            // {
+            //     printf("dowrd0 is %u\t dowrd1 is %u\t dowrd2 is %u\t dowrd3 is %u\t",((nvm_cpl_t*)cq->vaddr)[k].dword[0],((nvm_cpl_t*)cq->vaddr)[k].dword[1],((nvm_cpl_t*)cq->vaddr)[k].dword[2],((nvm_cpl_t*)cq->vaddr)[k].dword[3]);
+            //     printf ("\n");
+            // }
             uint32_t cid = (cpl_entry & 0x0000ffff);
             bool phase = (cpl_entry & 0x00010000) >> 16;
-                printf ("cq_poll 3\n\n");
 //             if (j % 10000000 == 0)
 
-                printf("qs_log2: %llu\thead: %llu\tcur_head: %llu\tsearch_cid: %llu\tsearch_phase: %llu\tcq->loc: %p\tcq->qs: %llu\ti: %llu\tj: %llu\tcid: %llu\tphase:%llu\tmark: %llu\tcpl_entry is %llu\n",
-                        (unsigned long long) cq->qs_log2,
-                        (unsigned long long)head, (unsigned long long) cur_head, (unsigned long long) search_cid, (unsigned long long) search_phase, ((volatile nvm_cpl_t*)cq->vaddr)+loc,
-                        (unsigned long long) cq->qs, (unsigned long long) i, (unsigned long long) j, (unsigned long long) cid, (unsigned long long) phase,
-                        (unsigned long long) cq->head_mark[loc].val.load(simt::memory_order_acquire),cpl_entry);
+                // printf("qs_log2: %llu\thead: %llu\tcur_head: %llu\tsearch_cid: %llu\tsearch_phase: %llu\tcq->loc: %p\tcq->qs: %llu\ti: %llu\tj: %llu\tcid: %llu\tphase:%llu\tmark: %llu\tcpl_entry is %llu\n",
+                //         (unsigned long long) cq->qs_log2,
+                //         (unsigned long long)head, (unsigned long long) cur_head, (unsigned long long) search_cid, (unsigned long long) search_phase, ((volatile nvm_cpl_t*)cq->vaddr)+loc,
+                //         (unsigned long long) cq->qs, (unsigned long long) i, (unsigned long long) j, (unsigned long long) cid, (unsigned long long) phase,
+                //         (unsigned long long) cq->head_mark[loc].val.load(simt::memory_order_acquire),cpl_entry);
 
 //            if ((cid == search_cid) && (phase == search_phase) && (cq->head_mark[loc].load(simt::memory_order_acquire) == UNLOCKED)){
             if ((cid == search_cid) && (phase == search_phase)){

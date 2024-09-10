@@ -1204,7 +1204,7 @@ static int adapter_alloc_cq(struct nvme_dev *dev, u16 qid,
 	c.create_cq.qsize = cpu_to_le16(nvmeq->q_depth - 1);
 	c.create_cq.cq_flags = cpu_to_le16(flags);
 	c.create_cq.irq_vector = cpu_to_le16(vector);
-	// printk("adapter_alloc_cq q_depth is %u,qid is %u\n",nvmeq->q_depth,qid);
+	// printk("adapter_alloc_cq qid is %u\n",c.create_cq.cq_flags);
 	return nvme_submit_sync_cmd(dev->ctrl.admin_q, &c, NULL, 0);
 }
 
@@ -1234,6 +1234,7 @@ static int adapter_alloc_sq(struct nvme_dev *dev, u16 qid,
 	c.create_sq.sq_flags = cpu_to_le16(flags);
 	c.create_sq.cqid = cpu_to_le16(qid);
 	// printk("adapter_alloc_sq q_depth is %u\n",nvmeq->q_depth);
+	// printk("adapter_alloc_sq qid is,cq id %u\n",c.create_sq.sqid,c.create_sq.cqid);
 	return nvme_submit_sync_cmd(dev->ctrl.admin_q, &c, NULL, 0);
 }
 
@@ -1251,8 +1252,9 @@ static int adapter_alloc_cq_user(struct nvme_dev *dev, struct map* q_map,int qid
 	c.create_cq.cqid = cpu_to_le16(qid);
 	c.create_cq.qsize = cpu_to_le16(dev->q_depth-1);
 	c.create_cq.cq_flags = cpu_to_le16(flags);
-	c.create_cq.irq_vector = 0;
-	// printk("adapter_alloc_cq_user qid is %u, addr is %lx,q depth is %d\n",qid,q_map->addrs[0],dev->q_depth - 1);
+	c.create_cq.irq_vector = cpu_to_le16(0);
+	// printk("adapter_alloc_cq_user qid is %u, addr is %lx,q depth is %d,cq_flags is %u\n",qid,q_map->addrs[0],c.create_cq.qsize,c.create_cq.cq_flags);
+	// printk("adapter_alloc_cq qid is %u\n",c.create_cq.cq_flags);
 	return nvme_submit_sync_cmd(dev->ctrl.admin_q, &c, NULL, 0);
 }
 
@@ -1279,6 +1281,7 @@ static int adapter_alloc_sq_user(struct nvme_dev *dev, struct map* q_map,int qid
 	c.create_sq.sq_flags = cpu_to_le16(flags);
 	c.create_sq.cqid = cpu_to_le16(qid);
 	// printk("adapter_alloc_sq_user qid is %u, addr is %lx,q depth is %d\n",qid,q_map->addrs[0],dev->q_depth - 1);
+	// printk("adapter_alloc_sq_user qid is,cq id %u\n",c.create_sq.sqid,c.create_sq.cqid);
 	return nvme_submit_sync_cmd(dev->ctrl.admin_q, &c, NULL, 0);
 }
 

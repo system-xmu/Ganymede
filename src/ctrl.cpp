@@ -174,10 +174,11 @@ int _nvm_ctrl_init(nvm_ctrl_t** handle, struct device* dev, const struct device_
 
     // Set controller properties
     ctrl->page_size = page_size;
-    // ctrl->dstrd = CAP$DSTRD(ctrl->mm_ptr);
-    // ctrl->timeout = CAP$TO(ctrl->mm_ptr) * 500UL;
-    // ctrl->max_qs = CAP$MQES(ctrl->mm_ptr) + 1; // CAP.MQES is 0's based
+    ctrl->dstrd = CAP$DSTRD(ctrl->mm_ptr);
+    ctrl->timeout = CAP$TO(ctrl->mm_ptr) * 500UL;
+    ctrl->max_qs = CAP$MQES(ctrl->mm_ptr) + 1; // CAP.MQES is 0's based
     // printf("ctrl->dstrd is %u, ctrl->timeout is %lu, ctrl->max_qs is %u\n",ctrl->dstrd,ctrl->timeout,ctrl->max_qs);
+    printf("dstrd  is %u, ctrl->timeout is %lu, max qs is  %u\n",ctrl->dstrd,ctrl->timeout,ctrl->max_qs);
     ctrl->cq_num = 0;
     ctrl->sq_num = 0;
 

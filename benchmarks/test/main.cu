@@ -23,9 +23,9 @@
 #include <nvm_cmd.h>
 #define snvme_helper_path "/dev/snvme_helper"
 #define snvme_control_path "/dev/snvm_control"
-#define snvme_path "/dev/snvme2"
+#define snvme_path "/dev/snvme1"
 #define nvme_mount_path "/home/qs/nvm_mount"
-#define nvme_dev_path "/dev/nvme1n1"
+#define nvme_dev_path "/dev/nvme0n1"
  __device__ void
 read_from_nvme(QueuePair* qp,uint64_t start_block, uint64_t dev_buf[], uint64_t blk_num) {
 
@@ -33,34 +33,34 @@ read_from_nvme(QueuePair* qp,uint64_t start_block, uint64_t dev_buf[], uint64_t 
     // for (size_t i = 0; i < 256; i++)
     //     buf[i] = i;
     
-    for (size_t iii = 0; iii < 1023; iii++) {
-        printf ("%d\n", iii);
+    for (size_t iii = 0; iii < 2048; iii++) {
         nvm_cmd_t cmd;
-        printf ("read_from_nvme 1\n");
-        uint16_t cid = get_cid(&(qp->sq)); 
 
+        uint16_t cid = get_cid(&(qp->sq)); 
+        // printf("access_data 0 cid: %u\n", (unsigned int) cid);
         nvm_cmd_header(&cmd, cid, NVM_IO_READ, qp->nvmNamespace);
-        printf ("read_from_nvme 2 , cid is %u\n",cid);
+
         uint64_t prp1 = dev_buf[0];
         uint64_t prp2 = 0;
         nvm_cmd_data_ptr(&cmd, prp1, prp2);
         nvm_cmd_rw_blks(&cmd, start_block, blk_num); // 128KB
         uint16_t sq_pos = sq_enqueue(&qp->sq, &cmd);
-        printf ("read_from_nvme 3 , sq_pos is %u\n",sq_pos);
+        // printf ("access_data 1 , sq_pos is %u\n",sq_pos);
         uint32_t head, head_;
         // uint64_t pc_pos;
         // uint64_t pc_prev_head;
 
         uint32_t cq_pos = cq_poll(&qp->cq, cid);
-        printf ("read_from_nvme 4 , cq_pos is %u\n",cq_pos);
+        // printf ("access_data 2 , sq_pos is %u\n",cq_pos);
         // qp->cq.tail.fetch_add(1, simt::memory_order_acq_rel);
         // // pc_prev_head = pc->q_head->load(simt::memory_order_relaxed);
         // // pc_pos = pc->q_tail->fetch_add(1, simt::memory_order_acq_rel);
         
         cq_dequeue(&qp->cq, cq_pos, &qp->sq);
-        
-        printf ("read_from_nvme 5 \n");
+        // printf ("access_data 3 \n");
+
         put_cid(&qp->sq, cid);
+        // printf ("access_data 4 \n");
     }
 
 }
@@ -100,7 +100,7 @@ main () {
     Controller *ctrl;
     int block_size = 1024*64;
 
-    uint32_t cudaDevice = 1;
+    uint32_t cudaDevice = 0;
     void *buf__host = NULL;
     int *buf__host_int = NULL;
     int ret,fd;
@@ -110,7 +110,7 @@ main () {
     struct nds_mapping mapping;
     nvme_ofst_t nvme_ofst;
     cuda_err_chk(cudaSetDevice(cudaDevice));
-    ctrl = new Controller(snvme_control_path,snvme_path,nvme_dev_path,nvme_mount_path,1,1,1023,64);
+    ctrl = new Controller(snvme_control_path,snvme_path,nvme_dev_path,nvme_mount_path,1,0,1024,32);
 
 
     fd = open(filename, O_RDWR| O_CREAT | O_DIRECT , S_IRUSR | S_IWUSR);
@@ -175,6 +175,8 @@ main () {
 
     read_from_nvme__using_device<<<1, 1>>>((Controller*)ctrl->d_ctrl_ptr,start_block, tempd, n_blocks, 0);
     cudaDeviceSynchronize();
+
+
     // printf("gpu vaddr is %lx, dma addr is is %lx\n",gpu_buffer.get()->vaddr,gpu_buffer.get()->ioaddrs[0]);
     // void *buf__host2 = NULL;
     // ret = posix_memalign(&buf__host2, 4096, block_size); 

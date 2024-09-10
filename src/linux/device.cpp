@@ -168,7 +168,7 @@ int ioctl_get_dev_info_host(nvm_ctrl_t* ctrl, struct disk* d)
         return errno;
     }
     ctrl->start_cq_idx = dev_info.start_cq_idx;
-    ctrl->dstrd = dev_info.dstrd;
+    // ctrl->dstrd = dev_info.dstrd;
     ctrl->nr_user_q = dev_info.nr_user_q;
 
 
