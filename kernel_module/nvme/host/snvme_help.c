@@ -78,7 +78,7 @@ out:
 	if(found)
 	{
 		BUG_ON(!es1);
-		printk("The es_lblk is %lu, es_len is %lu, es_pblk is %lx",es1->es_lblk,es1->es_len,ext4_es_pblock(es1));
+		// printk("The es_lblk is %lu, es_len is %lu, es_pblk is %lx",es1->es_lblk,es1->es_len,ext4_es_pblock(es1));
 		loff_t in_extent_offset = offset - (((u64)es1->es_lblk) << blkbits);
 		loff_t in_extent_len = min(len, (((u64)es1->es_len) << blkbits) - in_extent_offset);
 		mapping->exist = true;
