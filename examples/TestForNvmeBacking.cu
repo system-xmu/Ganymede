@@ -14,9 +14,9 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
 }
 
 #define snvme_control_path "/dev/snvm_control"
-#define snvme_path "/dev/snvme2"
+#define snvme_path "/dev/snvme1"
 #define nvme_mount_path "/home/qs/nvm_mount"
-#define nvme_dev_path "/dev/nvme1n1"
+#define nvme_dev_path "/dev/nvme0n1"
 
 
 #define geminifs_file_name "checkpoint.geminifs"

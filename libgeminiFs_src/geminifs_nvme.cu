@@ -30,27 +30,27 @@ public:
 
     __forceinline__ __device__ int
     acquire_queue() {
-        //int queue = get_smid() % this->nr_queues;
+        int queue = get_smid() % this->nr_queues;
 
-        int queue;
-        this->lock.acquire();
-        while (1) {
-            queue = this->queue_now;
-            this->queue_now = (this->queue_now + 1) % this->nr_queues;
-            if (this->cmd_count[queue]) {
-                this->cmd_count[queue]--;
-                break;
-            }
-        }
+        //int queue;
+        //this->lock.acquire();
+        //while (1) {
+        //    queue = this->queue_now;
+        //    this->queue_now = (this->queue_now + 1) % this->nr_queues;
+        //    if (this->cmd_count[queue]) {
+        //        this->cmd_count[queue]--;
+        //        break;
+        //    }
+        //}
 
-        this->locks[queue].acquire();
+        //this->locks[queue].acquire();
         return queue;
     }
 
     __forceinline__ __device__ void
     release_queue(int queue) {
-        this->locks[queue].release();
-        this->lock.release();
+        //this->locks[queue].release();
+        //this->lock.release();
     }
 
 private:
@@ -137,12 +137,14 @@ private:
                 nvm_cmd_data_ptr(&cmd, prp1, prp2);
                 nvm_cmd_rw_blks(&cmd, start_hqps_block, nr_hqps_blocks);
                 uint16_t sq_pos = sq_enqueue(&qp->sq, &cmd);
-                uint32_t head, head_;
-                uint32_t cq_pos = cq_poll(&qp->cq, cid, &head, &head_);
+                uint32_t cq_pos = cq_poll(&qp->cq, cid);
                 printf("poll OK\n");
                 qp->cq.tail.fetch_add(1, simt::memory_order_acq_rel);
-                cq_dequeue(&qp->cq, cq_pos, &qp->sq, head, head_);
+                printf("poll OK1\n");
+                cq_dequeue(&qp->cq, cq_pos, &qp->sq);
+                printf("poll OK2\n");
                 put_cid(&qp->sq, cid);
+                printf("poll OK3\n");
             }
             printf("I release the queue [%llx]\n", (uint64_t)queue);
             queue_acquire_helper->release_queue(queue);
