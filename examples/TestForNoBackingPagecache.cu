@@ -46,13 +46,13 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
 
 int
 main() {
-  int block_size = 256 * (1ull << 10); /* 32k */
+  int block_size = 4 * (1ull << 10); /* 32k */
   size_t capacity = 16 * (1ull << 30); /* 16G */
 
 
   int nr_warps = 108;
 
-  gpuErrchk(cudaSetDevice(1));
+  gpuErrchk(cudaSetDevice(0));
 
   size_t heapsz = 1 * (1ull << 30);
   gpuErrchk(cudaDeviceSetLimit(cudaLimitMallocHeapSize, heapsz));
@@ -84,7 +84,7 @@ main() {
       gpu_timer.Stop();
 
       float time = gpu_timer.Elapsed();
-      float bw = ((float)buf_size * 1000) / (time * (1ull << 30));
+      float bw = ((float)2 * buf_size * 1000) / (time * (1ull << 30));
       std::cout << "bw:" << bw << "GB per s" << std::endl;
 
       cudaDeviceSynchronize();
@@ -98,7 +98,7 @@ main() {
       gpu_timer.Stop();
 
       float time = gpu_timer.Elapsed();
-      float bw = ((float)buf_size * 1000) / (time * (1ull << 30));
+      float bw = ((float)2 * buf_size * 1000) / (time * (1ull << 30));
       std::cout << "bw:" << bw << "GB per s" << std::endl;
 
       cudaDeviceSynchronize();

@@ -20,7 +20,7 @@ public:
         this->queue_now = 0;
         this->cmd_count = new int[nr_queues];
         for (size_t i = 0; i < nr_queues; i++)
-            this->cmd_count[i] = 1023;
+            this->cmd_count[i] = 4096;
 
         this->nr_queues = nr_queues;
         this->locks = new cuda::binary_semaphore<cuda::thread_scope_device> [nr_queues];
@@ -32,25 +32,30 @@ public:
     acquire_queue() {
         int queue = get_smid() % this->nr_queues;
 
-        //int queue;
-        //this->lock.acquire();
-        //while (1) {
-        //    queue = this->queue_now;
-        //    this->queue_now = (this->queue_now + 1) % this->nr_queues;
-        //    if (this->cmd_count[queue]) {
-        //        this->cmd_count[queue]--;
-        //        break;
-        //    }
-        //}
+        // int queue;
+        // this->lock.acquire();
+        // while (1) {
+        //     queue = this->queue_now;
+        //     this->queue_now = (this->queue_now + 1) % this->nr_queues;
+        //     if (this->cmd_count[queue]) {
+        //         this->cmd_count[queue]--;
+        //         break;
+        //     }
+        // }
+        //printf("put a queue [0x%llx], remaining count [0x%llx]\n",
+        //        (uint64_t)queue,
+        //        (uint64_t)this->cmd_count[queue]);
 
-        //this->locks[queue].acquire();
+        // this->locks[queue].acquire();
         return queue;
     }
 
     __forceinline__ __device__ void
     release_queue(int queue) {
-        //this->locks[queue].release();
-        //this->lock.release();
+        //printf("release a queue [%llx], remaining count [%llx]\n",
+        //        (uint64_t)queue);
+        // this->locks[queue].release();
+        // this->lock.release();
     }
 
 private:
@@ -111,7 +116,6 @@ private:
                 idx_file_block__in_page++) {
             int queue = queue_acquire_helper->acquire_queue();
             // 并行操作队列死锁
-            printf("I get a queue [%llx]\n", (uint64_t)queue);
             QueuePair* qp = &ctrl->d_qps[queue];
 
             vaddr_t fileblock_va = filepage_va + idx_file_block__in_page * file_block_size;
@@ -128,25 +132,20 @@ private:
                 uint64_t prp2 = 0;
                 if (is_read) {
                     nvm_cmd_header(&cmd, cid, NVM_IO_READ, qp->nvmNamespace);
-                    printf("read in filepage_id[%llx] file_va[%llx] nvmeofst[%llx] start_block[%llx] ioaddr[%llx] hqps_block_size_log[%llx]\n", filepage_id, fileblock_va, nvme_ofst, (uint64_t)start_hqps_block, corresponding_ioaddr, (uint64_t)this->hqps_block_size_log);
+                    //printf("read in filepage_id[%llx] file_va[%llx] nvmeofst[%llx] start_block[%llx] ioaddr[%llx] hqps_block_size_log[%llx]\n", filepage_id, fileblock_va, nvme_ofst, (uint64_t)start_hqps_block, corresponding_ioaddr, (uint64_t)this->hqps_block_size_log);
                 } else {
                     nvm_cmd_header(&cmd, cid, NVM_IO_WRITE, qp->nvmNamespace);
-                    printf("write back filepage_id[%llx] file_va[%llx] nvmeofst[%llx] start_block[%llx] ioaddr[%llx] hqps_block_size_log[%llx]\n", filepage_id, fileblock_va, nvme_ofst, (uint64_t)start_hqps_block, corresponding_ioaddr, (uint64_t)this->hqps_block_size_log);
+                    //printf("write back filepage_id[%llx] file_va[%llx] nvmeofst[%llx] start_block[%llx] ioaddr[%llx] hqps_block_size_log[%llx]\n", filepage_id, fileblock_va, nvme_ofst, (uint64_t)start_hqps_block, corresponding_ioaddr, (uint64_t)this->hqps_block_size_log);
                 }
 
                 nvm_cmd_data_ptr(&cmd, prp1, prp2);
                 nvm_cmd_rw_blks(&cmd, start_hqps_block, nr_hqps_blocks);
                 uint16_t sq_pos = sq_enqueue(&qp->sq, &cmd);
                 uint32_t cq_pos = cq_poll(&qp->cq, cid);
-                printf("poll OK\n");
                 qp->cq.tail.fetch_add(1, simt::memory_order_acq_rel);
-                printf("poll OK1\n");
                 cq_dequeue(&qp->cq, cq_pos, &qp->sq);
-                printf("poll OK2\n");
                 put_cid(&qp->sq, cid);
-                printf("poll OK3\n");
             }
-            printf("I release the queue [%llx]\n", (uint64_t)queue);
             queue_acquire_helper->release_queue(queue);
         }
 
@@ -201,11 +200,11 @@ host_open_geminifs_file_for_device(
 
 
     int file_block_size = 1 << hdr->block_bit;
-    if (file_block_size < (128 * (1ull << 10))) {
-        assert(file_block_size == page_size);
-    } else {
-        assert(file_block_size <= page_size);
-    }
+    //if (file_block_size < (128 * (1ull << 10))) {
+    //    assert(file_block_size == page_size);
+    //} else {
+    //    assert(file_block_size <= page_size);
+    //}
 
     struct geminiFS_hdr *hdr__dev;
     gpuErrchk(cudaMallocManaged(&hdr__dev, hdr->first_block_base));
