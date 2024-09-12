@@ -46,7 +46,7 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
 #define my_assert(code) do { \
     if (!(code)) { \
         host_close_all(); \
-        assert(0); \
+        exit(1); \
     } \
 } while(0)
 
@@ -72,9 +72,9 @@ main() {
             1024,
             64);
 
-  size_t virtual_space_size = 128 * (1ull << 20)/*MB*/;
+  size_t virtual_space_size = 512 * (1ull << 20)/*MB*/;
   size_t file_block_size = 4 * (1ull << 10);
-  size_t dev_page_size = 4 * (1ull << 10);
+  size_t dev_page_size = 128 * (1ull << 10);
 
   size_t nr_pages = 128;
   size_t page_capacity = nr_pages * dev_page_size;
