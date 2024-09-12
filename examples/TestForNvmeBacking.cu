@@ -4,6 +4,8 @@
 #include <ctime>
 #include "geminifs_api.cuh"
 
+__global__ void warmup() {}
+
 struct GpuTimer
 {
       cudaEvent_t start;
@@ -63,6 +65,9 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
 
 int
 main() {
+      warmup<<<1, 1>>>();
+      cudaDeviceSynchronize();
+
     host_open_all(
             snvme_control_path,
             snvme_path,
