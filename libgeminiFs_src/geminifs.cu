@@ -137,13 +137,12 @@ public:
         this->pages_ref = (uint64_t *)malloc(sizeof(uint64_t) * this->nr_page);
 
         for (CachePageId cachepage_id = 0; cachepage_id < nr_page; cachepage_id++) {
-            FilePageId filepage_id = cachepage_id;
+            FilePageId filepage_id = nr_page - 1 - cachepage_id;
             auto *page = this->pages[cachepage_id];
             page->cachepage_id = cachepage_id;
             page->content_of = filepage_id;
             page->assigned_to = filepage_id;
             page->lock.release();
-            this->__insert__filepage__mapping_to__cachepage(filepage_id, cachepage_id);
             if (page->never_evicted) {
                 page->state = CACHEPAGE_CLEAN;
                 this->pages_ref[cachepage_id] = 1; // the Ref Count is at lease 1, thus the page won't be evicted.
@@ -152,6 +151,7 @@ public:
                 this->pages_ref[cachepage_id] = 0;
                 this->__insert__zero_reffed_filepage(filepage_id);
             }
+            this->__insert__filepage__mapping_to__cachepage(filepage_id, cachepage_id);
         }
         printf("Geminifs open OK\n");
     }
@@ -168,13 +168,13 @@ public:
     }
 
     __device__ CachePageId
-    acquire_page__for_warp(FilePageId filepage_id) {
+    acquire_page__for_warp(FilePageId filepage_id, int prefetch_cnt) {
         CachePageId cachepage_id;
         uint32_t participating_mask = 0xffffffff;
         uint32_t warp_leader = 0;
         int lane = my_lane_id();
         if (lane == warp_leader) {
-            cachepage_id = this->__acquire_page_for_warp_leader(filepage_id);
+            cachepage_id = this->__acquire_page_for_warp_leader(filepage_id, prefetch_cnt);
         } else {
             this->__acquire_page_for_warp_follower(warp_leader);
         }
@@ -257,27 +257,27 @@ private:
     __acquire_page_for_warp_follower(int warp_leader) {
         FilePageId *prefetch_filepage_ids = (FilePageId *)this->shfl_ptr_in_warp(warp_leader, nullptr);
         CachePageId *prefetch_cachepage_ids = (CachePageId *)this->shfl_ptr_in_warp(warp_leader, nullptr);
-	if (prefetch_cachepage_ids == nullptr)
-	    return;
+        if (prefetch_cachepage_ids == nullptr)
+            return;
 
         int lane = my_lane_id();
         FilePageId prefetch_filepage_id = prefetch_filepage_ids[lane];
         CachePageId prefetch_cachepage_id = prefetch_cachepage_ids[lane];
 
-	if (prefetch_filepage_id != -1 && prefetch_cachepage_id != -1) {
-	    printf("I'm follower[%d] filepage_id[%llx] cachepage_id[%llx]\n",
-	        lane, prefetch_filepage_id, prefetch_cachepage_id);
-	    __syncwarp();
-	    this->pages[prefetch_cachepage_id]->read_in__no_lock(this->info1, this->info2, this->info3);
-	    __syncwarp();
-	} else {
-	    __syncwarp();
-	    __syncwarp();
-	}
+        if (prefetch_filepage_id != -1 && prefetch_cachepage_id != -1) {
+            //printf("I'm follower[%d] filepage_id[%llx] cachepage_id[%llx]\n",
+            //        lane, prefetch_filepage_id, prefetch_cachepage_id);
+            __syncwarp();
+            this->pages[prefetch_cachepage_id]->read_in__no_lock(this->info1, this->info2, this->info3);
+            __syncwarp();
+        } else {
+            __syncwarp();
+            __syncwarp();
+        }
     }
 
     __forceinline__ __device__ CachePageId
-    __acquire_page_for_warp_leader(FilePageId filepage_id) {
+    __acquire_page_for_warp_leader(FilePageId filepage_id, int prefetch_cnt) {
         CachePageId ret;
 
         this->pagecache_lock.acquire();
@@ -287,8 +287,11 @@ private:
         // Assertion 3: If the ref count of a cachepage is greater than 0,
         //              all the transactions about that cachepage are about the same filepage.
 
+        //printf("I acquire filepage[%llx]\n", filepage_id);
+
         ret = this->__get__cachepage_id(filepage_id);
         if (ret != -1) {
+            //printf("I want filepage[%llx], HIT! cachepage[%llx]\n", filepage_id, ret);
             // Page Hit!
             size_t cur_ref = (++(this->pages_ref[ret]));
             if (cur_ref == 1)
@@ -297,11 +300,9 @@ private:
             __threadfence();
             this->pagecache_lock.release();
 
-            printf("I want filepage[%llx], HIT! cachepage[%llx]\n", filepage_id, ret);
-
             // Let followers go.
-	    this->shfl_ptr_in_warp(0, nullptr);
-	    this->shfl_ptr_in_warp(0, nullptr);
+            this->shfl_ptr_in_warp(0, nullptr);
+            this->shfl_ptr_in_warp(0, nullptr);
 
             this->pages[ret]->lock.acquire();
             this->pages[ret]->read_in__no_lock(this->info1, this->info2, this->info3);
@@ -310,7 +311,7 @@ private:
             return ret;
         }
 
-        printf("I want filepage[%llx], MISS!\n", filepage_id);
+        //printf("I want filepage[%llx], MISS!\n", filepage_id);
 
         // Miss
         // ret == -1
@@ -320,7 +321,7 @@ private:
             // Here we find a zero-reffed page to be evicted
 
             ret = this->__get__cachepage_id(evicted_filepage_id);
-            printf("Here I find a filepage[%llx] cachepage[%llx] to be evicted\n", evicted_filepage_id, ret);
+            //printf("Here I find a filepage[%llx] cachepage[%llx] to be evicted\n", evicted_filepage_id, ret);
             ++(this->pages_ref[ret]);
 
             this->__erase__filepage__mapping(evicted_filepage_id);
@@ -330,88 +331,103 @@ private:
 
             __shared__ FilePageId prefetch_filepage_ids[32];
             __shared__ CachePageId prefetch_cachepage_ids[32];
-            for (int follower = 1; follower < 32; follower++) {
-                FilePageId prefetch_filepage_id = filepage_id + follower;
-		if (this->nr_file_page <= prefetch_filepage_id)
-                    prefetch_filepage_id = -1;
-		if (prefetch_filepage_id != -1 &&
-		    -1 != this->__get__cachepage_id(prefetch_filepage_id)) {
-                    /* Hit! It need not be prefetched */
-                    prefetch_filepage_id = -1;
+            if (prefetch_cnt) {
+                for (int follower = 1; follower < 32; follower++) {
+                    FilePageId prefetch_filepage_id = filepage_id + follower;
+                    if (prefetch_cnt < follower)
+                        prefetch_filepage_id = -1;
+                    if (prefetch_filepage_id != -1 &&
+                            this->nr_file_page <= prefetch_filepage_id)
+                        prefetch_filepage_id = -1;
+                    if (prefetch_filepage_id != -1 &&
+                            -1 != this->__get__cachepage_id(prefetch_filepage_id)) {
+                        /* Hit! It need not be prefetched */
+                        prefetch_filepage_id = -1;
+                    }
+
+                    CachePageId prefetch_cachepage_id;
+                    do {
+                        prefetch_cachepage_id = -1;
+                        if (prefetch_filepage_id == -1)
+                            break;
+                        FilePageId evict_for_prefetch = this->__pop__zero_reffed_filepage_id();
+                        if (evict_for_prefetch == -1)
+                            break;
+                        prefetch_cachepage_id = this->__get__cachepage_id(evict_for_prefetch);
+                        ++(this->pages_ref[prefetch_cachepage_id]);
+                        this->__erase__filepage__mapping(evict_for_prefetch);
+                        this->__insert__filepage__mapping_to__cachepage(prefetch_filepage_id,
+                                prefetch_cachepage_id);
+
+                        this->pages[prefetch_cachepage_id]->assigned_to = prefetch_filepage_id;
+                    } while (0);
+
+                    prefetch_filepage_ids[follower] = prefetch_filepage_id;
+                    prefetch_cachepage_ids[follower] = prefetch_cachepage_id;
+
+                    if (prefetch_cachepage_id != -1)
+                        this->pages[prefetch_cachepage_id]->lock.acquire();
                 }
-
-                CachePageId prefetch_cachepage_id;
-                do {
-                    prefetch_cachepage_id = -1;
-                    if (prefetch_filepage_id == -1)
-                        break;
-                    FilePageId evict_for_prefetch = this->__pop__zero_reffed_filepage_id();
-                    if (evict_for_prefetch == -1)
-                        break;
-                    prefetch_cachepage_id = this->__get__cachepage_id(evict_for_prefetch);
-                    ++(this->pages_ref[prefetch_cachepage_id]);
-                    this->__erase__filepage__mapping(evict_for_prefetch);
-                    this->__insert__filepage__mapping_to__cachepage(prefetch_filepage_id,
-                            prefetch_cachepage_id);
-
-                    this->pages[prefetch_cachepage_id]->assigned_to = prefetch_filepage_id;
-                } while (0);
-
-                prefetch_filepage_ids[follower] = prefetch_filepage_id;
-                prefetch_cachepage_ids[follower] = prefetch_cachepage_id;
-
-                if (prefetch_cachepage_id != -1)
-		    this->pages[prefetch_cachepage_id]->lock.acquire();
             }
 
             __threadfence();
 
-            // Let followers prefetch.
-	    this->shfl_ptr_in_warp(0, prefetch_filepage_ids);
-	    this->shfl_ptr_in_warp(0, prefetch_cachepage_ids);
+            if (prefetch_cnt) {
+                // Let followers prefetch.
+                this->shfl_ptr_in_warp(0, prefetch_filepage_ids);
+                this->shfl_ptr_in_warp(0, prefetch_cachepage_ids);
+            } else {
+                // Let followers go.
+                this->shfl_ptr_in_warp(0, (FilePageId *)nullptr);
+                this->shfl_ptr_in_warp(0, (CachePageId *)nullptr);
+            }
 
             this->pagecache_lock.release();
 
-            __syncwarp();
+            if (prefetch_cnt) {
+                __syncwarp();
+            }
 
             this->pages[ret]->lock.acquire();
             this->pages[ret]->read_in__no_lock(this->info1, this->info2, this->info3);
             this->pages[ret]->lock.release();
 
-	    __syncwarp();
+            if (prefetch_cnt) {
+                __syncwarp();
 
-	    // Release prefetched pages
-	    this->pagecache_lock.acquire();
-	    for (int follower = 31; 0 < follower; follower--) {
-	        FilePageId prefetch_filepage_id = prefetch_filepage_ids[follower];
-	        CachePageId prefetch_cachepage_id = prefetch_cachepage_ids[follower];
-	        if (prefetch_cachepage_id == -1)
-	            continue;
+                // Release prefetched pages
+                this->pagecache_lock.acquire();
+                for (int follower = 31; 0 < follower; follower--) {
+                    FilePageId prefetch_filepage_id = prefetch_filepage_ids[follower];
+                    CachePageId prefetch_cachepage_id = prefetch_cachepage_ids[follower];
+                    if (prefetch_cachepage_id == -1)
+                        continue;
 
-	        if ((--(this->pages_ref[prefetch_cachepage_id])) == 0) {
-	            // The last one reffing the cachepage exits.
+                    if ((--(this->pages_ref[prefetch_cachepage_id])) == 0) {
+                        // The last one reffing the cachepage exits.
 
-	            PageCacheImpl__info1 *p = this->__pop__filepage_waiting_for_evicting();
-	            if (p) {
-	                // There is someone waiting for evicting
+                        PageCacheImpl__info1 *p = this->__pop__filepage_waiting_for_evicting();
+                        if (p) {
+                            // There is someone waiting for evicting
 
-		        printf("Prefeted filepage[%llx] is immediately evicted\n", prefetch_filepage_id);
-	                auto nr_waiting = p->nr_waiting;
-	                this->pages[prefetch_cachepage_id]->assigned_to = p->filepage_id;
-	                this->pages_ref[prefetch_cachepage_id] += nr_waiting;
-	                this->__erase__filepage__mapping(prefetch_filepage_id);
-	                this->__insert__filepage__mapping_to__cachepage(p->filepage_id, prefetch_cachepage_id);
-	                for (size_t i = 0; i < nr_waiting; i++)
-	                    p->wait_for_evicting.release();
-	            } else {
-	                // Nobody waits for evicting
-	                this->__insert__zero_reffed_filepage(prefetch_filepage_id);
-		    }
-	        }
+                            //printf("Prefeted filepage[%llx] is immediately evicted\n", prefetch_filepage_id);
+                            auto nr_waiting = p->nr_waiting;
+                            this->pages[prefetch_cachepage_id]->assigned_to = p->filepage_id;
+                            this->pages_ref[prefetch_cachepage_id] += nr_waiting;
+                            this->__erase__filepage__mapping(prefetch_filepage_id);
+                            this->__insert__filepage__mapping_to__cachepage(p->filepage_id, prefetch_cachepage_id);
+                            for (size_t i = 0; i < nr_waiting; i++)
+                                p->wait_for_evicting.release();
+                        } else {
+                            // Nobody waits for evicting
+                            this->__insert__zero_reffed_filepage(prefetch_filepage_id);
+                        }
+                    }
 
-	        this->pages[prefetch_cachepage_id]->lock.release();
-	    }
-	    this->pagecache_lock.release();
+                    this->pages[prefetch_cachepage_id]->lock.release();
+                }
+                this->pagecache_lock.release();
+            }
 
             return ret;
         }
@@ -419,7 +435,7 @@ private:
         // There is no page to be evicted now.
         // Waitting for a zero-reffed one.
 
-	printf("no page to be evicted, sleeping...\n");
+        //printf("no page to be evicted, sleeping...\n");
 
         PageCacheImpl__info1 *leaders_waiting_for_evicting =
             this->__is_filepage_waiting_for_evicting(filepage_id);
@@ -428,7 +444,7 @@ private:
         if (leaders_waiting_for_evicting == nullptr && !has_quota_to_wait) {
             this->pagecache_lock.release();
             __nanosleep(1000);
-            return this->__acquire_page_for_warp_leader(filepage_id);
+            return this->__acquire_page_for_warp_leader(filepage_id, prefetch_cnt);
         }
 
         if (leaders_waiting_for_evicting == nullptr && has_quota_to_wait) {
@@ -444,8 +460,8 @@ private:
         this->pagecache_lock.release();
 
         // Let followers go.
-	this->shfl_ptr_in_warp(0, (FilePageId *)nullptr);
-	this->shfl_ptr_in_warp(0, (CachePageId *)nullptr);
+        this->shfl_ptr_in_warp(0, (FilePageId *)nullptr);
+        this->shfl_ptr_in_warp(0, (CachePageId *)nullptr);
 
         // Sleep-------------------------------------------------------------------
         leaders_waiting_for_evicting->wait_for_evicting.acquire();
@@ -455,7 +471,7 @@ private:
         ret = this->__get__cachepage_id(filepage_id);
         assert(ret != -1);
 
-        printf("I want filepage[%llx], MISS, but being assigned cachepage[%llx]!\n", filepage_id, ret);
+        //printf("I want filepage[%llx], MISS, but being assigned cachepage[%llx]!\n", filepage_id, ret);
 
         auto cur_waiting = leaders_waiting_for_evicting->nr_waiting;
         if (cur_waiting == 1) {
@@ -474,7 +490,7 @@ private:
 
     __forceinline__ __device__ void
     __release_page_for_warp_leader(FilePageId filepage_id) {
-        printf("I want to release the page %llx\n", filepage_id);
+        //printf("I want to release the page %llx\n", filepage_id);
         this->pagecache_lock.acquire();
         CachePageId cachepage_id = this->__get__cachepage_id(filepage_id);
         if ((--(this->pages_ref[cachepage_id])) == 0) {
@@ -555,17 +571,21 @@ private:
     __insert__filepage__mapping_to__cachepage(FilePageId filepage_id,
                                               CachePageId cachepage_id) {
         //printf("change map! filepage[%llx]->cachepage[%llx]\n", filepage_id, cachepage_id);
-        this->filepage__to__cachepage[filepage_id] = cachepage_id;
+        if (filepage_id < this->nr_file_page)
+            this->filepage__to__cachepage[filepage_id] = cachepage_id;
     }
 
     __forceinline__ __device__ void
     __erase__filepage__mapping(FilePageId filepage_id) {
-        this->filepage__to__cachepage[filepage_id] = -1;
+        if (filepage_id < this->nr_file_page)
+            this->filepage__to__cachepage[filepage_id] = -1;
     }
 
     __forceinline__ __device__ CachePageId
     __get__cachepage_id(FilePageId filepage_id) {
-        return this->filepage__to__cachepage[filepage_id];
+        if (filepage_id < this->nr_file_page)
+            return this->filepage__to__cachepage[filepage_id];
+        return -1;
     }
 //-----------------------------------------------------------
     __forceinline__ __device__ void
@@ -720,6 +740,7 @@ device_xfer_geminifs_file(dev_fd_t fd,
 
 
 
+    int prefetch_cnt = 0;
 
     uint8_t *buf_dev = (uint8_t *)buf_dev_1;
 
@@ -738,7 +759,7 @@ device_xfer_geminifs_file(dev_fd_t fd,
     if (begin == inclusive_end) {
         // not across the boundary of pages and in one page copy
         if (tid == 0) {
-            CachePageId cachepage_id = pagecache->acquire_page__for_warp(begin);
+            CachePageId cachepage_id = pagecache->acquire_page__for_warp(begin, prefetch_cnt);
             uint8_t *cachepage_base = pagecache->get_raw_page_buf(cachepage_id);
             if (is_read) {
                 memcpy(buf_dev, cachepage_base + PAGE_OFST(va, page_bit_num), nbyte);
@@ -755,7 +776,7 @@ device_xfer_geminifs_file(dev_fd_t fd,
             // the first non-full page
             size_t n = PAGE_BASE__BY_ID(PAGE_ID(va, page_bit_num) + 1, page_bit_num) - va;
             if (tid == 0) {
-                CachePageId cachepage_id = pagecache->acquire_page__for_warp(begin);
+                CachePageId cachepage_id = pagecache->acquire_page__for_warp(begin, prefetch_cnt);
                 uint8_t *cachepage_base = pagecache->get_raw_page_buf(cachepage_id);
                 if (is_read) {
                     memcpy(buf_dev, cachepage_base + PAGE_OFST(va, page_bit_num), n);
@@ -774,7 +795,7 @@ device_xfer_geminifs_file(dev_fd_t fd,
             // the last non-full page
             size_t n = (va + nbyte) - PAGE_BASE(va + nbyte, page_bit_num);
             if (tid == 0) {
-                CachePageId cachepage_id = pagecache->acquire_page__for_warp(inclusive_end);
+                CachePageId cachepage_id = pagecache->acquire_page__for_warp(inclusive_end, prefetch_cnt);
                 uint8_t *cachepage_base = pagecache->get_raw_page_buf(cachepage_id);
                 uint8_t *dist_start = buf_dev + (nbyte - n);
                 if (is_read) {
@@ -829,17 +850,17 @@ device_xfer_geminifs_file(dev_fd_t fd,
     int page_size = PAGE_SIZE(page_bit_num);
 
 
-    size_t warp_id__overview = warp_id__in_block + nr_warp__per_block * block_id;
-    if (0 == my_lane_id()) {
-    printf("I'm warp %llx (in-block id %llx) threadIdx.x %llx, I account for [%llx, %llx)\n",
-            warp_id__overview, warp_id__in_block, threadIdx.x, begin__warp, exclusive_end__warp);
-    }
+    //size_t warp_id__overview = warp_id__in_block + nr_warp__per_block * block_id;
+    //if (0 == my_lane_id()) {
+    //printf("I'm warp %llx (in-block id %llx) threadIdx.x %llx, I account for [%llx, %llx)\n",
+    //        warp_id__overview, warp_id__in_block, threadIdx.x, begin__warp, exclusive_end__warp);
+    //}
 
     buf_dev = buf_dev + PAGE_BASE__BY_ID(begin__warp - begin, page_bit_num);
     for (FilePageId filepage_id = begin__warp;
             filepage_id < exclusive_end__warp;
             filepage_id++) {
-        CachePageId cachepage_id = pagecache->acquire_page__for_warp(filepage_id);
+        CachePageId cachepage_id = pagecache->acquire_page__for_warp(filepage_id, prefetch_cnt);
         uint8_t *cachepage_base = pagecache->get_raw_page_buf(cachepage_id);
         __syncwarp(participating_mask);
         if (is_read) {

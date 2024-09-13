@@ -119,7 +119,7 @@ public:
     ~PageCache() { }
 
     virtual __device__ CachePageId
-    acquire_page__for_warp(FilePageId filepage_id) = 0;
+    acquire_page__for_warp(FilePageId filepage_id, int prefetch_cnt) = 0;
 
     virtual __device__ void
     set_page_dirty__for_warp(CachePageId cachepage_id) = 0;

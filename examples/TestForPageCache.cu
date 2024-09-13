@@ -44,9 +44,10 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
 
 int
 main() {
-  size_t virtual_space_size = 256 * (1ull << 10)/*MB*/;
-  size_t page_capacity = 128 * (1ull << 10);
-  size_t dev_page_size = 4 * (1ull << 10)/*KB*/;
+  size_t nr_pages = 32 * 108;
+  size_t dev_page_size = 128 * (1ull << 10)/*KB*/;
+  size_t page_capacity = nr_pages * dev_page_size;
+  size_t virtual_space_size = page_capacity * 16;
 
   uint64_t *dev_buf1;
   uint64_t *dev_buf2;
@@ -58,7 +59,7 @@ main() {
 
   //device_xfer_geminifs_file<<<2, 32>>>(dev_fd, 0, dev_buf1, virtual_space_size, 0);
   //cudaDeviceSynchronize();
-  device_xfer_geminifs_file<<<2, 32>>>(dev_fd, 0, dev_buf2, virtual_space_size, 1);
+  device_xfer_geminifs_file<<<108, 32>>>(dev_fd, 0, dev_buf2, virtual_space_size, 1);
   cudaDeviceSynchronize();
 
   return 0;

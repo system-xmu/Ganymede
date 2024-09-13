@@ -77,12 +77,14 @@ main() {
             1024,
             64);
 
-  size_t virtual_space_size = 128 * (1ull << 20)/*MB*/;
   size_t file_block_size = 4 * (1ull << 10);
   size_t dev_page_size = 128 * (1ull << 10);
 
-  size_t nr_pages = 128;
-  size_t page_capacity = nr_pages * dev_page_size*2;
+
+  size_t nr_pages = 108 * 16;
+  //size_t virtual_space_size = 128 * (1ull << 20)/*MB*/;
+  size_t page_capacity = nr_pages * dev_page_size;
+  size_t virtual_space_size = page_capacity * 16;
 
   srand(time(0));
   int rand_start = rand();
