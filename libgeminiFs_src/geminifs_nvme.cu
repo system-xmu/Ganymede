@@ -30,7 +30,9 @@ public:
 
     __forceinline__ __device__ int
     acquire_queue() {
-        int queue = get_smid() % this->nr_queues;
+        int queue = (my_lane_id() * ((get_smid() % 24) + 1)) % this->nr_queues;
+        //int queue = get_smid() % this->nr_queues;
+        //printf("smid[%d] , lane[%d], queue[%d]\n", get_smid(), my_lane_id(), queue);
         return queue;
     }
 

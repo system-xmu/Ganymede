@@ -44,10 +44,10 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
 
 int
 main() {
-  size_t nr_pages = 32 * 108;
+  size_t nr_pages = 108;
   size_t dev_page_size = 128 * (1ull << 10)/*KB*/;
   size_t page_capacity = nr_pages * dev_page_size;
-  size_t virtual_space_size = page_capacity * 16;
+  size_t virtual_space_size = page_capacity * 108;
 
   uint64_t *dev_buf1;
   uint64_t *dev_buf2;

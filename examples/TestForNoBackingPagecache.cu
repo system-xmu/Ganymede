@@ -46,8 +46,8 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
 
 int
 main() {
-  int block_size = 4 * (1ull << 10); /* 32k */
-  size_t capacity = 16 * (1ull << 30); /* 16G */
+  int block_size = 16 * (1ull << 10); /* 32k */
+  size_t capacity = 128 * (1ull << 20); /* 16G */
 
 
   int nr_warps = 108;
@@ -60,7 +60,7 @@ main() {
   dev_fd_t dev_fd =
       host_open_geminifs_file_for_device_without_backing_file(block_size, capacity);
 
-  size_t buf_size = 1 * (1ull << 30); /* 1G */
+  size_t buf_size = 128 * (1ull << 10); /* 1G */
 
   uint64_t *whole_host_buf = (uint64_t *)malloc(capacity);
   uint64_t *another_whole_host_buf = (uint64_t *)malloc(capacity);
