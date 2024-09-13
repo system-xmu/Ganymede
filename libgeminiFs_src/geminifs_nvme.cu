@@ -39,7 +39,7 @@ public:
     }
 
     __forceinline__ __device__ void
-    issuing_nvme_cmd(
+    issue_nvme_cmd(
             Controller *ctrl,
             int queue,
             nvme_ofst_t nvme_ofst,
@@ -182,7 +182,7 @@ private:
 
         int queue = queue_acquire_helper->acquire_queue();
         for (int cmd_idx = 0; cmd_idx < this->nr_nvme_cmds; cmd_idx++) {
-            queue_acquire_helper->issuing_nvme_cmd(ctrl, queue,
+            queue_acquire_helper->issue_nvme_cmd(ctrl, queue,
                     this->nvme_cmds[cmd_idx].nvme_ofst,
                     this->nvme_cmds[cmd_idx].ioaddr,
                     this->prp_list_ioaddr_base__of_cur_page,

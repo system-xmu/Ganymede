@@ -168,37 +168,31 @@ public:
     }
 
     __device__ CachePageId
-    acquire_page(FilePageId filepage_id, uint32_t participating_mask) {
+    acquire_page__for_warp(FilePageId filepage_id) {
         CachePageId cachepage_id;
-        uint32_t mask = participating_mask;
-        mask = __match_any_sync(mask, (uint64_t)this);
-        mask = __match_any_sync(mask, filepage_id);
-        uint32_t warp_leader = __ffs(mask) - 1;
+        uint32_t participating_mask = 0xffffffff;
+        uint32_t warp_leader = 0;
         int lane = my_lane_id();
         if (lane == warp_leader) {
             cachepage_id = this->__acquire_page_for_warp_leader(filepage_id);
+        } else {
+            this->__acquire_page_for_warp_follower();
         }
-        cachepage_id = __shfl_sync(mask, cachepage_id, warp_leader);
+        cachepage_id = __shfl_sync(participating_mask, cachepage_id, warp_leader);
         return cachepage_id;
     }
 
     __device__ void
-    set_page_dirty(CachePageId cachepage_id) {
-        uint32_t mask = __activemask();
-        mask = __match_any_sync(mask, (uint64_t)this);
-        mask = __match_any_sync(mask, cachepage_id);
-        uint32_t warp_leader = __ffs(mask) - 1;
+    set_page_dirty__for_warp(CachePageId cachepage_id) {
+        uint32_t warp_leader = 0;
         int lane = my_lane_id();
         if (lane == warp_leader)
             this->pages[cachepage_id]->set_dirty();
     }
 
     __device__ void
-    release_page(FilePageId filepage_id, uint32_t participating_mask) {
-        uint32_t mask = participating_mask;
-        mask = __match_any_sync(mask, (uint64_t)this);
-        mask = __match_any_sync(mask, filepage_id);
-        uint32_t warp_leader = __ffs(mask) - 1;
+    release_page__for_warp(FilePageId filepage_id) {
+        uint32_t warp_leader = 0;
         int lane = my_lane_id();
         if (lane == warp_leader)
             this->__release_page_for_warp_leader(filepage_id);
@@ -252,11 +246,20 @@ public:
         return __popc(this->page_size - 1);
     }
 private:
+    __forceinline__ __device__ void
+    __acquire_page_for_warp_follower(int warp_leader) {
+    }
+
     __forceinline__ __device__ CachePageId
     __acquire_page_for_warp_leader(FilePageId filepage_id) {
         CachePageId ret;
 
         this->pagecache_lock.acquire();
+
+        // Assertion 1: If there is any zero-reffed page, nobody is waiting for evicting.
+        // Assertion 2: If someone is waiting for evicting, there is not zero-reffed page.
+        // Assertion 3: If the ref count of a cachepage is greater than 0,
+        //              all the transactions about that cachepage are about the same filepage.
 
         ret = this->__get__cachepage_id(filepage_id);
         if (ret != -1) {
@@ -293,12 +296,43 @@ private:
 
             this->pages[ret]->assigned_to = filepage_id;
 
+            FilePageId prefetch_filepage_ids[32];
+            CachePageId prefetch_cachepage_ids[32];
+            for (int follower = 1; follower < 32; follower++) {
+                FilePageId prefetch_filepage_id = filepage_id + follower;
+                if (-1 != this->__get__cachepage_id(prefetch_filepage_id)) {
+                    /* Hit! It need not be prefetched */
+                    prefetch_filepage_id = -1;
+                }
+
+                CachePageId prefetch_cachepage_id;
+                do {
+                    prefetch_cachepage_id = -1;
+                    if (prefetch_filepage_id == -1)
+                        break;
+                    FilePageId evict_for_prefetch = this->__pop__zero_reffed_filepage_id();
+                    if (evict_for_prefetch == -1)
+                        break;
+                    prefetch_cachepage_id = this->__get__cachepage_id(evict_for_prefetch);
+                    ++(this->pages_ref[prefetch_cachepage_id]);
+                    this->__erase__filepage__mapping(evict_for_prefetch);
+                    this->__insert__filepage__mapping_to__cachepage(prefetch_filepage_id,
+                            prefetch_cachepage_id);
+
+                    this->pages[prefetch_cachepage_id]->assigned_to = prefetch_filepage_id;
+                } while (0);
+
+                prefetch_filepage_ids[follower] = prefetch_filepage_id;
+                prefetch_cachepage_ids[follower] = prefetch_cachepage_id;
+            }
+
             __threadfence();
             this->pagecache_lock.release();
 
             this->pages[ret]->lock.acquire();
             this->pages[ret]->read_in__no_lock(this->info1, this->info2, this->info3);
             this->pages[ret]->lock.release();
+
             //printf("I want filepage[%llx], find a zero-reffed cachepage[%llx] to be evicted!\n", filepage_id, ret);
             return ret;
         }

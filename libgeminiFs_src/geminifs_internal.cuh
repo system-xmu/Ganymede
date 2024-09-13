@@ -119,13 +119,13 @@ public:
     ~PageCache() { }
 
     virtual __device__ CachePageId
-    acquire_page(FilePageId filepage_id, uint32_t participating_mask) = 0;
+    acquire_page__for_warp(FilePageId filepage_id) = 0;
 
     virtual __device__ void
-    set_page_dirty(CachePageId cachepage_id) = 0;
+    set_page_dirty__for_warp(CachePageId cachepage_id) = 0;
 
     virtual __device__ void
-    release_page(FilePageId filepage_id, uint32_t participating_mask) = 0;
+    release_page__for_warp(FilePageId filepage_id) = 0;
 
     virtual __device__ void
     sync() = 0;
