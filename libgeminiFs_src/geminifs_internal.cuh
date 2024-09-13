@@ -102,7 +102,7 @@ public:
     enum CachePage_State state;
     cuda::binary_semaphore<cuda::thread_scope_device> lock;
 
-    void * buf;
+    void *buf;
     const int page_size;
     const int never_evicted;
 private:
