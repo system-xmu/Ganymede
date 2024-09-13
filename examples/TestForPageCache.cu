@@ -44,9 +44,9 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
 
 int
 main() {
-  size_t virtual_space_size = 256 * (1ull << 20)/*GB*/;
-  size_t page_capacity = 128 * (1ull << 20);
-  size_t dev_page_size = 4096;
+  size_t virtual_space_size = 256 * (1ull << 10)/*MB*/;
+  size_t page_capacity = 128 * (1ull << 10);
+  size_t dev_page_size = 4 * (1ull << 10)/*KB*/;
 
   uint64_t *dev_buf1;
   uint64_t *dev_buf2;
@@ -56,9 +56,9 @@ main() {
 
   dev_fd_t dev_fd = host_get_pagecache__for_test_evicting(virtual_space_size, page_capacity, dev_page_size);
 
-  device_xfer_geminifs_file<<<108, 32>>>(dev_fd, 0, dev_buf1, virtual_space_size, 0);
-  cudaDeviceSynchronize();
-  device_xfer_geminifs_file<<<108, 32>>>(dev_fd, 0, dev_buf2, virtual_space_size, 1);
+  //device_xfer_geminifs_file<<<2, 32>>>(dev_fd, 0, dev_buf1, virtual_space_size, 0);
+  //cudaDeviceSynchronize();
+  device_xfer_geminifs_file<<<2, 32>>>(dev_fd, 0, dev_buf2, virtual_space_size, 1);
   cudaDeviceSynchronize();
 
   return 0;
