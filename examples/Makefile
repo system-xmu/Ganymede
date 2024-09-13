@@ -1,4 +1,4 @@
-NVCCFLAGS=-arch=sm_80 -I../libgeminiFs_src -O3
+NVCCFLAGS=-arch=sm_80 -I../libgeminiFs_src -I../src/include -I../src/ -I../src/linux -I../src/freestanding/include -O3
 LDFLAGS=-L../build/lib -Xlinker -rpath=$(shell pwd)/../build/lib -lgeminiFs -lnvm -arch=sm_80
 
 all: TestForNoBackingPagecache.exe TestForNvmeBacking.exe TestForPageCache.exe TestForNvmeofstRefining.exe
@@ -17,3 +17,6 @@ TestForNoBackingPagecache.exe: TestForNoBackingPagecache.cu
 
 TestForPageCache.exe: TestForPageCache.cu
 	nvcc $(LDFLAGS) $(NVCCFLAGS) TestForPageCache.cu -o TestForPageCache.exe
+
+TestForODIRECT.exe: TestForODIRECT.cu
+	nvcc $(LDFLAGS) $(NVCCFLAGS) TestForODIRECT.cu -o TestForODIRECT.exe

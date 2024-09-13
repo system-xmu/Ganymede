@@ -4,6 +4,8 @@
 #include <ctime>
 #include "geminifs_api.cuh"
 
+__global__ void warmup() {}
+
 struct GpuTimer
 {
       cudaEvent_t start;
@@ -63,6 +65,9 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
 
 int
 main() {
+      warmup<<<1, 1>>>();
+      cudaDeviceSynchronize();
+
     host_open_all(
             snvme_control_path,
             snvme_path,
@@ -72,12 +77,12 @@ main() {
             1024,
             64);
 
-  size_t virtual_space_size = 512 * (1ull << 20)/*MB*/;
+  size_t virtual_space_size = 128 * (1ull << 20)/*MB*/;
   size_t file_block_size = 4 * (1ull << 10);
   size_t dev_page_size = 128 * (1ull << 10);
 
   size_t nr_pages = 128;
-  size_t page_capacity = nr_pages * dev_page_size;
+  size_t page_capacity = nr_pages * dev_page_size*2;
 
   srand(time(0));
   int rand_start = rand();

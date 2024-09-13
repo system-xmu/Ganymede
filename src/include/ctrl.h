@@ -131,7 +131,7 @@ inline Controller::Controller(const char* snvme_control_path, const char* snvme_
    
     // n_qps = std::min(n_sqs, n_cqs);
     // n_qps = std::min(n_qps, (uint16_t)numQueues);
-    uint16_t max_queue = 64;
+    uint16_t max_queue = 75;
     n_qps = std::min(max_queue, (uint16_t)numQueues);
     n_sqs = n_qps;
     n_cqs = n_qps;
