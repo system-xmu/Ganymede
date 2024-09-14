@@ -29,13 +29,8 @@ extern union geminiFS_magic {
 typedef int fd_t;
 typedef struct geminiFS_hdr *host_fd_t;
 
-//using dev_fd_t = Class PageCache *;
+//using dev_fd_t = Class PageCache **;
 typedef void *dev_fd_t;
-//typedef struct {
-//  nvme_ofst_t *l1__dev;
-//  int block_bit;
-//  uint64_t nr_l1;
-//} dev_fd_t;
 
 //-----------------host only------------------
 extern void

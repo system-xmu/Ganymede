@@ -268,8 +268,8 @@ private:
         CachePageId prefetch_cachepage_id = prefetch_cachepage_ids[lane];
 
         if (prefetch_filepage_id != -1 && prefetch_cachepage_id != -1) {
-            printf("I'm follower[%d] filepage_id[%llx] cachepage_id[%llx]\n",
-                    lane, prefetch_filepage_id, prefetch_cachepage_id);
+            //printf("I'm follower[%d] filepage_id[%llx] cachepage_id[%llx]\n",
+            //        lane, prefetch_filepage_id, prefetch_cachepage_id);
             __syncwarp();
             this->pages[prefetch_cachepage_id]->lock.acquire();
             this->pages[prefetch_cachepage_id]->read_in__no_lock(this->info1, this->info2, this->info3);
@@ -299,7 +299,7 @@ private:
 
         ret = this->__get__cachepage_id(filepage_id);
         if (ret != -1) {
-            printf("I want filepage[%llx], HIT! cachepage[%llx]\n", filepage_id, ret);
+            //printf("I want filepage[%llx], HIT! cachepage[%llx]\n", filepage_id, ret);
             // Page Hit!
             size_t cur_ref = (++(this->pages_ref[ret]));
             if (cur_ref == 1)
@@ -320,7 +320,7 @@ private:
             return 1;
         }
 
-        printf("I want filepage[%llx], MISS!\n", filepage_id);
+        //printf("I want filepage[%llx], MISS!\n", filepage_id);
 
         // Miss
         // ret == -1
@@ -831,7 +831,7 @@ device_xfer_geminifs_file(dev_fd_t fd,
     //        warp_id__overview, warp_id__in_block, threadIdx.x, begin__warp, exclusive_end__warp);
     //}
 
-    int nr_acquire_pages = 16;
+    int nr_acquire_pages = NR_ACQUIRE_PAGES;
     __shared__ FilePageId filepage_ids[32];
     __shared__ CachePageId cachepage_ids[32];
 
@@ -879,6 +879,138 @@ device_xfer_geminifs_file(dev_fd_t fd,
         }
 
     }
+}
+
+__global__ void
+device_xfer_geminifs_file__batching_pagecache(dev_fd_t *dev_fds,
+                          vaddr_t va,
+                          void *buf_dev_1,
+                          size_t nbyte,
+                          int is_read) {
+    size_t nr_block = gridDim.x;
+    size_t block_id = blockIdx.x;
+    size_t nr_thread_per_block = blockDim.x;
+    size_t nr_warp__per_block = nr_thread_per_block / 32;
+    size_t warp_id__in_block = threadIdx.x / 32;
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+
+    assert(0 < nr_warp__per_block); // Every warp must hold 32 threads
+
+    if (nr_warp__per_block <= warp_id__in_block)
+        // drop less-32-thread warp
+        return;
+
+    __syncwarp();
+    size_t nr_thread_in_the_warp = __popc(__activemask());
+    assert(nr_thread_in_the_warp == 32);
+
+
+
+
+    uint8_t *buf_dev = (uint8_t *)buf_dev_1;
+
+    PageCache *pagecache = (PageCache *)dev_fds[block_id];
+    int page_bit_num = pagecache->get_page_bit_num();
+
+    FilePageId begin = PAGE_ID(va, page_bit_num);
+    FilePageId exclusive_end = PAGE_ID(va + nbyte, page_bit_num);
+    FilePageId inclusive_end = exclusive_end - 1;
+
+    assert(PAGE_OFST(va, page_bit_num) == 0);
+    assert(PAGE_OFST(va + nbyte, page_bit_num) == 0);
+
+    begin = PAGE_ID(va, page_bit_num);
+    exclusive_end = PAGE_ID(va + nbyte, page_bit_num);
+
+
+    size_t nr_page = exclusive_end - begin;
+    size_t nr_page__per_block = nr_page / nr_block;
+    if (nr_page % nr_block != 0)
+        nr_page__per_block++;
+
+    FilePageId begin__block = begin + block_id * nr_page__per_block;
+    FilePageId exclusive_end__block = begin__block + nr_page__per_block;
+    if (exclusive_end <= begin__block)
+        return;
+
+    if (exclusive_end < exclusive_end__block)
+        exclusive_end__block = exclusive_end;
+
+    size_t nr_page__block = exclusive_end__block - begin__block;
+    size_t nr_page__per_warp = nr_page__block / nr_warp__per_block;
+    if (nr_page__block % nr_warp__per_block != 0)
+        nr_page__per_warp++;
+
+    FilePageId begin__warp = begin__block + warp_id__in_block * nr_page__per_warp;
+    FilePageId exclusive_end__warp = begin__warp + nr_page__per_warp;
+    if (exclusive_end__block <= begin__warp)
+        return;
+
+    if (exclusive_end__block < exclusive_end__warp)
+        exclusive_end__warp = exclusive_end__block;
+
+    __syncwarp();
+    uint32_t participating_mask = __activemask();
+    participating_mask = __match_any_sync(participating_mask, begin__warp);
+    int page_size = PAGE_SIZE(page_bit_num);
+
+
+    //size_t warp_id__overview = warp_id__in_block + nr_warp__per_block * block_id;
+    //if (0 == my_lane_id()) {
+    //printf("I'm warp %llx (in-block id %llx) threadIdx.x %llx, I account for [%llx, %llx)\n",
+    //        warp_id__overview, warp_id__in_block, threadIdx.x, begin__warp, exclusive_end__warp);
+    //}
+
+
+    int nr_acquire_pages = NR_ACQUIRE_PAGES;
+    __shared__ FilePageId filepage_ids[32];
+    __shared__ CachePageId cachepage_ids[32];
+
+    buf_dev = buf_dev + PAGE_BASE__BY_ID(begin__warp - begin, page_bit_num);
+    for (FilePageId filepage_id = begin__warp;
+            filepage_id < exclusive_end__warp;
+            ) {
+        size_t i;
+        for (i = 0;
+                i < nr_acquire_pages && filepage_id + i < exclusive_end__warp;
+                i++) {
+            filepage_ids[i] = filepage_id + i;
+        }
+        int nr_have_been_acquires = pagecache->acquire_pages__for_warp(
+                filepage_ids,
+                cachepage_ids,
+                i);
+        filepage_id += nr_have_been_acquires;
+
+        for (i = 0; i < nr_have_been_acquires; i++) {
+            FilePageId cur_filepage_id = filepage_ids[i];
+            CachePageId cachepage_id = cachepage_ids[i];
+            uint8_t *cachepage_base = pagecache->get_raw_page_buf(cachepage_id);
+            __syncwarp();
+            if (is_read) {
+                uint8_t *raw_page = cachepage_base;
+                uint8_t *buf_dev_1 = buf_dev;
+                for (size_t i = 0; i < page_size / 4096; i++) {
+                    warp_memcpy_4kB(buf_dev_1, raw_page, participating_mask);
+                    buf_dev_1 += 4096;
+                    raw_page += 4096;
+                }
+            } else {
+                uint8_t *raw_page = cachepage_base;
+                uint8_t *buf_dev_1 = buf_dev;
+                for (size_t i = 0; i < page_size / 4096; i++) {
+                    warp_memcpy_4kB(raw_page, buf_dev_1, participating_mask);
+                    buf_dev_1 += 4096;
+                    raw_page += 4096;
+                }
+                pagecache->set_page_dirty__for_warp(cachepage_id);
+            }
+            pagecache->release_page__for_warp(cur_filepage_id);
+            buf_dev += PAGE_SIZE(page_bit_num);
+        }
+
+    }
+
 }
 
 __global__ void
