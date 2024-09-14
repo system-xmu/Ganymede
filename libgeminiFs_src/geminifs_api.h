@@ -29,7 +29,7 @@ extern union geminiFS_magic {
 typedef int fd_t;
 typedef struct geminiFS_hdr *host_fd_t;
 
-//using dev_fd_t = Class PageCache **;
+//using dev_fd_t = PageCache *;
 typedef void *dev_fd_t;
 
 //-----------------host only------------------
@@ -77,7 +77,8 @@ host_open_geminifs_file_for_device(
 extern dev_fd_t
 host_open_geminifs_file_for_device_without_backing_file(
         int page_size,
-        uint64_t pagecache_capacity);
+        uint64_t pagecache_capacity,
+        int pagecache_batching_size);
 
 extern dev_fd_t
 host_get_pagecache__for_test_evicting(

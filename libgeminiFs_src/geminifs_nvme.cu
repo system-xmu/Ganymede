@@ -225,115 +225,110 @@ host_close_all() {
     delete ctrl;
 }
 
-dev_fd_t
-host_open_geminifs_file_for_device(
-        host_fd_t host_fd,
-        uint64_t pagecache_capacity,
-        int page_size) {
-    struct geminiFS_hdr *hdr = host_fd;
-
-    int file_block_size = 1 << hdr->block_bit;
-
-    assert(file_block_size <= 128 * (1ull << 10)/*kB*/);
-    assert((file_block_size <= page_size) && (page_size % file_block_size == 0));
-
-    struct geminiFS_hdr *hdr__dev;
-    gpuErrchk(cudaMallocManaged(&hdr__dev, hdr->first_block_base));
-    assert((off_t)(-1) != lseek(hdr->fd, 0, SEEK_SET));
-    assert(hdr->first_block_base == read(hdr->fd, hdr__dev, hdr->first_block_base));
-
-    size_t nr_page = pagecache_capacity / page_size;
-
-    CachePage_NvmeBacking *cachepage_structures;
-    gpuErrchk(cudaMallocManaged(&cachepage_structures, sizeof(CachePage_NvmeBacking) * nr_page));
-    auto *the_first_cachepage = cachepage_structures + 0;
-
-    CachePage **pages;
-    gpuErrchk(cudaMalloc(&pages, sizeof(CachePage *) * nr_page));
-
-    int nr_queues = ctrl->n_qps;
-    QueueAcquireHelper *queue_acquire_helper;
-    gpuErrchk(cudaMalloc(&queue_acquire_helper, sizeof(QueueAcquireHelper)));
-
-    RUN_ON_DEVICE({
-        for (size_t i = 0; i < nr_page; i++) {
-            auto *cachepage = cachepage_structures + i;
-            pages[i] = new (cachepage) CachePage_NvmeBacking (page_size);
-        }
-        new (queue_acquire_helper) QueueAcquireHelper (nr_queues);
-    });
-
-    int device;
-    gpuErrchk(cudaGetDevice(&device));
-
-    size_t max_nvme_cmds = page_size / file_block_size;
-    struct nvme_cmd__addr *total_nvme_cmds;
-    uint16_t *total_cids;
-    uint16_t *total_sq_poss;
-    gpuErrchk(cudaMalloc(&total_nvme_cmds, sizeof(struct nvme_cmd__addr) * max_nvme_cmds * nr_page));
-    gpuErrchk(cudaMalloc(&total_cids, sizeof(uint16_t) * max_nvme_cmds * nr_page));
-    gpuErrchk(cudaMalloc(&total_sq_poss, sizeof(uint16_t) * max_nvme_cmds * nr_page));
-
-    the_first_cachepage->gpu_buffer = createDma(ctrl->ctrl, page_size * nr_page, device);
-    uint64_t total_buf_va_base = (uint64_t)the_first_cachepage->gpu_buffer->vaddr;
-    uint64_t total_buf_ioaddr_base = the_first_cachepage->gpu_buffer->ioaddrs[0];
-    for (size_t i = 0; i < nr_page; i++) {
-        auto *cachepage = cachepage_structures + i;
-        cachepage->buf = (void *)(total_buf_va_base + i * page_size);
-        cachepage->ioaddr = total_buf_ioaddr_base + i * page_size;
-        cachepage->hqps_block_size_log = ctrl->h_qps[0]->block_size_log;
-
-        cachepage->max_nvme_cmds = max_nvme_cmds;
-        cachepage->nr_nvme_cmds = 0;
-        cachepage->cur_filepage_id__for_nvme_cmd = -1;
-
-        cachepage->nvme_cmds = total_nvme_cmds + max_nvme_cmds * i;
-        cachepage->cids = total_cids + max_nvme_cmds * i;
-        cachepage->sq_poss = total_sq_poss + max_nvme_cmds * i;
-    }
-
-    size_t nvme_page_size = ctrl->ctrl->page_size;
-    size_t nr_nvme_pages__per_page = page_size / nvme_page_size;
-    size_t nr_nvme_pages = nr_nvme_pages__per_page * nr_page;
-    the_first_cachepage->prp_list__of_total_pages = createDma(ctrl->ctrl,
-            sizeof(uint64_t) * nr_nvme_pages,
-            device);
-    uint64_t *dev_ptr__ioaddrs = (uint64_t *)the_first_cachepage->prp_list__of_total_pages->vaddr;
-    uint64_t total_prp_list__ioaddr_base = the_first_cachepage->prp_list__of_total_pages->ioaddrs[0];
-
-    RUN_ON_DEVICE({
-        for (size_t idx_page = 0; idx_page < nr_page; idx_page++) {
-            auto *cachepage = cachepage_structures + idx_page;
-            auto page_ioaddr_base = cachepage->ioaddr;
-            for (size_t idx_nvme_page__in_page = 0;
-                    idx_nvme_page__in_page < nr_nvme_pages__per_page;
-                    idx_nvme_page__in_page++) {
-                dev_ptr__ioaddrs[idx_page * nr_nvme_pages__per_page + idx_nvme_page__in_page] = 
-                    page_ioaddr_base + idx_nvme_page__in_page * nvme_page_size;
-            }
-            cachepage->prp_list_ioaddr_base__of_cur_page = total_prp_list__ioaddr_base + sizeof(uint64_t) * idx_page * nr_nvme_pages__per_page;
-        }
-    });
-
-
-    return __internal__get_pagecache(pagecache_capacity,
-            page_size,
-            hdr->virtual_space_size,
-            pages,
-            nr_queues,
-            ctrl->d_ctrl_ptr, hdr__dev, queue_acquire_helper);
-}
+//dev_fd_t
+//host_open_geminifs_file_for_device(
+//        host_fd_t host_fd,
+//        uint64_t pagecache_capacity,
+//        int page_size) {
+//    struct geminiFS_hdr *hdr = host_fd;
+//
+//    int file_block_size = 1 << hdr->block_bit;
+//
+//    assert(file_block_size <= 128 * (1ull << 10)/*kB*/);
+//    assert((file_block_size <= page_size) && (page_size % file_block_size == 0));
+//
+//    struct geminiFS_hdr *hdr__dev;
+//    gpuErrchk(cudaMallocManaged(&hdr__dev, hdr->first_block_base));
+//    assert((off_t)(-1) != lseek(hdr->fd, 0, SEEK_SET));
+//    assert(hdr->first_block_base == read(hdr->fd, hdr__dev, hdr->first_block_base));
+//
+//    size_t nr_page = pagecache_capacity / page_size;
+//
+//    CachePage_NvmeBacking *cachepage_structures;
+//    gpuErrchk(cudaMallocManaged(&cachepage_structures, sizeof(CachePage_NvmeBacking) * nr_page));
+//    auto *the_first_cachepage = cachepage_structures + 0;
+//
+//    CachePage **pages;
+//    gpuErrchk(cudaMalloc(&pages, sizeof(CachePage *) * nr_page));
+//
+//    int nr_queues = ctrl->n_qps;
+//    QueueAcquireHelper *queue_acquire_helper;
+//    gpuErrchk(cudaMalloc(&queue_acquire_helper, sizeof(QueueAcquireHelper)));
+//
+//    RUN_ON_DEVICE({
+//        for (size_t i = 0; i < nr_page; i++) {
+//            auto *cachepage = cachepage_structures + i;
+//            pages[i] = new (cachepage) CachePage_NvmeBacking (page_size);
+//        }
+//        new (queue_acquire_helper) QueueAcquireHelper (nr_queues);
+//    });
+//
+//    int device;
+//    gpuErrchk(cudaGetDevice(&device));
+//
+//    size_t max_nvme_cmds = page_size / file_block_size;
+//    struct nvme_cmd__addr *total_nvme_cmds;
+//    uint16_t *total_cids;
+//    uint16_t *total_sq_poss;
+//    gpuErrchk(cudaMalloc(&total_nvme_cmds, sizeof(struct nvme_cmd__addr) * max_nvme_cmds * nr_page));
+//    gpuErrchk(cudaMalloc(&total_cids, sizeof(uint16_t) * max_nvme_cmds * nr_page));
+//    gpuErrchk(cudaMalloc(&total_sq_poss, sizeof(uint16_t) * max_nvme_cmds * nr_page));
+//
+//    the_first_cachepage->gpu_buffer = createDma(ctrl->ctrl, page_size * nr_page, device);
+//    uint64_t total_buf_va_base = (uint64_t)the_first_cachepage->gpu_buffer->vaddr;
+//    uint64_t total_buf_ioaddr_base = the_first_cachepage->gpu_buffer->ioaddrs[0];
+//    for (size_t i = 0; i < nr_page; i++) {
+//        auto *cachepage = cachepage_structures + i;
+//        cachepage->buf = (void *)(total_buf_va_base + i * page_size);
+//        cachepage->ioaddr = total_buf_ioaddr_base + i * page_size;
+//        cachepage->hqps_block_size_log = ctrl->h_qps[0]->block_size_log;
+//
+//        cachepage->max_nvme_cmds = max_nvme_cmds;
+//        cachepage->nr_nvme_cmds = 0;
+//        cachepage->cur_filepage_id__for_nvme_cmd = -1;
+//
+//        cachepage->nvme_cmds = total_nvme_cmds + max_nvme_cmds * i;
+//        cachepage->cids = total_cids + max_nvme_cmds * i;
+//        cachepage->sq_poss = total_sq_poss + max_nvme_cmds * i;
+//    }
+//
+//    size_t nvme_page_size = ctrl->ctrl->page_size;
+//    size_t nr_nvme_pages__per_page = page_size / nvme_page_size;
+//    size_t nr_nvme_pages = nr_nvme_pages__per_page * nr_page;
+//    the_first_cachepage->prp_list__of_total_pages = createDma(ctrl->ctrl,
+//            sizeof(uint64_t) * nr_nvme_pages,
+//            device);
+//    uint64_t *dev_ptr__ioaddrs = (uint64_t *)the_first_cachepage->prp_list__of_total_pages->vaddr;
+//    uint64_t total_prp_list__ioaddr_base = the_first_cachepage->prp_list__of_total_pages->ioaddrs[0];
+//
+//    RUN_ON_DEVICE({
+//        for (size_t idx_page = 0; idx_page < nr_page; idx_page++) {
+//            auto *cachepage = cachepage_structures + idx_page;
+//            auto page_ioaddr_base = cachepage->ioaddr;
+//            for (size_t idx_nvme_page__in_page = 0;
+//                    idx_nvme_page__in_page < nr_nvme_pages__per_page;
+//                    idx_nvme_page__in_page++) {
+//                dev_ptr__ioaddrs[idx_page * nr_nvme_pages__per_page + idx_nvme_page__in_page] = 
+//                    page_ioaddr_base + idx_nvme_page__in_page * nvme_page_size;
+//            }
+//            cachepage->prp_list_ioaddr_base__of_cur_page = total_prp_list__ioaddr_base + sizeof(uint64_t) * idx_page * nr_nvme_pages__per_page;
+//        }
+//    });
+//
+//
+//    return __internal__get_pagecache(pagecache_capacity,
+//            page_size,
+//            hdr->virtual_space_size,
+//            pages,
+//            nr_queues,
+//            ctrl->d_ctrl_ptr, hdr__dev, queue_acquire_helper);
+//}
 
 class CachePage_TestForPageCache: public CachePage {
 public:
     __device__
     CachePage_TestForPageCache(int page_size): CachePage(page_size, nullptr, 0) { }
 private:
-    __device__ __forceinline__ nvme_ofst_t
-    __get_nvmeofst(struct geminiFS_hdr *hdr, vaddr_t va) {
-        return 0;
-    }
-
     __device__ void
     __write_back(FilePageId filepage_id, void *ctrl, void *hdr, void *queue_acquire_helper) {
         this->__xfer(filepage_id, ctrl, hdr, queue_acquire_helper, 1);
@@ -356,39 +351,39 @@ private:
     }
 };
 
-dev_fd_t
-host_get_pagecache__for_test_evicting(
-        uint64_t fake_file_size,
-        uint64_t pagecache_capacity,
-        int page_size) {
-    size_t nr_page = pagecache_capacity / page_size;
-
-    uint8_t *all_raw_pages;
-    gpuErrchk(cudaMalloc(&all_raw_pages, nr_page * page_size));
-
-    CachePage_TestForPageCache *cachepage_structures;
-    gpuErrchk(cudaMallocManaged(&cachepage_structures, sizeof(CachePage_TestForPageCache) * nr_page));
-
-    CachePage **pages;
-    gpuErrchk(cudaMalloc(&pages, sizeof(CachePage *) * nr_page));
-
-    int nr_queues = 32;
-    QueueAcquireHelper *queue_acquire_helper;
-    gpuErrchk(cudaMalloc(&queue_acquire_helper, sizeof(QueueAcquireHelper)));
-
-    RUN_ON_DEVICE({
-        for (size_t i = 0; i < nr_page; i++) {
-            auto *cachepage = cachepage_structures + i;
-            pages[i] = new (cachepage) CachePage_TestForPageCache (page_size);
-            cachepage->buf = all_raw_pages + i * page_size;
-        }
-        new (queue_acquire_helper) QueueAcquireHelper (nr_queues);
-    });
-
-    return __internal__get_pagecache(pagecache_capacity,
-            page_size,
-            fake_file_size,
-            pages,
-            nr_queues,
-            nullptr, nullptr, queue_acquire_helper);
-}
+//dev_fd_t
+//host_get_pagecache__for_test_evicting(
+//        uint64_t fake_file_size,
+//        uint64_t pagecache_capacity,
+//        int page_size) {
+//    size_t nr_page = pagecache_capacity / page_size;
+//
+//    uint8_t *all_raw_pages;
+//    gpuErrchk(cudaMalloc(&all_raw_pages, nr_page * page_size));
+//
+//    CachePage_TestForPageCache *cachepage_structures;
+//    gpuErrchk(cudaMallocManaged(&cachepage_structures, sizeof(CachePage_TestForPageCache) * nr_page));
+//
+//    CachePage **pages;
+//    gpuErrchk(cudaMalloc(&pages, sizeof(CachePage *) * nr_page));
+//
+//    int nr_queues = 32;
+//    QueueAcquireHelper *queue_acquire_helper;
+//    gpuErrchk(cudaMalloc(&queue_acquire_helper, sizeof(QueueAcquireHelper)));
+//
+//    RUN_ON_DEVICE({
+//        for (size_t i = 0; i < nr_page; i++) {
+//            auto *cachepage = cachepage_structures + i;
+//            pages[i] = new (cachepage) CachePage_TestForPageCache (page_size);
+//            cachepage->buf = all_raw_pages + i * page_size;
+//        }
+//        new (queue_acquire_helper) QueueAcquireHelper (nr_queues);
+//    });
+//
+//    return __internal__get_pagecache(pagecache_capacity,
+//            page_size,
+//            fake_file_size,
+//            pages,
+//            nr_queues,
+//            nullptr, nullptr, queue_acquire_helper);
+//}

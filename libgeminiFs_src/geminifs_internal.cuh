@@ -125,7 +125,7 @@ public:
             size_t nr_acquire_pages) = 0;
 
     virtual __device__ void
-    set_page_dirty__for_warp(CachePageId cachepage_id) = 0;
+    set_page_dirty__for_warp(FilePageId filepage_id, CachePageId cachepage_id) = 0;
 
     virtual __device__ void
     release_page__for_warp(FilePageId filepage_id) = 0;
@@ -134,7 +134,7 @@ public:
     sync() = 0;
 
     virtual __device__ uint8_t *
-    get_raw_page_buf(CachePageId cachepage_id) = 0;
+    get_raw_page_buf(FilePageId filepage_id, CachePageId cachepage_id) = 0;
 
     virtual __device__ int
     get_page_bit_num() = 0;

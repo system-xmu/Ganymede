@@ -7,6 +7,17 @@
 #include "geminifs_api.cuh"
 #include "geminifs_internal.cuh"
 
+static int
+one_nr__of__binary_int(unsigned long long i) {
+  int count = 0;
+  while (i != 0) {
+    if ((i & 1) == 1)
+      count++;
+    i = i >> 1;
+  }
+  return count;
+}
+
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 static inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true) {
    if (code != cudaSuccess) {
@@ -171,7 +182,7 @@ public:
     acquire_pages__for_warp(
             const FilePageId *filepage_ids,
             CachePageId *cachepage_ids,
-            size_t nr_acquire_pages) {
+            size_t nr_acquire_pages) override {
         size_t n;
         uint32_t participating_mask = 0xffffffff;
         uint32_t warp_leader = 0;
@@ -186,7 +197,7 @@ public:
     }
 
     __device__ void
-    set_page_dirty__for_warp(CachePageId cachepage_id) {
+    set_page_dirty__for_warp(FilePageId filepage_id, CachePageId cachepage_id) override {
         uint32_t warp_leader = 0;
         int lane = my_lane_id();
         if (lane == warp_leader)
@@ -194,7 +205,7 @@ public:
     }
 
     __device__ void
-    release_page__for_warp(FilePageId filepage_id) {
+    release_page__for_warp(FilePageId filepage_id) override {
         uint32_t warp_leader = 0;
         int lane = my_lane_id();
         if (lane == warp_leader)
@@ -202,7 +213,7 @@ public:
     }
 
     __device__ void
-    sync() {
+    sync() override {
         __syncwarp();
         uint32_t mask = __activemask();
         mask = __match_any_sync(mask, (uint64_t)this);
@@ -240,12 +251,12 @@ public:
     }
 
     __forceinline__ __device__ uint8_t *
-    get_raw_page_buf(CachePageId cachepage_id) {
+    get_raw_page_buf(FilePageId filepage_id, CachePageId cachepage_id) override {
         return (uint8_t *)this->pages[cachepage_id]->buf;
     }
 
     __forceinline__ __device__ int
-    get_page_bit_num() {
+    get_page_bit_num() override {
         return __popc(this->page_size - 1);
     }
 private:
@@ -544,21 +555,17 @@ private:
     __insert__filepage__mapping_to__cachepage(FilePageId filepage_id,
                                               CachePageId cachepage_id) {
         //printf("change map! filepage[%llx]->cachepage[%llx]\n", filepage_id, cachepage_id);
-        if (filepage_id < this->nr_file_page)
-            this->filepage__to__cachepage[filepage_id] = cachepage_id;
+        this->filepage__to__cachepage[filepage_id] = cachepage_id;
     }
 
     __forceinline__ __device__ void
     __erase__filepage__mapping(FilePageId filepage_id) {
-        if (filepage_id < this->nr_file_page)
-            this->filepage__to__cachepage[filepage_id] = -1;
+        this->filepage__to__cachepage[filepage_id] = -1;
     }
 
     __forceinline__ __device__ CachePageId
     __get__cachepage_id(FilePageId filepage_id) {
-        if (filepage_id < this->nr_file_page)
-            return this->filepage__to__cachepage[filepage_id];
-        return -1;
+        return this->filepage__to__cachepage[filepage_id];
     }
 //-----------------------------------------------------------
     __forceinline__ __device__ void
@@ -648,6 +655,7 @@ __internal__get_pagecache(
     gpuErrchk(cudaMalloc(&map3, nr_file_page * sizeof(MyLinklistNode *)));
 
     RUN_ON_DEVICE({
+        printf("3\n");
         new (pagecache) PageCacheImpl (pagecache_capacity,
                 page_size,
                 size_of_virtual_space,
@@ -659,35 +667,219 @@ __internal__get_pagecache(
     return pagecache;
 }
 
-dev_fd_t
-host_open_geminifs_file_for_device_without_backing_file(int page_size, uint64_t pagecache_capacity) {
-    uint64_t nr_page = pagecache_capacity / page_size;
+using FilePageCacheLable = size_t;
+class Batching_PageCache: public PageCache {
+public:
+    __device__
+    Batching_PageCache(
+            int page_size,
+            PageCache **pagecaches,
+            int pagecache_batching_size,
+            int nr_pages__per_pagecache,
+            PageCache **file_pagecache_lable__to__pagecache) {
+        this->page_size = page_size;
+        this->pagecaches = pagecaches;
+        this->pagecache_batching_size = pagecache_batching_size;
+        assert(__popc(nr_pages__per_pagecache) == 1); // which is power of 2
+        this->bit_num_pages__per_pagecache = __popc(nr_pages__per_pagecache - 1);
+        this->file_pagecache_lable__to__pagecache = file_pagecache_lable__to__pagecache;
+    }
 
-    uint8_t *all_raw_pages;
-    gpuErrchk(cudaMalloc(&all_raw_pages, nr_page * page_size));
+    __device__ virtual
+    ~Batching_PageCache() {
+        assert(0);
+    }
 
-    CachePage_WithoutBacking *cachepage_structures;
-    gpuErrchk(cudaMalloc(&cachepage_structures, sizeof(CachePage_WithoutBacking) * nr_page));
-
-    CachePage **pages;
-    gpuErrchk(cudaMalloc(&pages, sizeof(CachePage *) * nr_page));
-
-    RUN_ON_DEVICE({
-        for (size_t i = 0; i < nr_page; i++) {
-            auto *cachepage = cachepage_structures + i;
-            pages[i] = new (cachepage) CachePage_WithoutBacking(page_size, all_raw_pages + i * page_size);
+    __device__ size_t
+    acquire_pages__for_warp(
+            const FilePageId *filepage_ids,
+            CachePageId *cachepage_ids,
+            size_t nr_acquire_pages) override {
+        FilePageCacheLable l = filepage_ids[0] >> this->bit_num_pages__per_pagecache;
+        size_t i;
+        for (i = 0; i < nr_acquire_pages; i++) {
+            FilePageCacheLable l1 = filepage_ids[i] >> this->bit_num_pages__per_pagecache;
+            if (l != l1)
+                break;
         }
-    });
+        PageCache *pagecache = this->file_pagecache_lable__to__pagecache[l];
+        return pagecache->acquire_pages__for_warp(filepage_ids, cachepage_ids, i);
+    }
 
-    PageCache *pagecache_dev = __internal__get_pagecache(pagecache_capacity,
-            page_size,
-            pagecache_capacity,
-            pages,
-            1,
-            nullptr, nullptr, nullptr);
-    return pagecache_dev;
+    __device__ void
+    set_page_dirty__for_warp(
+            FilePageId filepage_id,
+            CachePageId cachepage_id) override {
+        FilePageCacheLable l = filepage_id >> this->bit_num_pages__per_pagecache;
+        PageCache *pagecache = this->file_pagecache_lable__to__pagecache[l];
+        pagecache->set_page_dirty__for_warp(filepage_id, cachepage_id);
+    }
+
+    __device__ void
+    release_page__for_warp(
+            FilePageId filepage_id) override {
+        FilePageCacheLable l = filepage_id >> this->bit_num_pages__per_pagecache;
+        PageCache *pagecache = this->file_pagecache_lable__to__pagecache[l];
+        pagecache->release_page__for_warp(filepage_id);
+    }
+
+    __device__ void
+    sync() override {
+        for (int i = 0; i < this->pagecache_batching_size; i++)
+            pagecaches[i]->sync();
+    }
+
+    __forceinline__ __device__ uint8_t *
+    get_raw_page_buf(
+            FilePageId filepage_id,
+            CachePageId cachepage_id) override {
+        FilePageCacheLable l = filepage_id >> this->bit_num_pages__per_pagecache;
+        PageCache *pagecache = this->file_pagecache_lable__to__pagecache[l];
+        return pagecache->get_raw_page_buf(filepage_id, cachepage_id);
+    }
+
+    __forceinline__ __device__ int
+    get_page_bit_num() override {
+        return __popc(this->page_size - 1);
+    }
+
+private:
+    int page_size;
+    PageCache **pagecaches;
+    int pagecache_batching_size;
+    int bit_num_pages__per_pagecache;
+    PageCache **file_pagecache_lable__to__pagecache;
+};
+
+PageCache *
+__internal__get_batched_pagecache(
+        int page_size,
+        PageCache **pagecaches,
+        int pagecache_batching_size,
+        int nr_pages__per_pagecache,
+        size_t virtual_space_size) {
+    PageCache *batching_pagecache;
+    gpuErrchk(cudaMalloc(&batching_pagecache, sizeof(Batching_PageCache)));
+
+    assert(virtual_space_size % page_size == 0);
+    FilePageId nr_filepages = virtual_space_size / page_size;
+
+    assert(one_nr__of__binary_int(nr_pages__per_pagecache) == 1); // which is power of 2
+    int bit_num_pages__per_pagecache = one_nr__of__binary_int(nr_pages__per_pagecache - 1);
+
+    FilePageCacheLable nr_file_pagecache_lables = nr_filepages / nr_pages__per_pagecache;
+    if (nr_filepages % nr_pages__per_pagecache != 0)
+        nr_file_pagecache_lables++;
+
+    PageCache **file_pagecache_lable__to__pagecache;
+    gpuErrchk(cudaMalloc(&file_pagecache_lable__to__pagecache,
+                nr_file_pagecache_lables * sizeof(PageCache *)));
+
+    size_t nr_lables__per_pagecache = nr_file_pagecache_lables / pagecache_batching_size;
+    if (nr_file_pagecache_lables % pagecache_batching_size != 0)
+        nr_lables__per_pagecache++;
+    RUN_ON_DEVICE({
+        FilePageCacheLable l = 0;
+
+        for (size_t idx_pagecache = 0;
+                idx_pagecache < pagecache_batching_size;
+                idx_pagecache++)
+            for ( ; l < nr_file_pagecache_lables; l++)
+                file_pagecache_lable__to__pagecache[l] = pagecaches[idx_pagecache];
+
+        new (batching_pagecache) Batching_PageCache (
+                page_size,
+                pagecaches,
+                pagecache_batching_size,
+                nr_pages__per_pagecache,
+                file_pagecache_lable__to__pagecache);
+    });
+    return batching_pagecache;
 }
 
+
+
+dev_fd_t
+host_open_geminifs_file_for_device_without_backing_file(
+        int page_size,
+        uint64_t pagecache_capacity,
+        int pagecache_batching_size) {
+    size_t virtual_space_size = pagecache_capacity;
+    size_t nr_pages = pagecache_capacity / page_size;
+    assert(nr_pages % pagecache_batching_size == 0);
+
+    size_t nr_pages__per_pagecache = nr_pages / pagecache_batching_size;
+
+    PageCache **pagecaches;
+    gpuErrchk(cudaMalloc(&pagecaches, sizeof(PageCache *) * pagecache_batching_size));
+
+    for (int idx_pagecache = 0;
+            idx_pagecache < pagecache_batching_size;
+            idx_pagecache++) {
+        uint8_t *all_raw_pages;
+        CachePage_WithoutBacking *cachepage_structures;
+        CachePage **pages;
+
+        gpuErrchk(cudaMalloc(&all_raw_pages, nr_pages__per_pagecache * page_size));
+        gpuErrchk(cudaMalloc(&cachepage_structures, nr_pages__per_pagecache * sizeof(CachePage_WithoutBacking)));
+        gpuErrchk(cudaMalloc(&pages, nr_pages__per_pagecache * sizeof(CachePage *)));
+        RUN_ON_DEVICE({
+            printf("1\n");
+            for (size_t i = 0; i < nr_pages__per_pagecache; i++) {
+                auto *cachepage = cachepage_structures + i;
+                pages[i] = new (cachepage) CachePage_WithoutBacking(page_size, all_raw_pages + i * page_size);
+            }
+        });
+        PageCache *pagecache = __internal__get_pagecache(
+                nr_pages__per_pagecache * page_size,
+                page_size,
+                pagecache_capacity,
+                pages,
+                1,
+                nullptr, nullptr, nullptr);
+        //RUN_ON_DEVICE({
+        //        printf("2\n");
+        //    pagecaches[idx_pagecache] = pagecache;
+        //});
+    }
+
+    return __internal__get_batched_pagecache(
+            page_size,
+            pagecaches,
+            pagecache_batching_size,
+            nr_pages__per_pagecache,
+            virtual_space_size);
+}
+
+//dev_fd_t
+//host_open_geminifs_file_for_device_without_backing_file(int page_size, uint64_t pagecache_capacity) {
+//    uint64_t nr_page = pagecache_capacity / page_size;
+//
+//    uint8_t *all_raw_pages;
+//    gpuErrchk(cudaMalloc(&all_raw_pages, nr_page * page_size));
+//
+//    CachePage_WithoutBacking *cachepage_structures;
+//    gpuErrchk(cudaMalloc(&cachepage_structures, sizeof(CachePage_WithoutBacking) * nr_page));
+//
+//    CachePage **pages;
+//    gpuErrchk(cudaMalloc(&pages, sizeof(CachePage *) * nr_page));
+//
+//    RUN_ON_DEVICE({
+//        for (size_t i = 0; i < nr_page; i++) {
+//            auto *cachepage = cachepage_structures + i;
+//            pages[i] = new (cachepage) CachePage_WithoutBacking(page_size, all_raw_pages + i * page_size);
+//        }
+//    });
+//
+//    PageCache *pagecache_dev = __internal__get_pagecache(pagecache_capacity,
+//            page_size,
+//            pagecache_capacity,
+//            pages,
+//            1,
+//            nullptr, nullptr, nullptr);
+//    return pagecache_dev;
+//}
+//
 __global__ void
 device_xfer_geminifs_file(dev_fd_t fd,
                           vaddr_t va,
@@ -733,12 +925,12 @@ device_xfer_geminifs_file(dev_fd_t fd,
         if (tid == 0) {
             CachePageId cachepage_id;
             pagecache->acquire_pages__for_warp(&begin, &cachepage_id, 1);
-            uint8_t *cachepage_base = pagecache->get_raw_page_buf(cachepage_id);
+            uint8_t *cachepage_base = pagecache->get_raw_page_buf(begin, cachepage_id);
             if (is_read) {
                 memcpy(buf_dev, cachepage_base + PAGE_OFST(va, page_bit_num), nbyte);
             } else {
                 memcpy(cachepage_base + PAGE_OFST(va, page_bit_num), buf_dev, nbyte);
-                pagecache->set_page_dirty__for_warp(cachepage_id);
+                pagecache->set_page_dirty__for_warp(begin, cachepage_id);
             }
             pagecache->release_page__for_warp(begin);
         }
@@ -751,12 +943,12 @@ device_xfer_geminifs_file(dev_fd_t fd,
             if (tid == 0) {
                 CachePageId cachepage_id;
                 pagecache->acquire_pages__for_warp(&begin, &cachepage_id, 1);
-                uint8_t *cachepage_base = pagecache->get_raw_page_buf(cachepage_id);
+                uint8_t *cachepage_base = pagecache->get_raw_page_buf(begin, cachepage_id);
                 if (is_read) {
                     memcpy(buf_dev, cachepage_base + PAGE_OFST(va, page_bit_num), n);
                 } else {
                     memcpy(cachepage_base + PAGE_OFST(va, page_bit_num), buf_dev, n);
-                    pagecache->set_page_dirty__for_warp(cachepage_id);
+                    pagecache->set_page_dirty__for_warp(begin, cachepage_id);
                 }
                 pagecache->release_page__for_warp(begin);
             }
@@ -771,13 +963,13 @@ device_xfer_geminifs_file(dev_fd_t fd,
             if (tid == 0) {
                 CachePageId cachepage_id;
                 pagecache->acquire_pages__for_warp(&inclusive_end, &cachepage_id, 1);
-                uint8_t *cachepage_base = pagecache->get_raw_page_buf(cachepage_id);
+                uint8_t *cachepage_base = pagecache->get_raw_page_buf(inclusive_end, cachepage_id);
                 uint8_t *dist_start = buf_dev + (nbyte - n);
                 if (is_read) {
                     memcpy(dist_start, cachepage_base, n);
                 } else {
                     memcpy(cachepage_base, dist_start, n);
-                    pagecache->set_page_dirty__for_warp(cachepage_id);
+                    pagecache->set_page_dirty__for_warp(inclusive_end, cachepage_id);
                 }
                 pagecache->release_page__for_warp(inclusive_end);
             }
@@ -854,7 +1046,7 @@ device_xfer_geminifs_file(dev_fd_t fd,
         for (i = 0; i < nr_have_been_acquires; i++) {
             FilePageId cur_filepage_id = filepage_ids[i];
             CachePageId cachepage_id = cachepage_ids[i];
-            uint8_t *cachepage_base = pagecache->get_raw_page_buf(cachepage_id);
+            uint8_t *cachepage_base = pagecache->get_raw_page_buf(cur_filepage_id, cachepage_id);
             __syncwarp();
             if (is_read) {
                 uint8_t *raw_page = cachepage_base;
@@ -872,7 +1064,7 @@ device_xfer_geminifs_file(dev_fd_t fd,
                     buf_dev_1 += 4096;
                     raw_page += 4096;
                 }
-                pagecache->set_page_dirty__for_warp(cachepage_id);
+                pagecache->set_page_dirty__for_warp(cur_filepage_id, cachepage_id);
             }
             pagecache->release_page__for_warp(cur_filepage_id);
             buf_dev += PAGE_SIZE(page_bit_num);
@@ -880,144 +1072,144 @@ device_xfer_geminifs_file(dev_fd_t fd,
 
     }
 }
-
-__global__ void
-device_xfer_geminifs_file__batching_pagecache(dev_fd_t *dev_fds,
-                          vaddr_t va,
-                          void *buf_dev_1,
-                          size_t nbyte,
-                          int is_read) {
-    size_t nr_block = gridDim.x;
-    size_t block_id = blockIdx.x;
-    size_t nr_thread_per_block = blockDim.x;
-    size_t nr_warp__per_block = nr_thread_per_block / 32;
-    size_t warp_id__in_block = threadIdx.x / 32;
-    int tid = blockIdx.x * blockDim.x + threadIdx.x;
-
-    assert(0 < nr_warp__per_block); // Every warp must hold 32 threads
-
-    if (nr_warp__per_block <= warp_id__in_block)
-        // drop less-32-thread warp
-        return;
-
-    __syncwarp();
-    size_t nr_thread_in_the_warp = __popc(__activemask());
-    assert(nr_thread_in_the_warp == 32);
-
-
-
-
-    uint8_t *buf_dev = (uint8_t *)buf_dev_1;
-
-    PageCache *pagecache = (PageCache *)dev_fds[block_id];
-    int page_bit_num = pagecache->get_page_bit_num();
-
-    FilePageId begin = PAGE_ID(va, page_bit_num);
-    FilePageId exclusive_end = PAGE_ID(va + nbyte, page_bit_num);
-    FilePageId inclusive_end = exclusive_end - 1;
-
-    assert(PAGE_OFST(va, page_bit_num) == 0);
-    assert(PAGE_OFST(va + nbyte, page_bit_num) == 0);
-
-    begin = PAGE_ID(va, page_bit_num);
-    exclusive_end = PAGE_ID(va + nbyte, page_bit_num);
-
-
-    size_t nr_page = exclusive_end - begin;
-    size_t nr_page__per_block = nr_page / nr_block;
-    if (nr_page % nr_block != 0)
-        nr_page__per_block++;
-
-    FilePageId begin__block = begin + block_id * nr_page__per_block;
-    FilePageId exclusive_end__block = begin__block + nr_page__per_block;
-    if (exclusive_end <= begin__block)
-        return;
-
-    if (exclusive_end < exclusive_end__block)
-        exclusive_end__block = exclusive_end;
-
-    size_t nr_page__block = exclusive_end__block - begin__block;
-    size_t nr_page__per_warp = nr_page__block / nr_warp__per_block;
-    if (nr_page__block % nr_warp__per_block != 0)
-        nr_page__per_warp++;
-
-    FilePageId begin__warp = begin__block + warp_id__in_block * nr_page__per_warp;
-    FilePageId exclusive_end__warp = begin__warp + nr_page__per_warp;
-    if (exclusive_end__block <= begin__warp)
-        return;
-
-    if (exclusive_end__block < exclusive_end__warp)
-        exclusive_end__warp = exclusive_end__block;
-
-    __syncwarp();
-    uint32_t participating_mask = __activemask();
-    participating_mask = __match_any_sync(participating_mask, begin__warp);
-    int page_size = PAGE_SIZE(page_bit_num);
-
-
-    //size_t warp_id__overview = warp_id__in_block + nr_warp__per_block * block_id;
-    //if (0 == my_lane_id()) {
-    //printf("I'm warp %llx (in-block id %llx) threadIdx.x %llx, I account for [%llx, %llx)\n",
-    //        warp_id__overview, warp_id__in_block, threadIdx.x, begin__warp, exclusive_end__warp);
-    //}
-
-
-    int nr_acquire_pages = NR_ACQUIRE_PAGES;
-    __shared__ FilePageId filepage_ids[32];
-    __shared__ CachePageId cachepage_ids[32];
-
-    buf_dev = buf_dev + PAGE_BASE__BY_ID(begin__warp - begin, page_bit_num);
-    for (FilePageId filepage_id = begin__warp;
-            filepage_id < exclusive_end__warp;
-            ) {
-        size_t i;
-        for (i = 0;
-                i < nr_acquire_pages && filepage_id + i < exclusive_end__warp;
-                i++) {
-            filepage_ids[i] = filepage_id + i;
-        }
-        int nr_have_been_acquires = pagecache->acquire_pages__for_warp(
-                filepage_ids,
-                cachepage_ids,
-                i);
-        filepage_id += nr_have_been_acquires;
-
-        for (i = 0; i < nr_have_been_acquires; i++) {
-            FilePageId cur_filepage_id = filepage_ids[i];
-            CachePageId cachepage_id = cachepage_ids[i];
-            uint8_t *cachepage_base = pagecache->get_raw_page_buf(cachepage_id);
-            __syncwarp();
-            if (is_read) {
-                uint8_t *raw_page = cachepage_base;
-                uint8_t *buf_dev_1 = buf_dev;
-                for (size_t i = 0; i < page_size / 4096; i++) {
-                    warp_memcpy_4kB(buf_dev_1, raw_page, participating_mask);
-                    buf_dev_1 += 4096;
-                    raw_page += 4096;
-                }
-            } else {
-                uint8_t *raw_page = cachepage_base;
-                uint8_t *buf_dev_1 = buf_dev;
-                for (size_t i = 0; i < page_size / 4096; i++) {
-                    warp_memcpy_4kB(raw_page, buf_dev_1, participating_mask);
-                    buf_dev_1 += 4096;
-                    raw_page += 4096;
-                }
-                pagecache->set_page_dirty__for_warp(cachepage_id);
-            }
-            pagecache->release_page__for_warp(cur_filepage_id);
-            buf_dev += PAGE_SIZE(page_bit_num);
-        }
-
-    }
-
-}
-
-__global__ void
-device_sync(dev_fd_t dev_fd) {
-    int tid = blockIdx.x * blockDim.x + threadIdx.x;
-    PageCache *pagecache = (PageCache *)dev_fd;
-    if (tid != 0)
-        return;
-    pagecache->sync();
-}
+//
+//__global__ void
+//device_xfer_geminifs_file__batching_pagecache(dev_fd_t *dev_fds,
+//                          vaddr_t va,
+//                          void *buf_dev_1,
+//                          size_t nbyte,
+//                          int is_read) {
+//    size_t nr_block = gridDim.x;
+//    size_t block_id = blockIdx.x;
+//    size_t nr_thread_per_block = blockDim.x;
+//    size_t nr_warp__per_block = nr_thread_per_block / 32;
+//    size_t warp_id__in_block = threadIdx.x / 32;
+//    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+//
+//    assert(0 < nr_warp__per_block); // Every warp must hold 32 threads
+//
+//    if (nr_warp__per_block <= warp_id__in_block)
+//        // drop less-32-thread warp
+//        return;
+//
+//    __syncwarp();
+//    size_t nr_thread_in_the_warp = __popc(__activemask());
+//    assert(nr_thread_in_the_warp == 32);
+//
+//
+//
+//
+//    uint8_t *buf_dev = (uint8_t *)buf_dev_1;
+//
+//    PageCache *pagecache = (PageCache *)dev_fds[block_id];
+//    int page_bit_num = pagecache->get_page_bit_num();
+//
+//    FilePageId begin = PAGE_ID(va, page_bit_num);
+//    FilePageId exclusive_end = PAGE_ID(va + nbyte, page_bit_num);
+//    FilePageId inclusive_end = exclusive_end - 1;
+//
+//    assert(PAGE_OFST(va, page_bit_num) == 0);
+//    assert(PAGE_OFST(va + nbyte, page_bit_num) == 0);
+//
+//    begin = PAGE_ID(va, page_bit_num);
+//    exclusive_end = PAGE_ID(va + nbyte, page_bit_num);
+//
+//
+//    size_t nr_page = exclusive_end - begin;
+//    size_t nr_page__per_block = nr_page / nr_block;
+//    if (nr_page % nr_block != 0)
+//        nr_page__per_block++;
+//
+//    FilePageId begin__block = begin + block_id * nr_page__per_block;
+//    FilePageId exclusive_end__block = begin__block + nr_page__per_block;
+//    if (exclusive_end <= begin__block)
+//        return;
+//
+//    if (exclusive_end < exclusive_end__block)
+//        exclusive_end__block = exclusive_end;
+//
+//    size_t nr_page__block = exclusive_end__block - begin__block;
+//    size_t nr_page__per_warp = nr_page__block / nr_warp__per_block;
+//    if (nr_page__block % nr_warp__per_block != 0)
+//        nr_page__per_warp++;
+//
+//    FilePageId begin__warp = begin__block + warp_id__in_block * nr_page__per_warp;
+//    FilePageId exclusive_end__warp = begin__warp + nr_page__per_warp;
+//    if (exclusive_end__block <= begin__warp)
+//        return;
+//
+//    if (exclusive_end__block < exclusive_end__warp)
+//        exclusive_end__warp = exclusive_end__block;
+//
+//    __syncwarp();
+//    uint32_t participating_mask = __activemask();
+//    participating_mask = __match_any_sync(participating_mask, begin__warp);
+//    int page_size = PAGE_SIZE(page_bit_num);
+//
+//
+//    //size_t warp_id__overview = warp_id__in_block + nr_warp__per_block * block_id;
+//    //if (0 == my_lane_id()) {
+//    //printf("I'm warp %llx (in-block id %llx) threadIdx.x %llx, I account for [%llx, %llx)\n",
+//    //        warp_id__overview, warp_id__in_block, threadIdx.x, begin__warp, exclusive_end__warp);
+//    //}
+//
+//
+//    int nr_acquire_pages = NR_ACQUIRE_PAGES;
+//    __shared__ FilePageId filepage_ids[32];
+//    __shared__ CachePageId cachepage_ids[32];
+//
+//    buf_dev = buf_dev + PAGE_BASE__BY_ID(begin__warp - begin, page_bit_num);
+//    for (FilePageId filepage_id = begin__warp;
+//            filepage_id < exclusive_end__warp;
+//            ) {
+//        size_t i;
+//        for (i = 0;
+//                i < nr_acquire_pages && filepage_id + i < exclusive_end__warp;
+//                i++) {
+//            filepage_ids[i] = filepage_id + i;
+//        }
+//        int nr_have_been_acquires = pagecache->acquire_pages__for_warp(
+//                filepage_ids,
+//                cachepage_ids,
+//                i);
+//        filepage_id += nr_have_been_acquires;
+//
+//        for (i = 0; i < nr_have_been_acquires; i++) {
+//            FilePageId cur_filepage_id = filepage_ids[i];
+//            CachePageId cachepage_id = cachepage_ids[i];
+//            uint8_t *cachepage_base = pagecache->get_raw_page_buf(cachepage_id);
+//            __syncwarp();
+//            if (is_read) {
+//                uint8_t *raw_page = cachepage_base;
+//                uint8_t *buf_dev_1 = buf_dev;
+//                for (size_t i = 0; i < page_size / 4096; i++) {
+//                    warp_memcpy_4kB(buf_dev_1, raw_page, participating_mask);
+//                    buf_dev_1 += 4096;
+//                    raw_page += 4096;
+//                }
+//            } else {
+//                uint8_t *raw_page = cachepage_base;
+//                uint8_t *buf_dev_1 = buf_dev;
+//                for (size_t i = 0; i < page_size / 4096; i++) {
+//                    warp_memcpy_4kB(raw_page, buf_dev_1, participating_mask);
+//                    buf_dev_1 += 4096;
+//                    raw_page += 4096;
+//                }
+//                pagecache->set_page_dirty__for_warp(cachepage_id);
+//            }
+//            pagecache->release_page__for_warp(cur_filepage_id);
+//            buf_dev += PAGE_SIZE(page_bit_num);
+//        }
+//
+//    }
+//
+//}
+//
+//__global__ void
+//device_sync(dev_fd_t dev_fd) {
+//    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+//    PageCache *pagecache = (PageCache *)dev_fd;
+//    if (tid != 0)
+//        return;
+//    pagecache->sync();
+//}
