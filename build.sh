@@ -20,4 +20,4 @@ cp libgeminiFs_src/libgeminiFs.a ./build/lib
 # 3. For examples
 cd examples
 make clean
-make -j CXXFLAGS="-DNR_WARPS=128 -DNR_ACQUIRE_PAGES=16 -DNR_PAGES__PER_WARP=256"
+make -j CXXFLAGS="-DNR_WARPS=96 -DNR_ACQUIRE_PAGES=4 -DNR_PAGES__PER_WARP=512"
