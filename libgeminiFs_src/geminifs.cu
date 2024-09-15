@@ -134,7 +134,12 @@ public:
         uint64_t nr_page = pagecache_capacity / page_size;
         uint64_t nr_file_page = size_of_virtual_space / page_size;
 
-        for (FilePageId filepage_id = 0; filepage_id < nr_file_page; filepage_id++) {
+        this->filepage_id_base = 0;
+        this->filepage_id_exclusive_end = this->filepage_id_base + nr_file_page;
+
+        for (FilePageId filepage_id = this->filepage_id_base;
+                filepage_id < this->filepage_id_exclusive_end;
+                filepage_id++) {
             this->filepages__waiting_for_evicting[filepage_id] = nullptr;
             this->filepage__to__cachepage[filepage_id] = -1;
             this->zero_reffed_filepages[filepage_id] = nullptr;
@@ -148,7 +153,7 @@ public:
         this->pages_ref = (uint64_t *)malloc(sizeof(uint64_t) * this->nr_page);
 
         for (CachePageId cachepage_id = 0; cachepage_id < nr_page; cachepage_id++) {
-            FilePageId filepage_id = nr_page - 1 - cachepage_id;
+            FilePageId filepage_id = this->filepage_id_base + (this->nr_file_page - 1 - cachepage_id);
             auto *page = this->pages[cachepage_id];
             page->cachepage_id = cachepage_id;
             page->content_of = filepage_id;
@@ -259,6 +264,13 @@ public:
     get_page_bit_num() override {
         return __popc(this->page_size - 1);
     }
+
+    __device__ void
+    __set_filepage_id_base(FilePageId filepage_id_base) override {
+        //printf("filepage_id_base [%llx]\n", filepage_id_base);
+        this->filepage_id_base = filepage_id_base;
+        this->filepage_id_exclusive_end = this->filepage_id_base + this->nr_file_page;
+    }
 private:
 
     __noinline__ /* warp converge needed */ __device__ void *
@@ -359,7 +371,7 @@ private:
                     prefetch_filepage_id = -1;
 
                 if (prefetch_filepage_id != -1 &&
-                        this->nr_file_page <= prefetch_filepage_id)
+                        this->filepage_id_exclusive_end <= prefetch_filepage_id)
                     prefetch_filepage_id = -1;
                 if (prefetch_filepage_id != -1 &&
                         -1 != this->__get__cachepage_id(prefetch_filepage_id)) {
@@ -512,7 +524,8 @@ private:
 //----------------------------------------------------------
     __forceinline__ __device__ PageCacheImpl__info1 *
     __is_filepage_waiting_for_evicting(FilePageId filepage_id) {
-        auto *n = static_cast<MyLinklistNodeD<PageCacheImpl__info1 *> *>(this->filepages__waiting_for_evicting[filepage_id]);
+        FilePageId inner_filepage_id = filepage_id - this->filepage_id_base;
+        auto *n = static_cast<MyLinklistNodeD<PageCacheImpl__info1 *> *>(this->filepages__waiting_for_evicting[inner_filepage_id]);
         if (n)
             return n->v;
         else
@@ -527,13 +540,14 @@ private:
     __forceinline__ __device__ void
     __insert__filepage_waiting_for_evicting(FilePageId filepage_id,
                                              PageCacheImpl__info1 *p) {
+        FilePageId inner_filepage_id = filepage_id - this->filepage_id_base;
         auto *n = new MyLinklistNodeD<PageCacheImpl__info1 *>();
         assert(n);
         n->v = p;
         this->filepages__waiting_for_evicting__list.enqueue(n);
         this->nr_waiting++;
 
-        this->filepages__waiting_for_evicting[filepage_id] = n;
+        this->filepages__waiting_for_evicting[inner_filepage_id] = n;
     }
 
     __forceinline__ __device__ PageCacheImpl__info1 *
@@ -555,35 +569,40 @@ private:
     __insert__filepage__mapping_to__cachepage(FilePageId filepage_id,
                                               CachePageId cachepage_id) {
         //printf("change map! filepage[%llx]->cachepage[%llx]\n", filepage_id, cachepage_id);
-        this->filepage__to__cachepage[filepage_id] = cachepage_id;
+        FilePageId inner_filepage_id = filepage_id - this->filepage_id_base;
+        this->filepage__to__cachepage[inner_filepage_id] = cachepage_id;
     }
 
     __forceinline__ __device__ void
     __erase__filepage__mapping(FilePageId filepage_id) {
-        this->filepage__to__cachepage[filepage_id] = -1;
+        FilePageId inner_filepage_id = filepage_id - this->filepage_id_base;
+        this->filepage__to__cachepage[inner_filepage_id] = -1;
     }
 
     __forceinline__ __device__ CachePageId
     __get__cachepage_id(FilePageId filepage_id) {
-        return this->filepage__to__cachepage[filepage_id];
+        FilePageId inner_filepage_id = filepage_id - this->filepage_id_base;
+        return this->filepage__to__cachepage[inner_filepage_id];
     }
 //-----------------------------------------------------------
     __forceinline__ __device__ void
     __insert__zero_reffed_filepage(FilePageId filepage_id) {
+        FilePageId inner_filepage_id = filepage_id - this->filepage_id_base;
         auto *n = new MyLinklistNodeD<FilePageId>();
         assert(n);
-        n->v = filepage_id;
+        n->v = inner_filepage_id;
         this->zero_reffed_filepages__list.enqueue(n);
 
-        this->zero_reffed_filepages[filepage_id] = n;
+        this->zero_reffed_filepages[inner_filepage_id] = n;
         this->nr_zero_pages++;
     }
 
     __forceinline__ __device__ void
     __erase__zero_reffed_filepage(FilePageId filepage_id) {
         //printf("erase filepage_id[%llx]\n", filepage_id);
-        auto *n = static_cast<MyLinklistNodeD<FilePageId> *>(this->zero_reffed_filepages[filepage_id]);
-        this->zero_reffed_filepages[filepage_id] = nullptr;
+        FilePageId inner_filepage_id = filepage_id - this->filepage_id_base;
+        auto *n = static_cast<MyLinklistNodeD<FilePageId> *>(this->zero_reffed_filepages[inner_filepage_id]);
+        this->zero_reffed_filepages[inner_filepage_id] = nullptr;
         this->zero_reffed_filepages__list.detach_node(n);
         delete n;
         this->nr_zero_pages--;
@@ -596,16 +615,17 @@ private:
             return -1;
 
         auto *n = static_cast<MyLinklistNodeD<FilePageId> *>(this->zero_reffed_filepages__list.pop());
-        auto filepage_id = n->v;
+        auto inner_filepage_id = n->v;
         delete n;
 
-        this->zero_reffed_filepages[filepage_id] = nullptr;
+        this->zero_reffed_filepages[inner_filepage_id] = nullptr;
         this->nr_zero_pages--;
 
-        return filepage_id;
+        return inner_filepage_id + this->filepage_id_base;
     }
 //-----------------------------------------------------------
 
+    FilePageId filepage_id_base, filepage_id_exclusive_end;
     int sync_parallelism;
     void *info1, *info2, *info3;
 
@@ -631,41 +651,6 @@ private:
     MyLinklist zero_reffed_filepages__list;
     size_t nr_zero_pages;
 };
-
-__host__ PageCache *
-__internal__get_pagecache(
-        uint64_t pagecache_capacity,
-        int page_size,
-        uint64_t size_of_virtual_space,
-        CachePage *pages[],
-        int sync_parallelism,
-        void *info1, void *info2, void *info3) {
-    uint64_t nr_page = pagecache_capacity / page_size;
-
-    PageCache *pagecache;
-    gpuErrchk(cudaMalloc(&pagecache, sizeof(PageCacheImpl)));
-
-    uint64_t nr_file_page = size_of_virtual_space / page_size;
-    MyLinklistNode **map1;
-    CachePageId *map2;
-    MyLinklistNode **map3;
-
-    gpuErrchk(cudaMalloc(&map1, nr_file_page * sizeof(MyLinklistNode *)));
-    gpuErrchk(cudaMalloc(&map2, nr_file_page * sizeof(CachePageId)));
-    gpuErrchk(cudaMalloc(&map3, nr_file_page * sizeof(MyLinklistNode *)));
-
-    RUN_ON_DEVICE({
-        printf("3\n");
-        new (pagecache) PageCacheImpl (pagecache_capacity,
-                page_size,
-                size_of_virtual_space,
-                pages,
-                sync_parallelism,
-                info1, info2, info3,
-                map1, map2, map3);
-    });
-    return pagecache;
-}
 
 using FilePageCacheLable = size_t;
 class Batching_PageCache: public PageCache {
@@ -702,6 +687,7 @@ public:
             if (l != l1)
                 break;
         }
+        //printf("first filepage id[%llx] batching %d\n", filepage_ids[0], i);
         PageCache *pagecache = this->file_pagecache_lable__to__pagecache[l];
         return pagecache->acquire_pages__for_warp(filepage_ids, cachepage_ids, i);
     }
@@ -743,6 +729,9 @@ public:
         return __popc(this->page_size - 1);
     }
 
+    __device__ void
+    __set_filepage_id_base(FilePageId) { }
+
 private:
     int page_size;
     PageCache **pagecaches;
@@ -751,7 +740,41 @@ private:
     PageCache **file_pagecache_lable__to__pagecache;
 };
 
-PageCache *
+__host__ PageCache *
+__internal__get_pagecache(
+        uint64_t pagecache_capacity,
+        int page_size,
+        uint64_t size_of_virtual_space,
+        CachePage *pages[],
+        int sync_parallelism,
+        void *info1, void *info2, void *info3) {
+    uint64_t nr_page = pagecache_capacity / page_size;
+
+    PageCache *pagecache;
+    gpuErrchk(cudaMalloc(&pagecache, sizeof(PageCacheImpl)));
+
+    uint64_t nr_file_page = size_of_virtual_space / page_size;
+    MyLinklistNode **map1;
+    CachePageId *map2;
+    MyLinklistNode **map3;
+
+    gpuErrchk(cudaMalloc(&map1, nr_file_page * sizeof(MyLinklistNode *)));
+    gpuErrchk(cudaMalloc(&map2, nr_file_page * sizeof(CachePageId)));
+    gpuErrchk(cudaMalloc(&map3, nr_file_page * sizeof(MyLinklistNode *)));
+
+    RUN_ON_DEVICE({
+        new (pagecache) PageCacheImpl (pagecache_capacity,
+                page_size,
+                size_of_virtual_space,
+                pages,
+                sync_parallelism,
+                info1, info2, info3,
+                map1, map2, map3);
+    });
+    return pagecache;
+}
+
+__host__ PageCache *
 __internal__get_batched_pagecache(
         int page_size,
         PageCache **pagecaches,
@@ -764,28 +787,33 @@ __internal__get_batched_pagecache(
     assert(virtual_space_size % page_size == 0);
     FilePageId nr_filepages = virtual_space_size / page_size;
 
+
     assert(one_nr__of__binary_int(nr_pages__per_pagecache) == 1); // which is power of 2
     int bit_num_pages__per_pagecache = one_nr__of__binary_int(nr_pages__per_pagecache - 1);
 
+
+    assert(nr_filepages % nr_pages__per_pagecache == 0);
     FilePageCacheLable nr_file_pagecache_lables = nr_filepages / nr_pages__per_pagecache;
-    if (nr_filepages % nr_pages__per_pagecache != 0)
-        nr_file_pagecache_lables++;
 
     PageCache **file_pagecache_lable__to__pagecache;
     gpuErrchk(cudaMalloc(&file_pagecache_lable__to__pagecache,
                 nr_file_pagecache_lables * sizeof(PageCache *)));
 
     size_t nr_lables__per_pagecache = nr_file_pagecache_lables / pagecache_batching_size;
-    if (nr_file_pagecache_lables % pagecache_batching_size != 0)
-        nr_lables__per_pagecache++;
+    //printf("nr_pages__per_pagecache[%llx] bit_nr[%d]\n",
+    //    (size_t)nr_pages__per_pagecache, bit_num_pages__per_pagecache);
+    //printf("nr_file_pagecache_lables[%llx]\n", nr_file_pagecache_lables);
+    //printf("nr_lables__per_pagecache[%llx]\n", nr_lables__per_pagecache);
+    //printf("pagecache_batching_size[%llx]\n", (size_t)pagecache_batching_size);
     RUN_ON_DEVICE({
-        FilePageCacheLable l = 0;
-
         for (size_t idx_pagecache = 0;
                 idx_pagecache < pagecache_batching_size;
-                idx_pagecache++)
-            for ( ; l < nr_file_pagecache_lables; l++)
-                file_pagecache_lable__to__pagecache[l] = pagecaches[idx_pagecache];
+                idx_pagecache++) {
+	    pagecaches[idx_pagecache]->__set_filepage_id_base(
+	        (idx_pagecache * nr_lables__per_pagecache) << bit_num_pages__per_pagecache);
+            for (size_t i = 0; i < nr_lables__per_pagecache; i++)
+                file_pagecache_lable__to__pagecache[idx_pagecache * nr_lables__per_pagecache + i] = pagecaches[idx_pagecache];
+	}
 
         new (batching_pagecache) Batching_PageCache (
                 page_size,
@@ -807,8 +835,11 @@ host_open_geminifs_file_for_device_without_backing_file(
     size_t virtual_space_size = pagecache_capacity;
     size_t nr_pages = pagecache_capacity / page_size;
     assert(nr_pages % pagecache_batching_size == 0);
-
     size_t nr_pages__per_pagecache = nr_pages / pagecache_batching_size;
+
+    assert(virtual_space_size % pagecache_batching_size == 0);
+    size_t virtual_space_size__per_pagecache =
+        virtual_space_size / pagecache_batching_size;
 
     PageCache **pagecaches;
     gpuErrchk(cudaMalloc(&pagecaches, sizeof(PageCache *) * pagecache_batching_size));
@@ -824,7 +855,6 @@ host_open_geminifs_file_for_device_without_backing_file(
         gpuErrchk(cudaMalloc(&cachepage_structures, nr_pages__per_pagecache * sizeof(CachePage_WithoutBacking)));
         gpuErrchk(cudaMalloc(&pages, nr_pages__per_pagecache * sizeof(CachePage *)));
         RUN_ON_DEVICE({
-            printf("1\n");
             for (size_t i = 0; i < nr_pages__per_pagecache; i++) {
                 auto *cachepage = cachepage_structures + i;
                 pages[i] = new (cachepage) CachePage_WithoutBacking(page_size, all_raw_pages + i * page_size);
@@ -833,14 +863,13 @@ host_open_geminifs_file_for_device_without_backing_file(
         PageCache *pagecache = __internal__get_pagecache(
                 nr_pages__per_pagecache * page_size,
                 page_size,
-                pagecache_capacity,
+                virtual_space_size__per_pagecache,
                 pages,
                 1,
                 nullptr, nullptr, nullptr);
-        //RUN_ON_DEVICE({
-        //        printf("2\n");
-        //    pagecaches[idx_pagecache] = pagecache;
-        //});
+        RUN_ON_DEVICE({
+            pagecaches[idx_pagecache] = pagecache;
+        });
     }
 
     return __internal__get_batched_pagecache(

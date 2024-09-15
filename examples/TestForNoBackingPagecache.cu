@@ -46,11 +46,11 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
 
 int
 main() {
-  int page_size = 16 * (1ull << 10); /* 32k */
+  int page_size = 64 * (1ull << 10); /* 32k */
 
 
-  int nr_warps = 1;
-  size_t nr_pages = nr_warps * 1024;
+  int nr_warps = 108;
+  size_t nr_pages = nr_warps * 32;
   size_t capacity = nr_pages * page_size;
 
   gpuErrchk(cudaSetDevice(0));

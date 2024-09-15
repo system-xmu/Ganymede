@@ -138,6 +138,9 @@ public:
 
     virtual __device__ int
     get_page_bit_num() = 0;
+
+    virtual __device__ void
+    __set_filepage_id_base(FilePageId filepage_id_base) = 0;
 };
 
 
@@ -149,6 +152,14 @@ __internal__get_pagecache(
         CachePage *pages[],
         int sync_parallelism,
         void *info1, void *info2, void *info3);
+
+extern PageCache *
+__internal__get_batched_pagecache(
+        int page_size,
+        PageCache **pagecaches,
+        int pagecache_batching_size,
+        int nr_pages__per_pagecache,
+        size_t virtual_space_size);
 
 extern void
 __internal__drop_pagecache(PageCache *);

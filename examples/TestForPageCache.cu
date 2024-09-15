@@ -44,10 +44,11 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
 
 int
 main() {
-  size_t nr_pages = 108;
-  size_t dev_page_size = 128 * (1ull << 10)/*KB*/;
-  size_t page_capacity = nr_pages * dev_page_size;
-  size_t virtual_space_size = page_capacity * 108;
+  int nr_warps = 16;
+  size_t nr_pages = nr_warps * 32;
+  size_t page_size = 128 * (1ull << 10)/*KB*/;
+  size_t page_capacity = nr_pages * page_size;
+  size_t virtual_space_size = page_capacity * 64;
 
   uint64_t *dev_buf1;
   uint64_t *dev_buf2;
@@ -55,11 +56,11 @@ main() {
   gpuErrchk(cudaMallocManaged(&dev_buf1, virtual_space_size));
   gpuErrchk(cudaMallocManaged(&dev_buf2, virtual_space_size));
 
-  dev_fd_t dev_fd = host_get_pagecache__for_test_evicting(virtual_space_size, page_capacity, dev_page_size);
+  dev_fd_t dev_fd = host_get_pagecache__for_test_evicting(virtual_space_size, page_capacity, page_size, nr_warps);
 
-  //device_xfer_geminifs_file<<<2, 32>>>(dev_fd, 0, dev_buf1, virtual_space_size, 0);
+  //device_xfer_geminifs_file<<<nr_warps, 32>>>(dev_fd, 0, dev_buf1, virtual_space_size, 0);
   //cudaDeviceSynchronize();
-  device_xfer_geminifs_file<<<108, 32>>>(dev_fd, 0, dev_buf2, virtual_space_size, 1);
+  device_xfer_geminifs_file<<<nr_warps, 32>>>(dev_fd, 0, dev_buf2, virtual_space_size, 1);
   cudaDeviceSynchronize();
 
   return 0;
