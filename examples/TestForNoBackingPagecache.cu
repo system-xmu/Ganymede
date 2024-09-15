@@ -49,8 +49,8 @@ main() {
   int page_size = 64 * (1ull << 10); /* 32k */
 
 
-  int nr_warps = 108;
-  size_t nr_pages = nr_warps * 32;
+  int nr_warps = NR_WARPS;
+  size_t nr_pages = nr_warps * NR_PAGES__PER_WARP;
   size_t capacity = nr_pages * page_size;
 
   gpuErrchk(cudaSetDevice(0));
@@ -82,7 +82,7 @@ main() {
       GpuTimer gpu_timer;
 
       gpu_timer.Start();
-      device_xfer_geminifs_file<<<nr_warps, 32>>>(dev_fd, va, dev_buf1, buf_size, 0);
+      device_xfer_geminifs_file<<<nr_warps, 32>>>(dev_fd, va, dev_buf1, buf_size, 0, NR_ACQUIRE_PAGES);
       gpu_timer.Stop();
 
       float time = gpu_timer.Elapsed();
@@ -96,7 +96,7 @@ main() {
       GpuTimer gpu_timer;
 
       gpu_timer.Start();
-      device_xfer_geminifs_file<<<nr_warps, 32>>>(dev_fd, va, dev_buf2, buf_size, 1);
+      device_xfer_geminifs_file<<<nr_warps, 32>>>(dev_fd, va, dev_buf2, buf_size, 1, NR_ACQUIRE_PAGES);
       gpu_timer.Stop();
 
       float time = gpu_timer.Elapsed();

@@ -4,8 +4,6 @@
 #include <ctime>
 #include "geminifs_api.cuh"
 
-__global__ void warmup() {}
-
 struct GpuTimer
 {
       cudaEvent_t start;
@@ -65,9 +63,6 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
 
 int
 main() {
-      warmup<<<1, 1>>>();
-      cudaDeviceSynchronize();
-
     host_open_all(
             snvme_control_path,
             snvme_path,
@@ -75,14 +70,15 @@ main() {
             nvme_mount_path,
             1,
             1024,
-            32);
+            64);
+
+    int nr_warps = NR_WARPS;
 
   size_t file_block_size = 4 * (1ull << 10);
   size_t dev_page_size = 128 * (1ull << 10);
 
 
-  size_t nr_pages = NR_PAGES;
-  //size_t virtual_space_size = 128 * (1ull << 20)/*MB*/;
+  size_t nr_pages = nr_warps * NR_PAGES__PER_WARP;
   size_t page_capacity = nr_pages * dev_page_size;
   size_t virtual_space_size = page_capacity * 8;
 
@@ -114,29 +110,11 @@ main() {
   //gpuErrchk(cudaMallocManaged(&dev_buf1, virtual_space_size));
   gpuErrchk(cudaMallocManaged(&dev_buf2, virtual_space_size));
 
-  //dev_fd_t dev_fd = host_open_geminifs_file_for_device(host_fd, page_capacity, dev_page_size);
-  //double elasped_time = ({
-  //        GpuTimer gputimer;
-  //        gputimer.Start();
-  //        device_xfer_geminifs_file<<<NR_WARPS, 32>>>(dev_fd, 0, dev_buf2, virtual_space_size, 1);
-  //        gputimer.Stop();
-  //        cudaDeviceSynchronize();
-  //        gputimer.Elapsed();
-  //});
-
-
-  dev_fd_t *dev_fds;
-  gpuErrchk(cudaMallocManaged(&dev_fds, NR_WARPS * sizeof(dev_fd_t)));
-  for (int i = 0; i < NR_WARPS; i++) {
-      dev_fds[i] = host_open_geminifs_file_for_device(
-              host_fd,
-              page_capacity / NR_WARPS,
-              dev_page_size);
-  }
+  dev_fd_t dev_fd = host_open_geminifs_file_for_device(host_fd, page_capacity, dev_page_size, nr_warps);
   double elasped_time = ({
           GpuTimer gputimer;
           gputimer.Start();
-          device_xfer_geminifs_file__batching_pagecache<<<NR_WARPS, 32>>>(dev_fds, 0, dev_buf2, virtual_space_size, 1);
+          device_xfer_geminifs_file<<<NR_WARPS, 32>>>(dev_fd, 0, dev_buf2, virtual_space_size, 1, NR_ACQUIRE_PAGES);
           gputimer.Stop();
           cudaDeviceSynchronize();
           gputimer.Elapsed();

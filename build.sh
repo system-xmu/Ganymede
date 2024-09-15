@@ -11,6 +11,7 @@
 
 # 2. For libgeminiFs.a
 cd libgeminiFs_src
+make clean
 make -j
 cd ..
 cp libgeminiFs_src/libgeminiFs.a ./build/lib
@@ -19,4 +20,4 @@ cp libgeminiFs_src/libgeminiFs.a ./build/lib
 # 3. For examples
 cd examples
 make clean
-make -j
+make -j CXXFLAGS="-DNR_WARPS=128 -DNR_ACQUIRE_PAGES=16 -DNR_PAGES__PER_WARP=256"
