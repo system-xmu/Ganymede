@@ -363,11 +363,13 @@ private:
     __device__ void
     __write_back(FilePageId filepage_id, void *ctrl, void *hdr, void *queue_acquire_helper) {
         this->__xfer(filepage_id, ctrl, hdr, queue_acquire_helper, 1);
+        printf("filepage_id[%llx] write back\n", filepage_id);
     }
 
     __device__ void
     __read_in(FilePageId filepage_id, void *ctrl, void *hdr, void *queue_acquire_helper) {
         this->__xfer(filepage_id, ctrl, hdr, queue_acquire_helper, 0);
+        printf("filepage_id[%llx] read in\n", filepage_id);
     }
 
     __device__ __forceinline__ void

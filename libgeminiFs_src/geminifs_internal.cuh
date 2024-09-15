@@ -69,13 +69,15 @@ public:
         }
     }
     __forceinline__ __device__ void
-    read_in__no_lock(void *info1, void *info2, void *info3) {
+    read_in__no_lock(void *info1, void *info2, void *info3,
+            int read_dummy/* For overwrite */) {
         if ((this->content_of != this->assigned_to) || this->state == CACHEPAGE_INVALID) {
             this->write_back__no_lock(info1, info2, info3);
 
             // Here, the state is INVALID or CLEAN
 
-            this->__read_in(this->assigned_to, info1, info2, info3);
+            if (!read_dummy)
+                this->__read_in(this->assigned_to, info1, info2, info3);
             this->content_of = this->assigned_to;
             this->state = CACHEPAGE_CLEAN;
             __threadfence();
@@ -122,7 +124,8 @@ public:
     acquire_pages__for_warp(
             const FilePageId *filepage_ids,
             CachePageId *cachepage_ids,
-            size_t nr_acquire_pages) = 0;
+            size_t nr_acquire_pages,
+            int will_overwrite/* no need to read in */) = 0;
 
     virtual __device__ void
     set_page_dirty__for_warp(FilePageId filepage_id, CachePageId cachepage_id) = 0;

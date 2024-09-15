@@ -187,15 +187,16 @@ public:
     acquire_pages__for_warp(
             const FilePageId *filepage_ids,
             CachePageId *cachepage_ids,
-            size_t nr_acquire_pages) override {
+            size_t nr_acquire_pages,
+            int will_overwrite) override {
         size_t n;
         uint32_t participating_mask = 0xffffffff;
         uint32_t warp_leader = 0;
         int lane = my_lane_id();
         if (lane == warp_leader) {
-            n = this->__acquire_page_for_warp_leader(filepage_ids, cachepage_ids, nr_acquire_pages);
+            n = this->__acquire_page_for_warp_leader(filepage_ids, cachepage_ids, nr_acquire_pages, will_overwrite);
         } else {
-            this->__acquire_page_for_warp_follower(warp_leader);
+            this->__acquire_page_for_warp_follower(warp_leader, will_overwrite);
         }
         n = __shfl_sync(participating_mask, n, warp_leader);
         return n;
@@ -276,11 +277,11 @@ private:
     __noinline__ /* warp converge needed */ __device__ void *
     shfl_ptr_in_warp(int warp_leader, void *p) {
         __syncwarp();
-	return (void *)__shfl_sync(0xffffffff, (uint64_t)p, warp_leader);
+	    return (void *)__shfl_sync(0xffffffff, (uint64_t)p, warp_leader);
     }
 
     __forceinline__ __device__ void
-    __acquire_page_for_warp_follower(int warp_leader) {
+    __acquire_page_for_warp_follower(int warp_leader, int will_overwrite) {
         FilePageId *prefetch_filepage_ids = (FilePageId *)this->shfl_ptr_in_warp(warp_leader, nullptr);
         CachePageId *prefetch_cachepage_ids = (CachePageId *)this->shfl_ptr_in_warp(warp_leader, nullptr);
         if (prefetch_cachepage_ids == nullptr)
@@ -291,11 +292,11 @@ private:
         CachePageId prefetch_cachepage_id = prefetch_cachepage_ids[lane];
 
         if (prefetch_filepage_id != -1 && prefetch_cachepage_id != -1) {
-            //printf("I'm follower[%d] filepage_id[%llx] cachepage_id[%llx]\n",
-            //        lane, prefetch_filepage_id, prefetch_cachepage_id);
+            printf("I'm follower[%d] filepage_id[%llx] cachepage_id[%llx]\n",
+                    lane, prefetch_filepage_id, prefetch_cachepage_id);
             __syncwarp();
             this->pages[prefetch_cachepage_id]->lock.acquire();
-            this->pages[prefetch_cachepage_id]->read_in__no_lock(this->info1, this->info2, this->info3);
+            this->pages[prefetch_cachepage_id]->read_in__no_lock(this->info1, this->info2, this->info3, will_overwrite ? 1 : 0);
             this->pages[prefetch_cachepage_id]->lock.release();
         } else {
             __syncwarp();
@@ -306,7 +307,8 @@ private:
     __acquire_page_for_warp_leader(
             const FilePageId *filepage_ids,
             CachePageId *cachepage_ids,
-            size_t nr_acquire_pages) {
+            size_t nr_acquire_pages,
+            int will_overwrite) {
 
         FilePageId filepage_id = filepage_ids[0];
         CachePageId ret;
@@ -336,7 +338,7 @@ private:
             this->shfl_ptr_in_warp(0, nullptr);
 
             this->pages[ret]->lock.acquire();
-            this->pages[ret]->read_in__no_lock(this->info1, this->info2, this->info3);
+            this->pages[ret]->read_in__no_lock(this->info1, this->info2, this->info3, 0);
             this->pages[ret]->lock.release();
 
             cachepage_ids[0] = ret;
@@ -402,6 +404,7 @@ private:
 
             __threadfence();
 
+
             // Let followers prefetch.
             this->shfl_ptr_in_warp(0, prefetch_filepage_ids);
             this->shfl_ptr_in_warp(0, prefetch_cachepage_ids);
@@ -411,7 +414,8 @@ private:
             __syncwarp();
 
             this->pages[ret]->lock.acquire();
-            this->pages[ret]->read_in__no_lock(this->info1, this->info2, this->info3);
+            this->pages[ret]->read_in__no_lock(this->info1, this->info2, this->info3,
+                    will_overwrite ? 1 : 0);
             this->pages[ret]->lock.release();
 
             cachepage_ids[0] = ret;
@@ -439,7 +443,7 @@ private:
         if (leaders_waiting_for_evicting == nullptr && !has_quota_to_wait) {
             this->pagecache_lock.release();
             __nanosleep(1000);
-            return this->__acquire_page_for_warp_leader(filepage_ids, cachepage_ids, nr_acquire_pages);
+            return this->__acquire_page_for_warp_leader(filepage_ids, cachepage_ids, nr_acquire_pages, will_overwrite);
         }
 
         if (leaders_waiting_for_evicting == nullptr && has_quota_to_wait) {
@@ -478,7 +482,8 @@ private:
         __threadfence();
         this->pagecache_lock.release();
         this->pages[ret]->lock.acquire();
-        this->pages[ret]->read_in__no_lock(this->info1, this->info2, this->info3);
+        this->pages[ret]->read_in__no_lock(this->info1, this->info2, this->info3,
+                will_overwrite ? 1 : 0);
         this->pages[ret]->lock.release();
         cachepage_ids[0] = ret;
         return 1;
@@ -679,7 +684,8 @@ public:
     acquire_pages__for_warp(
             const FilePageId *filepage_ids,
             CachePageId *cachepage_ids,
-            size_t nr_acquire_pages) override {
+            size_t nr_acquire_pages,
+            int will_overwrite) override {
         FilePageCacheLable l = filepage_ids[0] >> this->bit_num_pages__per_pagecache;
         size_t i;
         for (i = 0; i < nr_acquire_pages; i++) {
@@ -689,7 +695,7 @@ public:
         }
         //printf("first filepage id[%llx] batching %d\n", filepage_ids[0], i);
         PageCache *pagecache = this->file_pagecache_lable__to__pagecache[l];
-        return pagecache->acquire_pages__for_warp(filepage_ids, cachepage_ids, i);
+        return pagecache->acquire_pages__for_warp(filepage_ids, cachepage_ids, i, will_overwrite);
     }
 
     __device__ void
@@ -925,7 +931,7 @@ device_xfer_geminifs_file(dev_fd_t fd,
         // not across the boundary of pages and in one page copy
         if (tid == 0) {
             CachePageId cachepage_id;
-            pagecache->acquire_pages__for_warp(&begin, &cachepage_id, 1);
+            pagecache->acquire_pages__for_warp(&begin, &cachepage_id, 1, 0);
             uint8_t *cachepage_base = pagecache->get_raw_page_buf(begin, cachepage_id);
             if (is_read) {
                 memcpy(buf_dev, cachepage_base + PAGE_OFST(va, page_bit_num), nbyte);
@@ -943,7 +949,7 @@ device_xfer_geminifs_file(dev_fd_t fd,
             size_t n = PAGE_BASE__BY_ID(PAGE_ID(va, page_bit_num) + 1, page_bit_num) - va;
             if (tid == 0) {
                 CachePageId cachepage_id;
-                pagecache->acquire_pages__for_warp(&begin, &cachepage_id, 1);
+                pagecache->acquire_pages__for_warp(&begin, &cachepage_id, 1, 0);
                 uint8_t *cachepage_base = pagecache->get_raw_page_buf(begin, cachepage_id);
                 if (is_read) {
                     memcpy(buf_dev, cachepage_base + PAGE_OFST(va, page_bit_num), n);
@@ -963,7 +969,7 @@ device_xfer_geminifs_file(dev_fd_t fd,
             size_t n = (va + nbyte) - PAGE_BASE(va + nbyte, page_bit_num);
             if (tid == 0) {
                 CachePageId cachepage_id;
-                pagecache->acquire_pages__for_warp(&inclusive_end, &cachepage_id, 1);
+                pagecache->acquire_pages__for_warp(&inclusive_end, &cachepage_id, 1, 0);
                 uint8_t *cachepage_base = pagecache->get_raw_page_buf(inclusive_end, cachepage_id);
                 uint8_t *dist_start = buf_dev + (nbyte - n);
                 if (is_read) {
@@ -1040,7 +1046,8 @@ device_xfer_geminifs_file(dev_fd_t fd,
         int nr_have_been_acquires = pagecache->acquire_pages__for_warp(
                 filepage_ids,
                 cachepage_ids,
-                i);
+                i,
+                is_read ? 0 : 1);
         filepage_id += nr_have_been_acquires;
 
         for (i = 0; i < nr_have_been_acquires; i++) {
