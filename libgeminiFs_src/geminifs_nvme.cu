@@ -234,11 +234,17 @@ host_open_geminifs_file_for_device_1(
         int pagecache_batching_size) {
     struct geminiFS_hdr *hdr = host_fd;
     size_t file_size = hdr->virtual_space_size;
-    assert(file_size % (pagecache_batching_size * page_size)== 0);
-    size_t file_size__per_pagecache = file_size / pagecache_batching_size;
 
     assert(file_size % page_size == 0);
     size_t nr_filepages = file_size / page_size;
+
+    if (file_size % (pagecache_batching_size * page_size) != 0)
+	    return host_open_geminifs_file_for_device_1(
+			    host_fd, cache_ratio, page_size, pagecache_batching_size / 2);
+
+    assert(file_size % (pagecache_batching_size * page_size) == 0);
+    size_t file_size__per_pagecache = file_size / pagecache_batching_size;
+
 
     size_t suggested_pagecache_capacity = file_size * cache_ratio;
 
