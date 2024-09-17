@@ -292,8 +292,8 @@ private:
         CachePageId prefetch_cachepage_id = prefetch_cachepage_ids[lane];
 
         if (prefetch_filepage_id != -1 && prefetch_cachepage_id != -1) {
-            printf("I'm follower[%d] filepage_id[%llx] cachepage_id[%llx]\n",
-                    lane, prefetch_filepage_id, prefetch_cachepage_id);
+            //printf("I'm follower[%d] filepage_id[%llx] cachepage_id[%llx]\n",
+            //        lane, prefetch_filepage_id, prefetch_cachepage_id);
             __syncwarp();
             this->pages[prefetch_cachepage_id]->lock.acquire();
             this->pages[prefetch_cachepage_id]->read_in__no_lock(this->info1, this->info2, this->info3, will_overwrite ? 1 : 0);
@@ -897,9 +897,12 @@ device_xfer_geminifs_file(dev_fd_t fd,
     size_t nr_thread_per_block = blockDim.x;
     size_t nr_warp__per_block = nr_thread_per_block / 32;
     size_t warp_id__in_block = threadIdx.x / 32;
-    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    //int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    int lane = my_lane_id();
 
     assert(0 < nr_warp__per_block); // Every warp must hold 32 threads
+
+    assert(32 == blockDim.x); // one warp per block
 
     if (nr_warp__per_block <= warp_id__in_block)
         // drop less-32-thread warp
@@ -921,7 +924,7 @@ device_xfer_geminifs_file(dev_fd_t fd,
 #define PAGE_OFST(vaddr, pg_bit) ((vaddr) & (PAGE_SIZE(pg_bit) - 1))
 
     __shared__ FilePageId begin, exclusive_end, inclusive_end;
-    if (tid == 0) {
+    if (lane == 0) {
         begin = PAGE_ID(va, page_bit_num);
         exclusive_end = PAGE_ID(va + nbyte, page_bit_num);
         inclusive_end = exclusive_end - 1;
@@ -936,7 +939,7 @@ device_xfer_geminifs_file(dev_fd_t fd,
         // not across the boundary of pages and in one page copy
 	__shared__ CachePageId cachepage_id;
 	pagecache->acquire_pages__for_warp(&begin, &cachepage_id, 1, 0);
-        if (tid == 0) {
+        if (lane == 0) {
             uint8_t *cachepage_base = pagecache->get_raw_page_buf(begin, cachepage_id);
             if (is_read)
                 memcpy(buf_dev, cachepage_base + PAGE_OFST(va, page_bit_num), nbyte);
@@ -955,7 +958,7 @@ device_xfer_geminifs_file(dev_fd_t fd,
             size_t n = PAGE_BASE__BY_ID(PAGE_ID(va, page_bit_num) + 1, page_bit_num) - va;
             __shared__ CachePageId cachepage_id;
             pagecache->acquire_pages__for_warp(&begin, &cachepage_id, 1, 0);
-            if (tid == 0) {
+            if (lane == 0) {
                 uint8_t *cachepage_base = pagecache->get_raw_page_buf(begin, cachepage_id);
                 if (is_read)
                     memcpy(buf_dev, cachepage_base + PAGE_OFST(va, page_bit_num), n);
@@ -976,7 +979,7 @@ device_xfer_geminifs_file(dev_fd_t fd,
             size_t n = (va + nbyte) - PAGE_BASE(va + nbyte, page_bit_num);
             __shared__ CachePageId cachepage_id;
             pagecache->acquire_pages__for_warp(&inclusive_end, &cachepage_id, 1, 0);
-            if (tid == 0) {
+            if (lane == 0) {
 		//printf("the last non-full page last byte 0x[%llx]\n", n);
                 uint8_t *cachepage_base = pagecache->get_raw_page_buf(inclusive_end, cachepage_id);
                 uint8_t *dist_start = buf_dev + (nbyte - n);
@@ -998,7 +1001,7 @@ device_xfer_geminifs_file(dev_fd_t fd,
     assert(PAGE_OFST(va + nbyte, page_bit_num) == 0);
     //printf("va[0x%llx] nr_bytes[0x%llx]\n", va, nbyte);
 
-    if (tid == 0) {
+    if (lane == 0) {
         begin = PAGE_ID(va, page_bit_num);
         exclusive_end = PAGE_ID(va + nbyte, page_bit_num);
         inclusive_end = exclusive_end - 1;
@@ -1031,17 +1034,16 @@ device_xfer_geminifs_file(dev_fd_t fd,
     if (exclusive_end__block < exclusive_end__warp)
         exclusive_end__warp = exclusive_end__block;
 
-    __syncwarp(0xffffffff);
     uint32_t participating_mask = __activemask();
     participating_mask = __match_any_sync(participating_mask, begin__warp);
     int page_size = PAGE_SIZE(page_bit_num);
 
 
-    size_t warp_id__overview = warp_id__in_block + nr_warp__per_block * block_id;
-    if (0 == my_lane_id()) {
-	    printf("I'm warp %llx (in-block id %llx) threadIdx.x %llx, I account for [%llx, %llx). participating_mask[%llx]\n",
-			    warp_id__overview, warp_id__in_block, threadIdx.x, begin__warp, exclusive_end__warp, (uint64_t)participating_mask);
-    }
+    //size_t warp_id__overview = warp_id__in_block + nr_warp__per_block * block_id;
+    //if (0 == my_lane_id()) {
+    //        printf("I'm warp %llx (in-block id %llx) threadIdx.x %llx, I account for [%llx, %llx). participating_mask[%llx]\n",
+    //    		    warp_id__overview, warp_id__in_block, threadIdx.x, begin__warp, exclusive_end__warp, (uint64_t)participating_mask);
+    //}
 
     __shared__ FilePageId filepage_ids[32];
     __shared__ CachePageId cachepage_ids[32];
