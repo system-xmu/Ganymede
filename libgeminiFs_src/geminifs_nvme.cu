@@ -250,6 +250,10 @@ host_open_geminifs_file_for_device_1(
 		cur_pagecache_capacity - suggested_pagecache_capacity;
 	printf("suggested_pagecache_capacity[%llx] cur_pagecache_capacity[%llx] cur_detal[%llx]\n", suggested_pagecache_capacity, cur_pagecache_capacity, cur_detal);
 
+	if (!(nr_filepages % nr_pages__per_pagecache == 0))
+		// invalid
+		continue;
+
 	if (cur_detal < detal) {
 		pagecache_capacity = cur_pagecache_capacity;
 		detal = cur_detal;
