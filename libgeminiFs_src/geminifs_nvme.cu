@@ -242,11 +242,11 @@ host_open_geminifs_file_for_device_1(
 
     size_t suggested_pagecache_capacity = file_size * cache_ratio;
 
-    size_t pagecache_capacity;
+    size_t pagecache_capacity = 0;
     size_t detal = -1;
     size_t nr_pages__per_pagecache = 1;
     for (size_t nr_pages__per_pagecache = 1;
-        nr_pages__per_pagecache * pagecache_batching_size * page_size < file_size;
+        nr_pages__per_pagecache * pagecache_batching_size * page_size <= file_size;
         nr_pages__per_pagecache <<= 1) {
 	size_t cur_pagecache_capacity = nr_pages__per_pagecache * pagecache_batching_size * page_size;
 	size_t cur_detal = cur_pagecache_capacity < suggested_pagecache_capacity ?
@@ -264,7 +264,16 @@ host_open_geminifs_file_for_device_1(
 	}
     }
     printf("pagecache_capacity[%llx]\n", pagecache_capacity);
-    return host_open_geminifs_file_for_device(host_fd, pagecache_capacity, page_size, pagecache_batching_size);
+    if (pagecache_capacity == 0)
+	    return host_open_geminifs_file_for_device_1(host_fd,
+			    cache_ratio,
+			    page_size,
+			    pagecache_batching_size / 2);
+    else
+	    return host_open_geminifs_file_for_device(host_fd,
+			    pagecache_capacity,
+			    page_size,
+			    pagecache_batching_size);
 }
 
 dev_fd_t
