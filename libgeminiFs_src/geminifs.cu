@@ -926,9 +926,11 @@ device_xfer_geminifs_file(dev_fd_t fd,
         exclusive_end = PAGE_ID(va + nbyte, page_bit_num);
         inclusive_end = exclusive_end - 1;
     }
+    __syncwarp();
 
     //printf("va[0x%llx] nr_bytes[0x%llx]\n", va, nbyte);
     //printf("begin[0x%llx] exclusive_end[0x%llx] inclusive_end[0x%llx]\n", begin, exclusive_end, inclusive_end);
+
 
     if (begin == exclusive_end) {
         // not across the boundary of pages and in one page copy
@@ -941,6 +943,7 @@ device_xfer_geminifs_file(dev_fd_t fd,
             else
                 memcpy(cachepage_base + PAGE_OFST(va, page_bit_num), buf_dev, nbyte);
         }
+	__syncwarp();
 	if (!is_read)
             pagecache->set_page_dirty__for_warp(begin, cachepage_id);
         pagecache->release_page__for_warp(begin);
@@ -959,6 +962,7 @@ device_xfer_geminifs_file(dev_fd_t fd,
                 else
                     memcpy(cachepage_base + PAGE_OFST(va, page_bit_num), buf_dev, n);
             }
+	    __syncwarp();
 	    if (!is_read)
                 pagecache->set_page_dirty__for_warp(begin, cachepage_id);
             pagecache->release_page__for_warp(begin);
@@ -981,6 +985,7 @@ device_xfer_geminifs_file(dev_fd_t fd,
                 else
                     memcpy(cachepage_base, dist_start, n);
             }
+	    __syncwarp();
 	    if (!is_read)
                 pagecache->set_page_dirty__for_warp(inclusive_end, cachepage_id);
             pagecache->release_page__for_warp(inclusive_end);
@@ -998,6 +1003,7 @@ device_xfer_geminifs_file(dev_fd_t fd,
         exclusive_end = PAGE_ID(va + nbyte, page_bit_num);
         inclusive_end = exclusive_end - 1;
     }
+    __syncwarp();
 
     size_t nr_page = exclusive_end - begin;
     size_t nr_page__per_block = nr_page / nr_block;
@@ -1025,17 +1031,17 @@ device_xfer_geminifs_file(dev_fd_t fd,
     if (exclusive_end__block < exclusive_end__warp)
         exclusive_end__warp = exclusive_end__block;
 
-    __syncwarp();
+    __syncwarp(0xffffffff);
     uint32_t participating_mask = __activemask();
     participating_mask = __match_any_sync(participating_mask, begin__warp);
     int page_size = PAGE_SIZE(page_bit_num);
 
 
-    //size_t warp_id__overview = warp_id__in_block + nr_warp__per_block * block_id;
-    //if (0 == my_lane_id()) {
-    //printf("I'm warp %llx (in-block id %llx) threadIdx.x %llx, I account for [%llx, %llx)\n",
-    //        warp_id__overview, warp_id__in_block, threadIdx.x, begin__warp, exclusive_end__warp);
-    //}
+    size_t warp_id__overview = warp_id__in_block + nr_warp__per_block * block_id;
+    if (0 == my_lane_id()) {
+	    printf("I'm warp %llx (in-block id %llx) threadIdx.x %llx, I account for [%llx, %llx). participating_mask[%llx]\n",
+			    warp_id__overview, warp_id__in_block, threadIdx.x, begin__warp, exclusive_end__warp, (uint64_t)participating_mask);
+    }
 
     __shared__ FilePageId filepage_ids[32];
     __shared__ CachePageId cachepage_ids[32];
