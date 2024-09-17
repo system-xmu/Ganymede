@@ -171,7 +171,8 @@ private:
                 if (this->nr_nvme_cmds != 0 &&
                         (this->nvme_cmds[this->nr_nvme_cmds - 1].nvme_ofst
                          + this->nvme_cmds[this->nr_nvme_cmds - 1].size
-                         == nvme_ofst)) {
+                         == nvme_ofst) &&
+                        this->nvme_cmds[this->nr_nvme_cmds - 1].size < 128 * (1ull << 10)) {
                     this->nvme_cmds[this->nr_nvme_cmds - 1].size += file_block_size;
                 } else {
                     this->nvme_cmds[this->nr_nvme_cmds].nvme_ofst = nvme_ofst;

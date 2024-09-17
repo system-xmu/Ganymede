@@ -900,6 +900,8 @@ device_xfer_geminifs_file(dev_fd_t fd,
     //int tid = blockIdx.x * blockDim.x + threadIdx.x;
     int lane = my_lane_id();
 
+    assert(0 < nr_acquire_pages);
+
     assert(0 < nr_warp__per_block); // Every warp must hold 32 threads
 
     assert(32 == blockDim.x); // one warp per block
