@@ -237,6 +237,9 @@ host_open_geminifs_file_for_device_1(
     assert(file_size % (pagecache_batching_size * page_size)== 0);
     size_t file_size__per_pagecache = file_size / pagecache_batching_size;
 
+    assert(file_size % page_size == 0);
+    size_t nr_filepages = file_size / page_size;
+
     size_t suggested_pagecache_capacity = file_size * cache_ratio;
 
     size_t pagecache_capacity;
