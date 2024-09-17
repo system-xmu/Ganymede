@@ -657,7 +657,6 @@ private:
     size_t nr_zero_pages;
 };
 
-using FilePageCacheLable = size_t;
 class Batching_PageCache: public PageCache {
 public:
     __device__
@@ -666,13 +665,11 @@ public:
             PageCache **pagecaches,
             int pagecache_batching_size,
             int nr_pages__per_pagecache,
-            PageCache **file_pagecache_lable__to__pagecache) {
+            PageCache **filepage_id__to__pagecache) {
         this->page_size = page_size;
         this->pagecaches = pagecaches;
         this->pagecache_batching_size = pagecache_batching_size;
-        assert(__popc(nr_pages__per_pagecache) == 1); // which is power of 2
-        this->bit_num_pages__per_pagecache = __popc(nr_pages__per_pagecache - 1);
-        this->file_pagecache_lable__to__pagecache = file_pagecache_lable__to__pagecache;
+        this->filepage_id__to__pagecache = filepage_id__to__pagecache;
     }
 
     __device__ virtual
@@ -686,15 +683,14 @@ public:
             CachePageId *cachepage_ids,
             size_t nr_acquire_pages,
             int will_overwrite) override {
-        FilePageCacheLable l = filepage_ids[0] >> this->bit_num_pages__per_pagecache;
+        PageCache *pagecache = this->filepage_id__to__pagecache[filepage_ids[0]];
         size_t i;
         for (i = 0; i < nr_acquire_pages; i++) {
-            FilePageCacheLable l1 = filepage_ids[i] >> this->bit_num_pages__per_pagecache;
-            if (l != l1)
+            PageCache *pagecache1 = this->filepage_id__to__pagecache[filepage_ids[i]];
+            if (pagecache != pagecache1)
                 break;
         }
         //printf("first filepage id[%llx] batching %d\n", filepage_ids[0], i);
-        PageCache *pagecache = this->file_pagecache_lable__to__pagecache[l];
         return pagecache->acquire_pages__for_warp(filepage_ids, cachepage_ids, i, will_overwrite);
     }
 
@@ -702,16 +698,14 @@ public:
     set_page_dirty__for_warp(
             FilePageId filepage_id,
             CachePageId cachepage_id) override {
-        FilePageCacheLable l = filepage_id >> this->bit_num_pages__per_pagecache;
-        PageCache *pagecache = this->file_pagecache_lable__to__pagecache[l];
+        PageCache *pagecache = this->filepage_id__to__pagecache[filepage_id];
         pagecache->set_page_dirty__for_warp(filepage_id, cachepage_id);
     }
 
     __device__ void
     release_page__for_warp(
             FilePageId filepage_id) override {
-        FilePageCacheLable l = filepage_id >> this->bit_num_pages__per_pagecache;
-        PageCache *pagecache = this->file_pagecache_lable__to__pagecache[l];
+        PageCache *pagecache = this->filepage_id__to__pagecache[filepage_id];
         pagecache->release_page__for_warp(filepage_id);
     }
 
@@ -725,8 +719,7 @@ public:
     get_raw_page_buf(
             FilePageId filepage_id,
             CachePageId cachepage_id) override {
-        FilePageCacheLable l = filepage_id >> this->bit_num_pages__per_pagecache;
-        PageCache *pagecache = this->file_pagecache_lable__to__pagecache[l];
+        PageCache *pagecache = this->filepage_id__to__pagecache[filepage_id];
         return pagecache->get_raw_page_buf(filepage_id, cachepage_id);
     }
 
@@ -742,8 +735,7 @@ private:
     int page_size;
     PageCache **pagecaches;
     int pagecache_batching_size;
-    int bit_num_pages__per_pagecache;
-    PageCache **file_pagecache_lable__to__pagecache;
+    PageCache **filepage_id__to__pagecache;
 };
 
 __host__ PageCache *
@@ -793,32 +785,21 @@ __internal__get_batched_pagecache(
     assert(virtual_space_size % page_size == 0);
     FilePageId nr_filepages = virtual_space_size / page_size;
 
+    PageCache **filepage_id__to__pagecache;
+    gpuErrchk(cudaMalloc(&filepage_id__to__pagecache,
+                nr_filepages * sizeof(PageCache *)));
 
-    assert(one_nr__of__binary_int(nr_pages__per_pagecache) == 1); // which is power of 2
-    int bit_num_pages__per_pagecache = one_nr__of__binary_int(nr_pages__per_pagecache - 1);
+    assert(nr_filepages % pagecache_batching_size == 0);
+    size_t nr_filepages__per_pagecache = nr_filepages / pagecache_batching_size;
 
-
-    assert(nr_filepages % nr_pages__per_pagecache == 0);
-    FilePageCacheLable nr_file_pagecache_lables = nr_filepages / nr_pages__per_pagecache;
-
-    PageCache **file_pagecache_lable__to__pagecache;
-    gpuErrchk(cudaMalloc(&file_pagecache_lable__to__pagecache,
-                nr_file_pagecache_lables * sizeof(PageCache *)));
-
-    size_t nr_lables__per_pagecache = nr_file_pagecache_lables / pagecache_batching_size;
-    //printf("nr_pages__per_pagecache[%llx] bit_nr[%d]\n",
-    //    (size_t)nr_pages__per_pagecache, bit_num_pages__per_pagecache);
-    //printf("nr_file_pagecache_lables[%llx]\n", nr_file_pagecache_lables);
-    //printf("nr_lables__per_pagecache[%llx]\n", nr_lables__per_pagecache);
-    //printf("pagecache_batching_size[%llx]\n", (size_t)pagecache_batching_size);
     RUN_ON_DEVICE({
         for (size_t idx_pagecache = 0;
                 idx_pagecache < pagecache_batching_size;
                 idx_pagecache++) {
 	    pagecaches[idx_pagecache]->__set_filepage_id_base(
-	        (idx_pagecache * nr_lables__per_pagecache) << bit_num_pages__per_pagecache);
-            for (size_t i = 0; i < nr_lables__per_pagecache; i++)
-                file_pagecache_lable__to__pagecache[idx_pagecache * nr_lables__per_pagecache + i] = pagecaches[idx_pagecache];
+                idx_pagecache * nr_filepages__per_pagecache);
+            for (size_t i = 0; i < nr_filepages__per_pagecache; i++)
+                filepage_id__to__pagecache[idx_pagecache * nr_filepages__per_pagecache + i] = pagecaches[idx_pagecache];
 	}
 
         new (batching_pagecache) Batching_PageCache (
@@ -826,7 +807,7 @@ __internal__get_batched_pagecache(
                 pagecaches,
                 pagecache_batching_size,
                 nr_pages__per_pagecache,
-                file_pagecache_lable__to__pagecache);
+                filepage_id__to__pagecache);
     });
     return batching_pagecache;
 }
