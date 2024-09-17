@@ -226,6 +226,40 @@ host_close_all() {
 }
 
 dev_fd_t
+host_open_geminifs_file_for_device_1(
+        host_fd_t host_fd,
+	double cache_ratio,
+        int page_size,
+        int pagecache_batching_size) {
+    struct geminiFS_hdr *hdr = host_fd;
+    size_t file_size = hdr->virtual_space_size;
+    assert(file_size % (pagecache_batching_size * page_size)== 0);
+    size_t file_size__per_pagecache = file_size / pagecache_batching_size;
+
+    size_t suggested_pagecache_capacity = file_size * cache_ratio;
+
+    size_t pagecache_capacity;
+    size_t detal = -1;
+    size_t nr_pages__per_pagecache = 1;
+    for (size_t nr_pages__per_pagecache = 1;
+        nr_pages__per_pagecache * pagecache_batching_size * page_size < file_size;
+        nr_pages__per_pagecache <<= 1) {
+	size_t cur_pagecache_capacity = nr_pages__per_pagecache * pagecache_batching_size * page_size;
+	size_t cur_detal = cur_pagecache_capacity < suggested_pagecache_capacity ?
+		suggested_pagecache_capacity - cur_pagecache_capacity :
+		cur_pagecache_capacity - suggested_pagecache_capacity;
+	printf("suggested_pagecache_capacity[%llx] cur_pagecache_capacity[%llx] cur_detal[%llx]\n", suggested_pagecache_capacity, cur_pagecache_capacity, cur_detal);
+
+	if (cur_detal < detal) {
+		pagecache_capacity = cur_pagecache_capacity;
+		detal = cur_detal;
+	}
+    }
+    printf("pagecache_capacity[%llx]\n", pagecache_capacity);
+    return host_open_geminifs_file_for_device(host_fd, pagecache_capacity, page_size, pagecache_batching_size);
+}
+
+dev_fd_t
 host_open_geminifs_file_for_device(
         host_fd_t host_fd,
         uint64_t pagecache_capacity,

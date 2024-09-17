@@ -832,7 +832,6 @@ __internal__get_batched_pagecache(
 }
 
 
-
 dev_fd_t
 host_open_geminifs_file_for_device_without_backing_file(
         int page_size,
@@ -910,9 +909,6 @@ device_xfer_geminifs_file(dev_fd_t fd,
     size_t nr_thread_in_the_warp = __popc(__activemask());
     assert(nr_thread_in_the_warp == 32);
 
-
-
-
     uint8_t *buf_dev = (uint8_t *)buf_dev_1;
 
     PageCache *pagecache = (PageCache *)fd;
@@ -924,41 +920,48 @@ device_xfer_geminifs_file(dev_fd_t fd,
 #define PAGE_BASE__BY_ID(pg_id, pg_bit) ((pg_id) << (pg_bit))
 #define PAGE_OFST(vaddr, pg_bit) ((vaddr) & (PAGE_SIZE(pg_bit) - 1))
 
-    FilePageId begin = PAGE_ID(va, page_bit_num);
-    FilePageId exclusive_end = PAGE_ID(va + nbyte, page_bit_num);
-    FilePageId inclusive_end = exclusive_end - 1;
+    __shared__ FilePageId begin, exclusive_end, inclusive_end;
+    if (tid == 0) {
+        begin = PAGE_ID(va, page_bit_num);
+        exclusive_end = PAGE_ID(va + nbyte, page_bit_num);
+        inclusive_end = exclusive_end - 1;
+    }
+
+    //printf("va[0x%llx] nr_bytes[0x%llx]\n", va, nbyte);
+    //printf("begin[0x%llx] exclusive_end[0x%llx] inclusive_end[0x%llx]\n", begin, exclusive_end, inclusive_end);
+
     if (begin == exclusive_end) {
         // not across the boundary of pages and in one page copy
+	__shared__ CachePageId cachepage_id;
+	pagecache->acquire_pages__for_warp(&begin, &cachepage_id, 1, 0);
         if (tid == 0) {
-            CachePageId cachepage_id;
-            pagecache->acquire_pages__for_warp(&begin, &cachepage_id, 1, 0);
             uint8_t *cachepage_base = pagecache->get_raw_page_buf(begin, cachepage_id);
-            if (is_read) {
+            if (is_read)
                 memcpy(buf_dev, cachepage_base + PAGE_OFST(va, page_bit_num), nbyte);
-            } else {
+            else
                 memcpy(cachepage_base + PAGE_OFST(va, page_bit_num), buf_dev, nbyte);
-                pagecache->set_page_dirty__for_warp(begin, cachepage_id);
-            }
-            pagecache->release_page__for_warp(begin);
         }
+	if (!is_read)
+            pagecache->set_page_dirty__for_warp(begin, cachepage_id);
+        pagecache->release_page__for_warp(begin);
         return;
     } else {
         // across the boundary of pages, and we deal non-full pages
         if (PAGE_OFST(va, page_bit_num) != 0) {
             // the first non-full page
             size_t n = PAGE_BASE__BY_ID(PAGE_ID(va, page_bit_num) + 1, page_bit_num) - va;
+            __shared__ CachePageId cachepage_id;
+            pagecache->acquire_pages__for_warp(&begin, &cachepage_id, 1, 0);
             if (tid == 0) {
-                CachePageId cachepage_id;
-                pagecache->acquire_pages__for_warp(&begin, &cachepage_id, 1, 0);
                 uint8_t *cachepage_base = pagecache->get_raw_page_buf(begin, cachepage_id);
-                if (is_read) {
+                if (is_read)
                     memcpy(buf_dev, cachepage_base + PAGE_OFST(va, page_bit_num), n);
-                } else {
+                else
                     memcpy(cachepage_base + PAGE_OFST(va, page_bit_num), buf_dev, n);
-                    pagecache->set_page_dirty__for_warp(begin, cachepage_id);
-                }
-                pagecache->release_page__for_warp(begin);
             }
+	    if (!is_read)
+                pagecache->set_page_dirty__for_warp(begin, cachepage_id);
+            pagecache->release_page__for_warp(begin);
             va += n;
             buf_dev += n;
             nbyte -= n;
@@ -967,19 +970,20 @@ device_xfer_geminifs_file(dev_fd_t fd,
         if (PAGE_OFST(va + nbyte, page_bit_num) != 0) {
             // the last non-full page
             size_t n = (va + nbyte) - PAGE_BASE(va + nbyte, page_bit_num);
+            __shared__ CachePageId cachepage_id;
+            pagecache->acquire_pages__for_warp(&inclusive_end, &cachepage_id, 1, 0);
             if (tid == 0) {
-                CachePageId cachepage_id;
-                pagecache->acquire_pages__for_warp(&inclusive_end, &cachepage_id, 1, 0);
+		//printf("the last non-full page last byte 0x[%llx]\n", n);
                 uint8_t *cachepage_base = pagecache->get_raw_page_buf(inclusive_end, cachepage_id);
                 uint8_t *dist_start = buf_dev + (nbyte - n);
-                if (is_read) {
+                if (is_read)
                     memcpy(dist_start, cachepage_base, n);
-                } else {
+                else
                     memcpy(cachepage_base, dist_start, n);
-                    pagecache->set_page_dirty__for_warp(inclusive_end, cachepage_id);
-                }
-                pagecache->release_page__for_warp(inclusive_end);
             }
+	    if (!is_read)
+                pagecache->set_page_dirty__for_warp(inclusive_end, cachepage_id);
+            pagecache->release_page__for_warp(inclusive_end);
             nbyte -= n;
         }
 
@@ -987,10 +991,13 @@ device_xfer_geminifs_file(dev_fd_t fd,
 
     assert(PAGE_OFST(va, page_bit_num) == 0);
     assert(PAGE_OFST(va + nbyte, page_bit_num) == 0);
+    //printf("va[0x%llx] nr_bytes[0x%llx]\n", va, nbyte);
 
-    begin = PAGE_ID(va, page_bit_num);
-    exclusive_end = PAGE_ID(va + nbyte, page_bit_num);
-
+    if (tid == 0) {
+        begin = PAGE_ID(va, page_bit_num);
+        exclusive_end = PAGE_ID(va + nbyte, page_bit_num);
+        inclusive_end = exclusive_end - 1;
+    }
 
     size_t nr_page = exclusive_end - begin;
     size_t nr_page__per_block = nr_page / nr_block;

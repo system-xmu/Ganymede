@@ -64,6 +64,16 @@ host_for_each_table_entry(host_fd_t fd,
   munmap(file_mmap, hdr->first_block_base);
 }
 
+#define ROUND_UP(x, align)(((uint64_t) (x) + ((uint64_t)align - 1)) & ~((uint64_t)align - 1))
+host_fd_t
+host_create_geminifs_file_1(const char *filename,
+                          uint64_t block_size,
+			  uint64_t page_size,
+                          uint64_t virtual_space_size) {
+	return host_create_geminifs_file(filename, block_size, ROUND_UP(virtual_space_size, page_size));
+}
+
+
 host_fd_t
 host_create_geminifs_file(const char *filename,
                           uint64_t block_size,
@@ -75,10 +85,9 @@ host_create_geminifs_file(const char *filename,
 
   hdr = malloc(sizeof(struct geminiFS_hdr));
   hdr->magic_num = the_geminiFS_magic.magic_num;
-  hdr->virtual_space_size = virtual_space_size;
+  hdr->virtual_space_size = ROUND_UP(virtual_space_size, block_size);
   hdr->block_bit = one_nr__of__binary_int(block_size - 1);
   hdr->nr_l1 = hdr->virtual_space_size >> hdr->block_bit;
-#define ROUND_UP(x, align)(((uint64_t) (x) + ((uint64_t)align - 1)) & ~((uint64_t)align - 1))
   hdr->first_block_base = ROUND_UP(sizeof(struct geminiFS_hdr) + sizeof(nvme_ofst_t) * hdr->nr_l1, block_size);
 
   fd = open(filename, O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);

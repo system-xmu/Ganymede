@@ -47,6 +47,11 @@ extern host_fd_t
 host_create_geminifs_file(const char *filename,
                           uint64_t block_size,
                           uint64_t virtual_space_size);
+extern host_fd_t
+host_create_geminifs_file_1(const char *filename,
+                          uint64_t block_size,
+                          uint64_t page_size,
+                          uint64_t virtual_space_size);
 
 extern host_fd_t
 host_open_geminifs_file(const char *filename);
@@ -72,6 +77,13 @@ extern dev_fd_t
 host_open_geminifs_file_for_device(
         host_fd_t host_fd,
         uint64_t pagecache_capacity,
+        int page_size,
+        int pagecache_batching_size);
+
+extern dev_fd_t
+host_open_geminifs_file_for_device_1(
+        host_fd_t host_fd,
+        double cache_ratio,
         int page_size,
         int pagecache_batching_size);
 
